@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPatch } from "../../../lib/api";
-import type { Candidate } from "../../../components/types";
+import type { Candidate, CandidateStatus } from "../../../components/types";
 
 type CandidateForm = {
   name: string;
   email: string;
   phone: string;
+  status: CandidateStatus;
   years_of_experience: string;
   skills_text: string;
   education_text: string;
@@ -16,11 +17,18 @@ type CandidateForm = {
   summary: string;
 };
 
+const STATUS_OPTIONS: CandidateStatus[] = ["new", "shortlisted", "interview", "rejected"];
+
+function formatStatus(status: string) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
 function toForm(c: Candidate): CandidateForm {
   return {
     name: c.name || "",
     email: c.email || "",
     phone: c.phone || "",
+    status: c.status || "new",
     years_of_experience: c.years_of_experience?.toString() || "",
     skills_text: (c.skills || []).join(", "),
     education_text: (c.education || []).join("\n"),
@@ -98,6 +106,7 @@ export default function CandidateDetailPage({
         name: form.name || null,
         email: form.email || null,
         phone: form.phone || null,
+        status: form.status,
         years_of_experience: form.years_of_experience
           ? Number(form.years_of_experience)
           : null,
@@ -163,6 +172,16 @@ export default function CandidateDetailPage({
             <input value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
           </div>
           <div>
+            <label>Status</label>
+            <select value={form.status} onChange={(e) => updateField("status", e.target.value)}>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {formatStatus(s)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label>Years of experience</label>
             <input
               type="number"
@@ -219,12 +238,21 @@ export default function CandidateDetailPage({
       </div>
 
       <div className="card">
+        <h3>Current Pipeline Status</h3>
+        <p>
+          <span className={`status-badge status-${candidate.status || "new"}`}>
+            {formatStatus(candidate.status || "new")}
+          </span>
+        </p>
+      </div>
+
+      <div className="card">
         <h3>Uploaded CV Files</h3>
         {candidate.files?.length ? (
           <ul>
             {candidate.files.map((f) => (
               <li key={f.id}>
-                <a href={f.file_url} target="_blank">
+                <a href={f.file_url} target="_blank" rel="noreferrer">
                   {f.original_filename}
                 </a>
               </li>

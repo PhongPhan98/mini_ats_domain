@@ -1,3 +1,5 @@
+export type CandidateStatus = "new" | "shortlisted" | "interview" | "rejected";
+
 export type CandidateFile = {
   id: number;
   file_url: string;
@@ -10,6 +12,7 @@ export type Candidate = {
   name?: string;
   email?: string;
   phone?: string;
+  status: CandidateStatus;
   skills: string[];
   years_of_experience?: number;
   education: string[];

@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { apiGet } from "../lib/api";
-import type { Analytics, Candidate } from "../components/types";
+import type { Analytics, Candidate, CandidateStatus } from "../components/types";
 
 type SearchParams = {
   keyword?: string;
   skills?: string;
   min_experience?: string;
+  status?: CandidateStatus | "";
 };
+
+const STATUS_OPTIONS: CandidateStatus[] = ["new", "shortlisted", "interview", "rejected"];
+
+function formatStatus(status: string) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 
 function buildCandidateQuery(searchParams: SearchParams) {
   const qp = new URLSearchParams();
@@ -17,10 +24,12 @@ function buildCandidateQuery(searchParams: SearchParams) {
     .map((s) => s.trim())
     .filter(Boolean);
   const minExp = (searchParams.min_experience || "").trim();
+  const status = (searchParams.status || "").trim();
 
   if (keyword) qp.append("keyword", keyword);
   for (const skill of skills) qp.append("skills", skill);
   if (minExp) qp.append("min_experience", minExp);
+  if (status) qp.append("status", status);
 
   const qs = qp.toString();
   return qs ? `/api/candidates?${qs}` : "/api/candidates";
@@ -40,6 +49,7 @@ export default async function DashboardPage({
   const currentKeyword = params.keyword || "";
   const currentSkills = params.skills || "";
   const currentMinExp = params.min_experience || "";
+  const currentStatus = params.status || "";
 
   return (
     <div className="grid">
@@ -62,7 +72,7 @@ export default async function DashboardPage({
 
       <div className="card">
         <h3>Advanced Search</h3>
-        <form className="grid grid-3" method="GET">
+        <form className="grid grid-4" method="GET">
           <input
             name="keyword"
             defaultValue={currentKeyword}
@@ -80,6 +90,14 @@ export default async function DashboardPage({
             type="number"
             min={0}
           />
+          <select name="status" defaultValue={currentStatus}>
+            <option value="">All status</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {formatStatus(s)}
+              </option>
+            ))}
+          </select>
           <button type="submit">Apply Filters</button>
         </form>
       </div>
@@ -91,6 +109,7 @@ export default async function DashboardPage({
             <tr>
               <th>Name</th>
               <th>Email</th>
+              <th>Status</th>
               <th>Experience</th>
               <th>Skills</th>
             </tr>
@@ -102,6 +121,11 @@ export default async function DashboardPage({
                   <Link href={`/candidates/${c.id}`}>{c.name || "Unknown"}</Link>
                 </td>
                 <td>{c.email || "-"}</td>
+                <td>
+                  <span className={`status-badge status-${c.status || "new"}`}>
+                    {formatStatus(c.status || "new")}
+                  </span>
+                </td>
                 <td>{c.years_of_experience ?? "-"}</td>
                 <td>{(c.skills || []).slice(0, 4).join(", ")}</td>
               </tr>

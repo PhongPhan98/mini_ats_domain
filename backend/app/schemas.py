@@ -1,7 +1,10 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+
+CandidateStatus = Literal["new", "shortlisted", "interview", "rejected"]
 
 
 class CandidateFileOut(BaseModel):
@@ -19,6 +22,7 @@ class CandidateOut(BaseModel):
     name: str | None = None
     email: str | None = None
     phone: str | None = None
+    status: CandidateStatus = "new"
     skills: list[str] = Field(default_factory=list)
     years_of_experience: int | None = None
     education: list[str] = Field(default_factory=list)
@@ -36,6 +40,7 @@ class CandidateUpdate(BaseModel):
     name: str | None = None
     email: str | None = None
     phone: str | None = None
+    status: CandidateStatus | None = None
     skills: list[str] | None = None
     years_of_experience: int | None = None
     education: list[str] | None = None
@@ -47,6 +52,7 @@ class CandidateSearchQuery(BaseModel):
     skills: list[str] = Field(default_factory=list)
     min_experience: int | None = None
     keyword: str | None = None
+    status: CandidateStatus | None = None
 
 
 class JobCreate(BaseModel):

@@ -15,6 +15,8 @@ from app.services.storage import LocalStorageService
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 storage = LocalStorageService()
 
+ALLOWED_STATUSES = {"new", "shortlisted", "interview", "rejected"}
+
 
 @router.post("/upload", response_model=CandidateOut)
 async def upload_cv(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -36,6 +38,7 @@ async def upload_cv(file: UploadFile = File(...), db: Session = Depends(get_db))
         name=parsed.get("name"),
         email=parsed.get("email"),
         phone=parsed.get("phone"),
+        status="new",
         skills=parsed.get("skills", []),
         years_of_experience=parsed.get("years_of_experience"),
         education=parsed.get("education", []),
@@ -65,6 +68,7 @@ def list_candidates(
     skills: list[str] = Query(default=[]),
     min_experience: int | None = Query(default=None),
     keyword: str | None = Query(default=None),
+    status: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     conditions: list[Any] = []
@@ -81,6 +85,12 @@ def list_candidates(
                 func.lower(Candidate.email).like(kw),
             )
         )
+
+    if status:
+        status = status.lower().strip()
+        if status not in ALLOWED_STATUSES:
+            raise HTTPException(status_code=400, detail=f"Invalid status '{status}'")
+        conditions.append(Candidate.status == status)
 
     if skills:
         for skill in skills:
@@ -118,6 +128,13 @@ def update_candidate(candidate_id: int, payload: CandidateUpdate, db: Session = 
         raise HTTPException(status_code=404, detail="Candidate not found")
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    if "status" in update_data:
+        normalized_status = (update_data["status"] or "").strip().lower()
+        if normalized_status not in ALLOWED_STATUSES:
+            raise HTTPException(status_code=400, detail=f"Invalid status '{normalized_status}'")
+        update_data["status"] = normalized_status
+
     for key, value in update_data.items():
         setattr(candidate, key, value)
 

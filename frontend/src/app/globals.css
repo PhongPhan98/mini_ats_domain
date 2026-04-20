@@ -6,12 +6,47 @@ a { color: inherit; text-decoration: none; }
 .grid { display: grid; gap: 16px; }
 .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
 @media (max-width: 900px) {
-  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
 }
-input, textarea, button { padding: 10px; border: 1px solid #ddd; border-radius: 8px; width: 100%; }
+input, textarea, button, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; width: 100%; }
 button { background: #111827; color: white; cursor: pointer; }
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #ececec; text-align: left; padding: 10px; }
 small { color: #666; }
 label { display: block; margin-bottom: 6px; font-size: 14px; color: #333; }
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.status-new {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.status-shortlisted {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.status-interview {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+
+.status-rejected {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
