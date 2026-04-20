@@ -54,19 +54,19 @@ export default async function DashboardPage({
   return (
     <div className="grid">
       <div className="grid grid-2">
-        <div className="card">
+        <div className="card stat-card">
           <h3>Total Candidates</h3>
           <h1>{analytics.total_candidates}</h1>
         </div>
-        <div className="card">
+        <div className="card stat-card">
           <h3>Top Skills</h3>
-          <ul>
-            {analytics.top_skills.slice(0, 5).map((s) => (
-              <li key={s.skill}>
-                {s.skill} ({s.count})
-              </li>
+          <div className="chip-wrap" style={{ marginTop: 10 }}>
+            {analytics.top_skills.slice(0, 8).map((s) => (
+              <span key={s.skill} className="chip">
+                {s.skill} • {s.count}
+              </span>
             ))}
-          </ul>
+          </div>
         </div>
       </div>
 
@@ -127,7 +127,15 @@ export default async function DashboardPage({
                   </span>
                 </td>
                 <td>{c.years_of_experience ?? "-"}</td>
-                <td>{(c.skills || []).slice(0, 4).join(", ")}</td>
+                <td>
+                  <div className="chip-wrap">
+                    {(c.skills || []).slice(0, 4).map((skill) => (
+                      <span key={`${c.id}-${skill}`} className="chip">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

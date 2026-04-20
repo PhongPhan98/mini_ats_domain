@@ -40,14 +40,14 @@ export default function JobsPage() {
     <div className="grid">
       <div className="card">
         <h2>Create Job</h2>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Job title" />
-        <textarea
-          style={{ marginTop: 10, minHeight: 120 }}
-          value={requirements}
-          onChange={(e) => setRequirements(e.target.value)}
-          placeholder="Enter requirements"
-        />
-        <div style={{ marginTop: 10 }}>
+        <div className="grid" style={{ marginTop: 8 }}>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Job title" />
+          <textarea
+            style={{ minHeight: 120 }}
+            value={requirements}
+            onChange={(e) => setRequirements(e.target.value)}
+            placeholder="Enter requirements"
+          />
           <button onClick={createJob}>Save Job</button>
         </div>
       </div>
@@ -65,7 +65,11 @@ export default function JobsPage() {
             {jobs.map((job) => (
               <tr key={job.id}>
                 <td>{job.title}</td>
-                <td><button onClick={() => runMatch(job.id)}>Run Matching</button></td>
+                <td>
+                  <button className="btn-outline" onClick={() => runMatch(job.id)}>
+                    Run Matching
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -87,7 +91,9 @@ export default function JobsPage() {
               {match.results.map((r) => (
                 <tr key={r.candidate_id}>
                   <td>{r.candidate_name || `#${r.candidate_id}`}</td>
-                  <td>{r.match_score}</td>
+                  <td>
+                    <span className="chip">{r.match_score}</span>
+                  </td>
                   <td>{r.explanation}</td>
                 </tr>
               ))}
