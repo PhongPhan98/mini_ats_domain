@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,21 @@ router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 storage = LocalStorageService()
 
 ALLOWED_STATUSES = {"new", "shortlisted", "interview", "rejected"}
+
+
+def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
+    parsed_json = dict(candidate.parsed_json or {})
+    timeline = list(parsed_json.get("timeline", []))
+    timeline.append(
+        {
+            "type": event_type,
+            "value": value,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
+    parsed_json["timeline"] = timeline
+    parsed_json["manual_reviewed"] = True
+    candidate.parsed_json = parsed_json
 
 
 @router.post("/upload", response_model=CandidateOut)
@@ -56,6 +72,8 @@ async def upload_cv(file: UploadFile = File(...), db: Session = Depends(get_db))
         original_filename=file.filename,
     )
     db.add(candidate_file)
+
+    _append_timeline_event(candidate, "created", "Candidate profile created")
 
     db.commit()
 
@@ -129,10 +147,16 @@ def update_candidate(candidate_id: int, payload: CandidateUpdate, db: Session = 
 
     update_data = payload.model_dump(exclude_unset=True)
 
+    note_text = None
+    if "notes" in update_data:
+        note_text = (update_data.pop("notes") or "").strip() or None
+
     if "status" in update_data:
         normalized_status = (update_data["status"] or "").strip().lower()
         if normalized_status not in ALLOWED_STATUSES:
             raise HTTPException(status_code=400, detail=f"Invalid status '{normalized_status}'")
+        if normalized_status != (candidate.status or "new"):
+            _append_timeline_event(candidate, "status", normalized_status)
         update_data["status"] = normalized_status
 
     for key, value in update_data.items():
@@ -142,6 +166,9 @@ def update_candidate(candidate_id: int, payload: CandidateUpdate, db: Session = 
     parsed_json.update(update_data)
     parsed_json["manual_reviewed"] = True
     candidate.parsed_json = parsed_json
+
+    if note_text:
+        _append_timeline_event(candidate, "note", note_text)
 
     db.commit()
 

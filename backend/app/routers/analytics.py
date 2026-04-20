@@ -17,6 +17,7 @@ def summary(db: Session = Depends(get_db)):
 
     skill_counter = Counter()
     exp_distribution = Counter()
+    status_distribution = Counter()
 
     for c in candidates:
         for skill in c.skills or []:
@@ -33,11 +34,16 @@ def summary(db: Session = Depends(get_db)):
         else:
             exp_distribution["8+ years"] += 1
 
+        status_distribution[(c.status or "new").strip().lower()] += 1
+
     top_skills = [{"skill": k, "count": v} for k, v in skill_counter.most_common(10)]
     experience_distribution = [{"range": k, "count": v} for k, v in exp_distribution.items()]
+    status_order = ["new", "shortlisted", "interview", "rejected"]
+    status_summary = [{"status": s, "count": status_distribution.get(s, 0)} for s in status_order]
 
     return AnalyticsSummary(
         top_skills=top_skills,
         experience_distribution=experience_distribution,
+        status_distribution=status_summary,
         total_candidates=len(candidates),
     )

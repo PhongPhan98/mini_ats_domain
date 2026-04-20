@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPatch } from "../../../lib/api";
-import type { Candidate, CandidateStatus } from "../../../components/types";
+import type { Candidate, CandidateStatus, TimelineEvent } from "../../../components/types";
 
 type CandidateForm = {
   name: string;
@@ -15,6 +15,7 @@ type CandidateForm = {
   education_text: string;
   previous_companies_text: string;
   summary: string;
+  note: string;
 };
 
 const STATUS_OPTIONS: CandidateStatus[] = ["new", "shortlisted", "interview", "rejected"];
@@ -34,6 +35,7 @@ function toForm(c: Candidate): CandidateForm {
     education_text: (c.education || []).join("\n"),
     previous_companies_text: (c.previous_companies || []).join("\n"),
     summary: c.summary || "",
+    note: "",
   };
 }
 
@@ -49,6 +51,10 @@ function normalizeLineList(text: string): string[] {
     .split("\n")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function timelineOf(candidate: Candidate): TimelineEvent[] {
+  return (candidate.parsed_json?.timeline || []).slice().reverse();
 }
 
 export default function CandidateDetailPage({
@@ -114,11 +120,14 @@ export default function CandidateDetailPage({
         education: normalizeLineList(form.education_text),
         previous_companies: normalizeLineList(form.previous_companies_text),
         summary: form.summary || null,
+        notes: form.note || null,
       };
 
       const updated = await apiPatch<Candidate>(`/api/candidates/${candidateId}`, payload);
       setCandidate(updated);
-      setForm(toForm(updated));
+      const next = toForm(updated);
+      next.note = "";
+      setForm(next);
       setMessage("Candidate updated successfully");
     } catch (e: any) {
       setError(e.message || "Failed to save");
@@ -150,7 +159,7 @@ export default function CandidateDetailPage({
   }
 
   return (
-    <div className="grid">
+    <div className="grid page-enter">
       <div className="card">
         <Link href="/">← Back to dashboard</Link>
         <h2 style={{ marginTop: 12 }}>Candidate Detail Edit</h2>
@@ -227,6 +236,16 @@ export default function CandidateDetailPage({
           />
         </div>
 
+        <div style={{ marginTop: 12 }}>
+          <label>Add note update</label>
+          <textarea
+            rows={3}
+            value={form.note}
+            onChange={(e) => updateField("note", e.target.value)}
+            placeholder="Example: strong communication, schedule technical interview"
+          />
+        </div>
+
         <div style={{ marginTop: 16 }}>
           <button onClick={onSave} disabled={!canSave}>
             {saving ? "Saving..." : "Save changes"}
@@ -244,6 +263,23 @@ export default function CandidateDetailPage({
             {formatStatus(candidate.status || "new")}
           </span>
         </p>
+      </div>
+
+      <div className="card">
+        <h3>Candidate Timeline</h3>
+        <div className="timeline">
+          {timelineOf(candidate).map((event, idx) => (
+            <div className="timeline-item" key={`${event.timestamp}-${idx}`}>
+              <div className="timeline-dot" />
+              <div>
+                <div className="timeline-title">{formatStatus(event.type)}</div>
+                <div>{event.value}</div>
+                <small>{event.timestamp}</small>
+              </div>
+            </div>
+          ))}
+          {!timelineOf(candidate).length && <small>No timeline events yet.</small>}
+        </div>
       </div>
 
       <div className="card">

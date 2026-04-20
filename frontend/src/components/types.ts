@@ -7,6 +7,12 @@ export type CandidateFile = {
   uploaded_at: string;
 };
 
+export type TimelineEvent = {
+  type: "created" | "status" | "note" | string;
+  value: string;
+  timestamp: string;
+};
+
 export type Candidate = {
   id: number;
   name?: string;
@@ -18,7 +24,10 @@ export type Candidate = {
   education: string[];
   previous_companies: string[];
   summary?: string;
-  parsed_json: any;
+  parsed_json: {
+    timeline?: TimelineEvent[];
+    [key: string]: any;
+  };
   files: CandidateFile[];
   created_at: string;
 };
@@ -27,4 +36,5 @@ export type Analytics = {
   total_candidates: number;
   top_skills: { skill: string; count: number }[];
   experience_distribution: { range: string; count: number }[];
+  status_distribution: { status: CandidateStatus; count: number }[];
 };

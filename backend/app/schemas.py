@@ -46,6 +46,7 @@ class CandidateUpdate(BaseModel):
     education: list[str] | None = None
     previous_companies: list[str] | None = None
     summary: str | None = None
+    notes: str | None = None
 
 
 class CandidateSearchQuery(BaseModel):
@@ -86,4 +87,5 @@ class MatchResponse(BaseModel):
 class AnalyticsSummary(BaseModel):
     top_skills: list[dict]
     experience_distribution: list[dict]
+    status_distribution: list[dict]
     total_candidates: int

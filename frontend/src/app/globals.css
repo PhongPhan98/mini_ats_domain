@@ -36,6 +36,10 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 900px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
 }
+
+:root[data-compact="1"] .card { padding: 10px; margin-bottom: 10px; }
+:root[data-compact="1"] th, :root[data-compact="1"] td { padding: 6px; }
+
 input, textarea, button, select {
   padding: 10px;
   border: 1px solid var(--border);
@@ -51,25 +55,11 @@ th, td { border-bottom: 1px solid var(--border); text-align: left; padding: 10px
 small { color: var(--muted); }
 label { display: block; margin-bottom: 6px; font-size: 14px; color: var(--muted); }
 
-.nav-bar {
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  align-items: center;
-}
+.nav-bar { display: flex; gap: 16px; justify-content: space-between; align-items: center; }
+.nav-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.nav-actions { display: flex; gap: 8px; }
 
-.nav-links {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.chip-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
+.chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   display: inline-flex;
   align-items: center;
@@ -81,9 +71,7 @@ label { display: block; margin-bottom: 6px; font-size: 14px; color: var(--muted)
   color: var(--chip-text);
 }
 
-.stat-card h1 {
-  margin: 6px 0 0;
-}
+.stat-card h1 { margin: 6px 0 0; }
 
 .status-badge {
   display: inline-flex;
@@ -104,3 +92,30 @@ label { display: block; margin-bottom: 6px; font-size: 14px; color: var(--muted)
 :root[data-theme="dark"] .status-shortlisted { background: #065f46; color: #d1fae5; border-color: #10b981; }
 :root[data-theme="dark"] .status-interview { background: #9a3412; color: #ffedd5; border-color: #fb923c; }
 :root[data-theme="dark"] .status-rejected { background: #7f1d1d; color: #fee2e2; border-color: #ef4444; }
+
+.toolbar { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.toolbar-actions { display: flex; gap: 8px; }
+
+.funnel-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+@media (max-width: 900px) { .funnel-grid { grid-template-columns: 1fr; } }
+.funnel-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  animation: fadeUp .4s ease;
+}
+.funnel-title { font-size: 12px; color: var(--muted); }
+.funnel-count { font-size: 24px; font-weight: 700; margin: 6px 0; }
+.mini-bar { width: 100%; height: 8px; background: #d1d5db; border-radius: 9999px; overflow: hidden; margin: 6px 0; }
+.mini-bar-fill { height: 8px; background: linear-gradient(90deg, #3b82f6, #8b5cf6); transition: width .35s ease; }
+
+.timeline { display: grid; gap: 10px; }
+.timeline-item { display: flex; gap: 10px; align-items: flex-start; }
+.timeline-dot { width: 10px; height: 10px; border-radius: 9999px; background: #3b82f6; margin-top: 6px; }
+.timeline-title { font-weight: 600; margin-bottom: 4px; }
+
+.page-enter { animation: fadeUp .35s ease; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
