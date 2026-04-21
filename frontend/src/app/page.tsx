@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPatch } from "../lib/api";
+import { apiGet, apiPatch, apiUrl } from "../lib/api";
 import type { Analytics, Candidate, CandidateStatus } from "../components/types";
 
 type SearchParams = {
@@ -158,6 +158,16 @@ export default function DashboardPage() {
 
   return (
     <div className="grid page-enter">
+      <div className="toolbar">
+        <h2>Recruitment Dashboard</h2>
+        <div className="toolbar-actions">
+          <a className="btn-outline" href={apiUrl("/api/reports/candidates.csv")}>Export Candidates CSV</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/analytics.csv")}>Export Analytics CSV</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/excel-pack")}>Export Excel Pack (JSON)</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/pdf-snapshot")}>Export PDF Snapshot (JSON)</a>
+        </div>
+      </div>
+
       <div className="grid grid-4">
         <div className="card stat-card">
           <h3>Total</h3>

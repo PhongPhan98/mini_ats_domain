@@ -26,6 +26,10 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 export async function uploadCandidate(file: File) {
   const form = new FormData();
   form.append("file", file);
