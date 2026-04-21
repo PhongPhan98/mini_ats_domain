@@ -1,4 +1,10 @@
-export type CandidateStatus = "new" | "shortlisted" | "interview" | "rejected";
+export type CandidateStatus =
+  | "applied"
+  | "screening"
+  | "interview"
+  | "offer"
+  | "hired"
+  | "rejected";
 
 export type CandidateFile = {
   id: number;
@@ -8,7 +14,7 @@ export type CandidateFile = {
 };
 
 export type TimelineEvent = {
-  type: "created" | "status" | "note" | string;
+  type: "created" | "status" | "note" | "automation" | string;
   value: string;
   timestamp: string;
 };

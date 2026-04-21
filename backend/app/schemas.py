@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-CandidateStatus = Literal["new", "shortlisted", "interview", "rejected"]
+CandidateStatus = Literal["applied", "screening", "interview", "offer", "hired", "rejected"]
 
 
 class CandidateFileOut(BaseModel):
@@ -22,7 +22,7 @@ class CandidateOut(BaseModel):
     name: str | None = None
     email: str | None = None
     phone: str | None = None
-    status: CandidateStatus = "new"
+    status: CandidateStatus = "applied"
     skills: list[str] = Field(default_factory=list)
     years_of_experience: int | None = None
     education: list[str] = Field(default_factory=list)

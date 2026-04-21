@@ -16,7 +16,18 @@ from app.services.storage import LocalStorageService
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 storage = LocalStorageService()
 
-ALLOWED_STATUSES = {"new", "shortlisted", "interview", "rejected"}
+ALLOWED_STATUSES = {"applied", "screening", "interview", "offer", "hired", "rejected"}
+
+
+def normalize_status(value: str | None) -> str:
+    if not value:
+        return "applied"
+    value = value.strip().lower()
+    legacy_map = {
+        "new": "applied",
+        "shortlisted": "screening",
+    }
+    return legacy_map.get(value, value)
 
 
 def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
@@ -54,7 +65,7 @@ async def upload_cv(file: UploadFile = File(...), db: Session = Depends(get_db))
         name=parsed.get("name"),
         email=parsed.get("email"),
         phone=parsed.get("phone"),
-        status="new",
+        status="applied",
         skills=parsed.get("skills", []),
         years_of_experience=parsed.get("years_of_experience"),
         education=parsed.get("education", []),
@@ -105,7 +116,7 @@ def list_candidates(
         )
 
     if status:
-        status = status.lower().strip()
+        status = normalize_status(status)
         if status not in ALLOWED_STATUSES:
             raise HTTPException(status_code=400, detail=f"Invalid status '{status}'")
         conditions.append(Candidate.status == status)
@@ -118,7 +129,17 @@ def list_candidates(
     if conditions:
         stmt = stmt.where(and_(*conditions))
 
-    return list(db.execute(stmt).scalars().all())
+    result = list(db.execute(stmt).scalars().all())
+    changed = False
+    for c in result:
+        normalized = normalize_status(c.status)
+        if normalized != (c.status or ""):
+            c.status = normalized
+            changed = True
+    if changed:
+        db.commit()
+
+    return result
 
 
 @router.get("/skills/catalog")
@@ -136,6 +157,9 @@ def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
     candidate = db.execute(stmt).scalar_one_or_none()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+
+    candidate.status = normalize_status(candidate.status)
+    db.commit()
     return candidate
 
 
@@ -152,11 +176,12 @@ def update_candidate(candidate_id: int, payload: CandidateUpdate, db: Session = 
         note_text = (update_data.pop("notes") or "").strip() or None
 
     if "status" in update_data:
-        normalized_status = (update_data["status"] or "").strip().lower()
+        normalized_status = normalize_status(update_data["status"])
         if normalized_status not in ALLOWED_STATUSES:
             raise HTTPException(status_code=400, detail=f"Invalid status '{normalized_status}'")
-        if normalized_status != (candidate.status or "new"):
+        if normalized_status != normalize_status(candidate.status):
             _append_timeline_event(candidate, "status", normalized_status)
+            _append_timeline_event(candidate, "automation", f"auto_action:notify_on_stage_change:{normalized_status}")
         update_data["status"] = normalized_status
 
     for key, value in update_data.items():

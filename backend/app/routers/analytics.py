@@ -11,6 +11,14 @@ from app.schemas import AnalyticsSummary
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
+def normalize_status(value: str | None) -> str:
+    if not value:
+        return "applied"
+    v = value.strip().lower()
+    legacy = {"new": "applied", "shortlisted": "screening"}
+    return legacy.get(v, v)
+
+
 @router.get("/summary", response_model=AnalyticsSummary)
 def summary(db: Session = Depends(get_db)):
     candidates = list(db.execute(select(Candidate)).scalars().all())
@@ -34,11 +42,11 @@ def summary(db: Session = Depends(get_db)):
         else:
             exp_distribution["8+ years"] += 1
 
-        status_distribution[(c.status or "new").strip().lower()] += 1
+        status_distribution[normalize_status(c.status)] += 1
 
     top_skills = [{"skill": k, "count": v} for k, v in skill_counter.most_common(10)]
     experience_distribution = [{"range": k, "count": v} for k, v in exp_distribution.items()]
-    status_order = ["new", "shortlisted", "interview", "rejected"]
+    status_order = ["applied", "screening", "interview", "offer", "hired", "rejected"]
     status_summary = [{"status": s, "count": status_distribution.get(s, 0)} for s in status_order]
 
     return AnalyticsSummary(

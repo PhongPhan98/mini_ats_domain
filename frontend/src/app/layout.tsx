@@ -12,6 +12,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <nav className="card nav-bar">
             <div className="nav-links">
               <Link href="/">Dashboard</Link>
+              <Link href="/pipeline">Pipeline</Link>
               <Link href="/upload">Upload CV</Link>
               <Link href="/jobs">Jobs & Matching</Link>
             </div>
