@@ -50,14 +50,27 @@ function buildCandidateQuery(searchParams: SearchParams) {
 }
 
 function makeCsv(candidates: Candidate[]) {
-  const header = ["id", "name", "email", "status", "years_of_experience", "skills"];
+  const header = [
+    "id",
+    "name",
+    "email",
+    "phone",
+    "status",
+    "years_of_experience",
+    "skills",
+    "summary",
+    "created_at",
+  ];
   const rows = candidates.map((c) => [
     c.id,
     c.name || "",
     c.email || "",
+    c.phone || "",
     c.status || "new",
     c.years_of_experience ?? "",
     (c.skills || []).join("|"),
+    c.summary || "",
+    c.created_at || "",
   ]);
   const lines = [header, ...rows].map((r) =>
     r.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")
@@ -94,11 +107,32 @@ export default function DashboardPage() {
     return base.map((x) => ({ ...x, pct: Math.round((x.count / total) * 100) }));
   }, [analytics]);
 
+  const avgExp = useMemo(() => {
+    if (!candidates.length) return 0;
+    const values = candidates
+      .map((c) => c.years_of_experience)
+      .filter((x): x is number => typeof x === "number");
+    if (!values.length) return 0;
+    return Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1));
+  }, [candidates]);
+
+  const uniqueSkills = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of candidates) {
+      for (const s of c.skills || []) set.add(s.toLowerCase());
+    }
+    return set.size;
+  }, [candidates]);
+
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  const selectAll = () => {
+  const selectAllVisible = () => setSelectedIds(candidates.map((c) => c.id));
+
+  const clearSelection = () => setSelectedIds([]);
+
+  const selectAllShortlisted = () => {
     const shortlistIds = candidates.filter((c) => c.status === "shortlisted").map((c) => c.id);
     setSelectedIds(shortlistIds);
   };
@@ -109,6 +143,19 @@ export default function DashboardPage() {
     try {
       await Promise.all(
         selectedIds.map((id) => apiPatch<Candidate>(`/api/candidates/${id}`, { status: "shortlisted" }))
+      );
+      await loadData(filters);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const bulkSetStatus = async (status: CandidateStatus) => {
+    if (!selectedIds.length) return;
+    setBusy(true);
+    try {
+      await Promise.all(
+        selectedIds.map((id) => apiPatch<Candidate>(`/api/candidates/${id}`, { status }))
       );
       await loadData(filters);
     } finally {
@@ -147,21 +194,26 @@ export default function DashboardPage() {
 
   return (
     <div className="grid page-enter">
-      <div className="grid grid-2">
+      <div className="grid grid-4">
         <div className="card stat-card">
           <h3>Total Candidates</h3>
           <h1>{analytics.total_candidates}</h1>
           <small>Live pipeline coverage</small>
         </div>
         <div className="card stat-card">
-          <h3>Top Skills</h3>
-          <div className="chip-wrap" style={{ marginTop: 10 }}>
-            {analytics.top_skills.slice(0, 10).map((s) => (
-              <span key={s.skill} className="chip">
-                {s.skill} • {s.count}
-              </span>
-            ))}
-          </div>
+          <h3>Avg Experience</h3>
+          <h1>{avgExp}</h1>
+          <small>Years (filtered list)</small>
+        </div>
+        <div className="card stat-card">
+          <h3>Unique Skills</h3>
+          <h1>{uniqueSkills}</h1>
+          <small>Across current filter</small>
+        </div>
+        <div className="card stat-card">
+          <h3>Selected</h3>
+          <h1>{selectedIds.length}</h1>
+          <small>Bulk actions ready</small>
         </div>
       </div>
 
@@ -177,6 +229,17 @@ export default function DashboardPage() {
               </div>
               <small>{item.pct}% of total</small>
             </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>Top Skills</h3>
+        <div className="chip-wrap" style={{ marginTop: 10 }}>
+          {analytics.top_skills.slice(0, 14).map((s) => (
+            <span key={s.skill} className="chip">
+              {s.skill} • {s.count}
+            </span>
           ))}
         </div>
       </div>
@@ -209,11 +272,23 @@ export default function DashboardPage() {
         <div className="toolbar">
           <h3>Candidates ({candidates.length})</h3>
           <div className="toolbar-actions">
-            <button className="btn-outline" type="button" onClick={selectAll}>
-              Select All Shortlisted
+            <button className="btn-outline" type="button" onClick={selectAllVisible}>
+              Select Visible
+            </button>
+            <button className="btn-outline" type="button" onClick={selectAllShortlisted}>
+              Select Shortlisted
+            </button>
+            <button className="btn-outline" type="button" onClick={clearSelection}>
+              Clear
             </button>
             <button type="button" onClick={bulkSetShortlisted} disabled={busy || !selectedIds.length}>
               {busy ? "Updating..." : "Bulk Shortlist"}
+            </button>
+            <button type="button" onClick={() => bulkSetStatus("interview")} disabled={busy || !selectedIds.length}>
+              Move to Interview
+            </button>
+            <button type="button" onClick={() => bulkSetStatus("rejected")} disabled={busy || !selectedIds.length}>
+              Mark Rejected
             </button>
             <button
               className="btn-outline"
@@ -232,9 +307,12 @@ export default function DashboardPage() {
               <th></th>
               <th>Name</th>
               <th>Email</th>
+              <th>Phone</th>
               <th>Status</th>
               <th>Experience</th>
               <th>Skills</th>
+              <th>Created</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -251,6 +329,7 @@ export default function DashboardPage() {
                   <Link href={`/candidates/${c.id}`}>{c.name || "Unknown"}</Link>
                 </td>
                 <td>{c.email || "-"}</td>
+                <td>{c.phone || "-"}</td>
                 <td>
                   <span className={`status-badge status-${c.status || "new"}`}>
                     {formatStatus(c.status || "new")}
@@ -259,11 +338,18 @@ export default function DashboardPage() {
                 <td>{c.years_of_experience ?? "-"}</td>
                 <td>
                   <div className="chip-wrap">
-                    {(c.skills || []).slice(0, 4).map((skill) => (
+                    {(c.skills || []).slice(0, 5).map((skill) => (
                       <span key={`${c.id}-${skill}`} className="chip">
                         {skill}
                       </span>
                     ))}
+                  </div>
+                </td>
+                <td>{c.created_at ? new Date(c.created_at).toLocaleDateString() : "-"}</td>
+                <td>
+                  <div className="chip-wrap">
+                    <button className="btn-outline" type="button" onClick={() => bulkSetStatus("shortlisted")}>★</button>
+                    <Link href={`/candidates/${c.id}`} className="chip">Open</Link>
                   </div>
                 </td>
               </tr>
