@@ -41,6 +41,9 @@ class Candidate(Base):
     scorecards: Mapped[list["InterviewScorecard"]] = relationship(
         back_populates="candidate", cascade="all, delete-orphan"
     )
+    schedules: Mapped[list["InterviewSchedule"]] = relationship(
+        back_populates="candidate", cascade="all, delete-orphan"
+    )
 
 
 class CandidateFile(Base):
@@ -82,6 +85,22 @@ class InterviewScorecard(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     candidate: Mapped[Candidate] = relationship(back_populates="scorecards")
+
+
+class InterviewSchedule(Base):
+    __tablename__ = "interview_schedules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"), index=True)
+    organizer_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    interviewer_email: Mapped[str] = mapped_column(String(255))
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    meeting_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    candidate: Mapped[Candidate] = relationship(back_populates="schedules")
 
 
 class Job(Base):

@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import analytics, automation, candidates, comments, jobs, scorecards, users
+from app.routers import analytics, automation, candidates, comments, jobs, schedules, scorecards, users
 
 
 Base.metadata.create_all(bind=engine)
@@ -30,6 +30,7 @@ app.include_router(users.router)
 app.include_router(candidates.router)
 app.include_router(comments.router)
 app.include_router(scorecards.router)
+app.include_router(schedules.router)
 app.include_router(jobs.router)
 app.include_router(analytics.router)
 app.include_router(automation.router)

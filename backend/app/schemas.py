@@ -68,6 +68,29 @@ class InterviewScorecardOut(BaseModel):
         from_attributes = True
 
 
+class InterviewScheduleCreate(BaseModel):
+    interviewer_email: str
+    scheduled_at: datetime
+    duration_minutes: int = 60
+    meeting_link: str | None = None
+    notes: str | None = None
+
+
+class InterviewScheduleOut(BaseModel):
+    id: int
+    candidate_id: int
+    organizer_user_id: int
+    interviewer_email: str
+    scheduled_at: datetime
+    duration_minutes: int
+    meeting_link: str | None = None
+    notes: str | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class CandidateOut(BaseModel):
     id: int
     name: str | None = None

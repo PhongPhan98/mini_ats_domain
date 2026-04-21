@@ -39,6 +39,18 @@ type InterviewScorecard = {
   created_at: string;
 };
 
+type InterviewSchedule = {
+  id: number;
+  candidate_id: number;
+  organizer_user_id: number;
+  interviewer_email: string;
+  scheduled_at: string;
+  duration_minutes: number;
+  meeting_link?: string;
+  notes?: string;
+  created_at: string;
+};
+
 const STATUS_OPTIONS: CandidateStatus[] = ["applied", "screening", "interview", "offer", "hired", "rejected"];
 
 function formatStatus(status: string) {
@@ -89,6 +101,12 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [scoreTech, setScoreTech] = useState("3");
   const [scoreComm, setScoreComm] = useState("3");
   const [scoreProblem, setScoreProblem] = useState("3");
+  const [schedules, setSchedules] = useState<InterviewSchedule[]>([]);
+  const [schedInterviewer, setSchedInterviewer] = useState("");
+  const [schedAt, setSchedAt] = useState("");
+  const [schedDuration, setSchedDuration] = useState("60");
+  const [schedLink, setSchedLink] = useState("");
+  const [schedNotes, setSchedNotes] = useState("");
 
   const loadComments = async (id: string) => {
     const data = await apiGet<CandidateComment[]>(`/api/candidates/${id}/comments`);
@@ -98,6 +116,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const loadScorecards = async (id: string) => {
     const data = await apiGet<InterviewScorecard[]>(`/api/candidates/${id}/scorecards`);
     setScorecards(data);
+  };
+
+  const loadSchedules = async (id: string) => {
+    const data = await apiGet<InterviewSchedule[]>(`/api/candidates/${id}/schedules`);
+    setSchedules(data);
   };
 
   useEffect(() => {
@@ -111,7 +134,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         if (cancelled) return;
         setCandidate(data);
         setForm(toForm(data));
-        await Promise.all([loadComments(resolved.id), loadScorecards(resolved.id)]);
+        await Promise.all([loadComments(resolved.id), loadScorecards(resolved.id), loadSchedules(resolved.id)]);
       } catch (e: any) {
         if (!cancelled) setError(e.message || "Failed to load candidate");
       } finally {
@@ -187,6 +210,22 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     setCandidate(updated);
   };
 
+  const onScheduleInterview = async () => {
+    if (!candidateId || !schedInterviewer || !schedAt) return;
+    await apiPost(`/api/candidates/${candidateId}/schedules`, {
+      interviewer_email: schedInterviewer,
+      scheduled_at: new Date(schedAt).toISOString(),
+      duration_minutes: Number(schedDuration || 60),
+      meeting_link: schedLink || null,
+      notes: schedNotes || null,
+    });
+    setSchedNotes("");
+    setSchedLink("");
+    await loadSchedules(candidateId);
+    const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
+    setCandidate(updated);
+  };
+
   if (loading) return <div className="card">Loading candidate...</div>;
   if (error && !candidate) return <div className="card"><p style={{ color: "red" }}>{error}</p><Link href="/">Back</Link></div>;
   if (!form || !candidate) return <div className="card"><p>Candidate not found.</p><Link href="/">Back</Link></div>;
@@ -210,6 +249,32 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         <div style={{ marginTop: 16 }}><button onClick={onSave} disabled={!canSave}>{saving ? "Saving..." : "Save changes"}</button></div>
         {message && <p style={{ color: "green" }}>{message}</p>}
         {error && <p style={{ color: "red" }}>{error}</p>}
+      </div>
+
+      <div className="card">
+        <h3>Interview Scheduling</h3>
+        <div className="grid grid-4">
+          <div><label>Interviewer Email</label><input value={schedInterviewer} onChange={(e) => setSchedInterviewer(e.target.value)} placeholder="interviewer@company.com" /></div>
+          <div><label>Scheduled At</label><input type="datetime-local" value={schedAt} onChange={(e) => setSchedAt(e.target.value)} /></div>
+          <div><label>Duration (mins)</label><input type="number" min={15} value={schedDuration} onChange={(e) => setSchedDuration(e.target.value)} /></div>
+          <div><label>Meeting Link</label><input value={schedLink} onChange={(e) => setSchedLink(e.target.value)} placeholder="https://meet..." /></div>
+        </div>
+        <div style={{ marginTop: 10 }}><label>Notes</label><textarea rows={2} value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} /></div>
+        <button style={{ marginTop: 8 }} onClick={onScheduleInterview}>Schedule Interview</button>
+        <div className="timeline" style={{ marginTop: 12 }}>
+          {schedules.map((s) => (
+            <div className="timeline-item" key={s.id}>
+              <div className="timeline-dot" />
+              <div>
+                <div><strong>{new Date(s.scheduled_at).toLocaleString()}</strong> with {s.interviewer_email}</div>
+                <small>{s.duration_minutes} mins</small>
+                {s.meeting_link ? <><br /><a href={s.meeting_link} target="_blank">{s.meeting_link}</a></> : null}
+                {s.notes ? <><br /><small>{s.notes}</small></> : null}
+              </div>
+            </div>
+          ))}
+          {!schedules.length && <small>No schedules yet.</small>}
+        </div>
       </div>
 
       <div className="card">
