@@ -45,6 +45,29 @@ class CandidateCommentOut(BaseModel):
         from_attributes = True
 
 
+class InterviewScorecardCreate(BaseModel):
+    interview_stage: str = "interview"
+    criteria_scores: dict[str, int] = Field(default_factory=dict)
+    overall_score: int | None = None
+    recommendation: str | None = None
+    summary: str | None = None
+
+
+class InterviewScorecardOut(BaseModel):
+    id: int
+    candidate_id: int
+    interviewer_user_id: int
+    interview_stage: str
+    criteria_scores: dict[str, int] = Field(default_factory=dict)
+    overall_score: int | None = None
+    recommendation: str | None = None
+    summary: str | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class CandidateOut(BaseModel):
     id: int
     name: str | None = None

@@ -27,6 +27,18 @@ type CandidateComment = {
   created_at: string;
 };
 
+type InterviewScorecard = {
+  id: number;
+  candidate_id: number;
+  interviewer_user_id: number;
+  interview_stage: string;
+  criteria_scores: Record<string, number>;
+  overall_score?: number;
+  recommendation?: string;
+  summary?: string;
+  created_at: string;
+};
+
 const STATUS_OPTIONS: CandidateStatus[] = ["applied", "screening", "interview", "offer", "hired", "rejected"];
 
 function formatStatus(status: string) {
@@ -70,10 +82,22 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [candidateId, setCandidateId] = useState<string>("");
   const [comments, setComments] = useState<CandidateComment[]>([]);
   const [newComment, setNewComment] = useState("");
+  const [scorecards, setScorecards] = useState<InterviewScorecard[]>([]);
+  const [scoreOverall, setScoreOverall] = useState("");
+  const [scoreRecommendation, setScoreRecommendation] = useState("strong_yes");
+  const [scoreSummary, setScoreSummary] = useState("");
+  const [scoreTech, setScoreTech] = useState("3");
+  const [scoreComm, setScoreComm] = useState("3");
+  const [scoreProblem, setScoreProblem] = useState("3");
 
   const loadComments = async (id: string) => {
     const data = await apiGet<CandidateComment[]>(`/api/candidates/${id}/comments`);
     setComments(data);
+  };
+
+  const loadScorecards = async (id: string) => {
+    const data = await apiGet<InterviewScorecard[]>(`/api/candidates/${id}/scorecards`);
+    setScorecards(data);
   };
 
   useEffect(() => {
@@ -87,7 +111,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         if (cancelled) return;
         setCandidate(data);
         setForm(toForm(data));
-        await loadComments(resolved.id);
+        await Promise.all([loadComments(resolved.id), loadScorecards(resolved.id)]);
       } catch (e: any) {
         if (!cancelled) setError(e.message || "Failed to load candidate");
       } finally {
@@ -143,6 +167,26 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     setCandidate(updated);
   };
 
+  const onAddScorecard = async () => {
+    if (!candidateId) return;
+    await apiPost(`/api/candidates/${candidateId}/scorecards`, {
+      interview_stage: "interview",
+      criteria_scores: {
+        technical: Number(scoreTech),
+        communication: Number(scoreComm),
+        problem_solving: Number(scoreProblem),
+      },
+      overall_score: scoreOverall ? Number(scoreOverall) : null,
+      recommendation: scoreRecommendation,
+      summary: scoreSummary || null,
+    });
+    setScoreSummary("");
+    setScoreOverall("");
+    await loadScorecards(candidateId);
+    const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
+    setCandidate(updated);
+  };
+
   if (loading) return <div className="card">Loading candidate...</div>;
   if (error && !candidate) return <div className="card"><p style={{ color: "red" }}>{error}</p><Link href="/">Back</Link></div>;
   if (!form || !candidate) return <div className="card"><p>Candidate not found.</p><Link href="/">Back</Link></div>;
@@ -166,6 +210,54 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         <div style={{ marginTop: 16 }}><button onClick={onSave} disabled={!canSave}>{saving ? "Saving..." : "Save changes"}</button></div>
         {message && <p style={{ color: "green" }}>{message}</p>}
         {error && <p style={{ color: "red" }}>{error}</p>}
+      </div>
+
+      <div className="card">
+        <h3>Interview Scorecards</h3>
+        <div className="grid grid-4">
+          <div><label>Technical (1-5)</label><input type="number" min={1} max={5} value={scoreTech} onChange={(e) => setScoreTech(e.target.value)} /></div>
+          <div><label>Communication (1-5)</label><input type="number" min={1} max={5} value={scoreComm} onChange={(e) => setScoreComm(e.target.value)} /></div>
+          <div><label>Problem Solving (1-5)</label><input type="number" min={1} max={5} value={scoreProblem} onChange={(e) => setScoreProblem(e.target.value)} /></div>
+          <div><label>Overall</label><input type="number" min={1} max={5} value={scoreOverall} onChange={(e) => setScoreOverall(e.target.value)} /></div>
+        </div>
+        <div className="grid grid-2" style={{ marginTop: 10 }}>
+          <div>
+            <label>Recommendation</label>
+            <select value={scoreRecommendation} onChange={(e) => setScoreRecommendation(e.target.value)}>
+              <option value="strong_yes">Strong Yes</option>
+              <option value="yes">Yes</option>
+              <option value="neutral">Neutral</option>
+              <option value="no">No</option>
+              <option value="strong_no">Strong No</option>
+            </select>
+          </div>
+          <div>
+            <label>Summary</label>
+            <textarea rows={3} value={scoreSummary} onChange={(e) => setScoreSummary(e.target.value)} />
+          </div>
+        </div>
+        <button style={{ marginTop: 10 }} onClick={onAddScorecard}>Submit Scorecard</button>
+
+        <div className="timeline" style={{ marginTop: 12 }}>
+          {scorecards.map((s) => (
+            <div className="timeline-item" key={s.id}>
+              <div className="timeline-dot" />
+              <div>
+                <div>
+                  Stage: <strong>{s.interview_stage}</strong> | Overall: <strong>{s.overall_score ?? "-"}</strong> | Rec: <strong>{s.recommendation || "-"}</strong>
+                </div>
+                <small>
+                  Tech {s.criteria_scores?.technical ?? "-"}, Comm {s.criteria_scores?.communication ?? "-"}, Problem {s.criteria_scores?.problem_solving ?? "-"}
+                </small>
+                <br />
+                <small>{s.summary || ""}</small>
+                <br />
+                <small>{s.created_at}</small>
+              </div>
+            </div>
+          ))}
+          {!scorecards.length && <small>No scorecards yet.</small>}
+        </div>
       </div>
 
       <div className="card">

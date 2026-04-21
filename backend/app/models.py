@@ -38,6 +38,9 @@ class Candidate(Base):
     comments: Mapped[list["CandidateComment"]] = relationship(
         back_populates="candidate", cascade="all, delete-orphan"
     )
+    scorecards: Mapped[list["InterviewScorecard"]] = relationship(
+        back_populates="candidate", cascade="all, delete-orphan"
+    )
 
 
 class CandidateFile(Base):
@@ -63,6 +66,22 @@ class CandidateComment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     candidate: Mapped[Candidate] = relationship(back_populates="comments")
+
+
+class InterviewScorecard(Base):
+    __tablename__ = "interview_scorecards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"), index=True)
+    interviewer_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    interview_stage: Mapped[str] = mapped_column(String(64), default="interview")
+    criteria_scores: Mapped[dict] = mapped_column(JSONB, default=dict)
+    overall_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    recommendation: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    candidate: Mapped[Candidate] = relationship(back_populates="scorecards")
 
 
 class Job(Base):
