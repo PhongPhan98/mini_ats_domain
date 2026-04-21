@@ -43,4 +43,8 @@ export type Analytics = {
   top_skills: { skill: string; count: number }[];
   experience_distribution: { range: string; count: number }[];
   status_distribution: { status: CandidateStatus; count: number }[];
+  source_effectiveness: { source: string; count: number; share_pct: number }[];
+  conversion_rates: { stage: string; rate_pct: number }[];
+  avg_time_to_hire_days: number;
+  hired_count: number;
 };

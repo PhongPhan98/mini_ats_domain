@@ -162,4 +162,8 @@ class AnalyticsSummary(BaseModel):
     top_skills: list[dict]
     experience_distribution: list[dict]
     status_distribution: list[dict]
+    source_effectiveness: list[dict]
+    conversion_rates: list[dict]
+    avg_time_to_hire_days: float
+    hired_count: int
     total_candidates: int

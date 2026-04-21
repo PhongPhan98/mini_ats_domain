@@ -158,6 +158,27 @@ export default function DashboardPage() {
 
   return (
     <div className="grid page-enter">
+      <div className="grid grid-4">
+        <div className="card stat-card">
+          <h3>Total</h3>
+          <h1>{analytics.total_candidates}</h1>
+        </div>
+        <div className="card stat-card">
+          <h3>Hired</h3>
+          <h1>{analytics.hired_count}</h1>
+        </div>
+        <div className="card stat-card">
+          <h3>Avg Time-to-Hire</h3>
+          <h1>{analytics.avg_time_to_hire_days}</h1>
+          <small>days</small>
+        </div>
+        <div className="card stat-card">
+          <h3>Top Source</h3>
+          <h1>{analytics.source_effectiveness?.[0]?.source || "-"}</h1>
+          <small>{analytics.source_effectiveness?.[0]?.share_pct || 0}%</small>
+        </div>
+      </div>
+
       <div className="card">
         <h3>Status Funnel</h3>
         <div className="funnel-grid" style={{ marginTop: 10 }}>
@@ -168,6 +189,29 @@ export default function DashboardPage() {
               <div className="mini-bar"><div className="mini-bar-fill" style={{ width: `${Math.max(item.pct, 5)}%` }} /></div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="grid grid-2">
+        <div className="card">
+          <h3>Pipeline Conversion Rates</h3>
+          <ul>
+            {analytics.conversion_rates.map((r) => (
+              <li key={r.stage}>
+                {r.stage.replaceAll("_", " ")}: <strong>{r.rate_pct}%</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="card">
+          <h3>Source Effectiveness</h3>
+          <ul>
+            {analytics.source_effectiveness.map((s) => (
+              <li key={s.source}>
+                {s.source}: {s.count} ({s.share_pct}%)
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
