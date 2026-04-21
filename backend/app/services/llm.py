@@ -63,7 +63,6 @@ class LLMService:
         response = model.generate_content(full_prompt)
         text = (response.text or "{}").strip()
 
-        # Defensive cleanup for accidental fenced output
         if text.startswith("```"):
             text = text.strip("`")
             if text.lower().startswith("json"):
@@ -98,3 +97,31 @@ class LLMService:
         if provider == "gemini":
             return LLMService._gemini_match_candidate(job_title, requirements, candidate)
         return LLMService._openai_match_candidate(job_title, requirements, candidate)
+
+
+def llm_match_candidates(job, candidates: list) -> list[dict]:
+    """Compatibility helper for jobs router."""
+    results: list[dict] = []
+    for c in candidates:
+        candidate_payload = {
+            "name": getattr(c, "name", None),
+            "email": getattr(c, "email", None),
+            "phone": getattr(c, "phone", None),
+            "skills": getattr(c, "skills", []) or [],
+            "years_of_experience": getattr(c, "years_of_experience", None),
+            "education": getattr(c, "education", []) or [],
+            "previous_companies": getattr(c, "previous_companies", []) or [],
+            "summary": getattr(c, "summary", None),
+        }
+        match = LLMService.match_candidate(job.title, job.requirements, candidate_payload)
+        results.append(
+            {
+                "candidate_id": c.id,
+                "candidate_name": getattr(c, "name", None),
+                "match_score": match["match_score"],
+                "explanation": match["explanation"],
+            }
+        )
+
+    results.sort(key=lambda x: x["match_score"], reverse=True)
+    return results
