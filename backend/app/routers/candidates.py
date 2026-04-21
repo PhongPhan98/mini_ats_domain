@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
 from app.models import Candidate, CandidateFile
 from app.schemas import CandidateOut, CandidateUpdate
+from app.services.automation import run_stage_change_automations
 from app.services.parser import CVTextParser
 from app.services.rule_based import SKILL_ALIASES, parse_candidate_from_cv
 from app.services.storage import LocalStorageService
@@ -182,6 +183,12 @@ def update_candidate(candidate_id: int, payload: CandidateUpdate, db: Session = 
         if normalized_status != normalize_status(candidate.status):
             _append_timeline_event(candidate, "status", normalized_status)
             _append_timeline_event(candidate, "automation", f"auto_action:notify_on_stage_change:{normalized_status}")
+            run_stage_change_automations(
+                candidate_id=candidate.id,
+                candidate_name=candidate.name or f"Candidate #{candidate.id}",
+                stage=normalized_status,
+                email=candidate.email,
+            )
         update_data["status"] = normalized_status
 
     for key, value in update_data.items():
