@@ -35,6 +35,9 @@ class Candidate(Base):
     files: Mapped[list["CandidateFile"]] = relationship(
         back_populates="candidate", cascade="all, delete-orphan"
     )
+    comments: Mapped[list["CandidateComment"]] = relationship(
+        back_populates="candidate", cascade="all, delete-orphan"
+    )
 
 
 class CandidateFile(Base):
@@ -47,6 +50,19 @@ class CandidateFile(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     candidate: Mapped[Candidate] = relationship(back_populates="files")
+
+
+class CandidateComment(Base):
+    __tablename__ = "candidate_comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"), index=True)
+    author_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    mentions: Mapped[list] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    candidate: Mapped[Candidate] = relationship(back_populates="comments")
 
 
 class Job(Base):

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPatch } from "../../../lib/api";
+import { apiGet, apiPatch, apiPost } from "../../../lib/api";
 import type { Candidate, CandidateStatus, TimelineEvent } from "../../../components/types";
 
 type CandidateForm = {
@@ -16,6 +16,15 @@ type CandidateForm = {
   previous_companies_text: string;
   summary: string;
   note: string;
+};
+
+type CandidateComment = {
+  id: number;
+  candidate_id: number;
+  author_user_id: number;
+  body: string;
+  mentions: string[];
+  created_at: string;
 };
 
 const STATUS_OPTIONS: CandidateStatus[] = ["applied", "screening", "interview", "offer", "hired", "rejected"];
@@ -59,6 +68,13 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [candidateId, setCandidateId] = useState<string>("");
+  const [comments, setComments] = useState<CandidateComment[]>([]);
+  const [newComment, setNewComment] = useState("");
+
+  const loadComments = async (id: string) => {
+    const data = await apiGet<CandidateComment[]>(`/api/candidates/${id}/comments`);
+    setComments(data);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +87,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         if (cancelled) return;
         setCandidate(data);
         setForm(toForm(data));
+        await loadComments(resolved.id);
       } catch (e: any) {
         if (!cancelled) setError(e.message || "Failed to load candidate");
       } finally {
@@ -116,6 +133,16 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     }
   };
 
+  const onAddComment = async () => {
+    const body = newComment.trim();
+    if (!body || !candidateId) return;
+    await apiPost(`/api/candidates/${candidateId}/comments`, { body });
+    setNewComment("");
+    await loadComments(candidateId);
+    const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
+    setCandidate(updated);
+  };
+
   if (loading) return <div className="card">Loading candidate...</div>;
   if (error && !candidate) return <div className="card"><p style={{ color: "red" }}>{error}</p><Link href="/">Back</Link></div>;
   if (!form || !candidate) return <div className="card"><p>Candidate not found.</p><Link href="/">Back</Link></div>;
@@ -140,6 +167,30 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         {message && <p style={{ color: "green" }}>{message}</p>}
         {error && <p style={{ color: "red" }}>{error}</p>}
       </div>
+
+      <div className="card">
+        <h3>Comments & Mentions</h3>
+        <small>Use @username or @emailprefix to mention teammates.</small>
+        <div style={{ marginTop: 10 }}>
+          <textarea rows={3} value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Example: @john please review this candidate for frontend interview" />
+          <button style={{ marginTop: 8 }} onClick={onAddComment}>Add Comment</button>
+        </div>
+        <div className="timeline" style={{ marginTop: 12 }}>
+          {comments.map((c) => (
+            <div className="timeline-item" key={c.id}>
+              <div className="timeline-dot" />
+              <div>
+                <div>{c.body}</div>
+                {!!c.mentions?.length && <small>Mentions: {c.mentions.map((m) => `@${m}`).join(", ")}</small>}
+                <br />
+                <small>{c.created_at}</small>
+              </div>
+            </div>
+          ))}
+          {!comments.length && <small>No comments yet.</small>}
+        </div>
+      </div>
+
       <div className="card"><h3>Candidate Timeline</h3><div className="timeline">{timelineOf(candidate).map((event, idx) => <div className="timeline-item" key={`${event.timestamp}-${idx}`}><div className="timeline-dot" /><div><div className="timeline-title">{formatStatus(event.type)}</div><div>{event.value}</div><small>{event.timestamp}</small></div></div>)}</div></div>
     </div>
   );

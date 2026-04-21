@@ -29,6 +29,22 @@ class CandidateFileOut(BaseModel):
         from_attributes = True
 
 
+class CandidateCommentCreate(BaseModel):
+    body: str
+
+
+class CandidateCommentOut(BaseModel):
+    id: int
+    candidate_id: int
+    author_user_id: int
+    body: str
+    mentions: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class CandidateOut(BaseModel):
     id: int
     name: str | None = None
