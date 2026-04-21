@@ -161,32 +161,18 @@ export default function DashboardPage() {
       <div className="toolbar">
         <h2>Recruitment Dashboard</h2>
         <div className="toolbar-actions">
-          <a className="btn-outline" href={apiUrl("/api/reports/candidates.csv")}>Export Candidates CSV</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/analytics.csv")}>Export Analytics CSV</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/excel-pack")}>Export Excel Pack (JSON)</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/pdf-snapshot")}>Export PDF Snapshot (JSON)</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/candidates.csv")}>Candidates CSV</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/analytics.csv")}>Analytics CSV</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/reports.xlsx")}>Download XLSX</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/report.pdf")}>Download PDF</a>
         </div>
       </div>
 
       <div className="grid grid-4">
-        <div className="card stat-card">
-          <h3>Total</h3>
-          <h1>{analytics.total_candidates}</h1>
-        </div>
-        <div className="card stat-card">
-          <h3>Hired</h3>
-          <h1>{analytics.hired_count}</h1>
-        </div>
-        <div className="card stat-card">
-          <h3>Avg Time-to-Hire</h3>
-          <h1>{analytics.avg_time_to_hire_days}</h1>
-          <small>days</small>
-        </div>
-        <div className="card stat-card">
-          <h3>Top Source</h3>
-          <h1>{analytics.source_effectiveness?.[0]?.source || "-"}</h1>
-          <small>{analytics.source_effectiveness?.[0]?.share_pct || 0}%</small>
-        </div>
+        <div className="card stat-card"><h3>Total</h3><h1>{analytics.total_candidates}</h1></div>
+        <div className="card stat-card"><h3>Hired</h3><h1>{analytics.hired_count}</h1></div>
+        <div className="card stat-card"><h3>Avg Time-to-Hire</h3><h1>{analytics.avg_time_to_hire_days}</h1><small>days</small></div>
+        <div className="card stat-card"><h3>Top Source</h3><h1>{analytics.source_effectiveness?.[0]?.source || "-"}</h1><small>{analytics.source_effectiveness?.[0]?.share_pct || 0}%</small></div>
       </div>
 
       <div className="card">
@@ -205,23 +191,11 @@ export default function DashboardPage() {
       <div className="grid grid-2">
         <div className="card">
           <h3>Pipeline Conversion Rates</h3>
-          <ul>
-            {analytics.conversion_rates.map((r) => (
-              <li key={r.stage}>
-                {r.stage.replaceAll("_", " ")}: <strong>{r.rate_pct}%</strong>
-              </li>
-            ))}
-          </ul>
+          <ul>{analytics.conversion_rates.map((r) => <li key={r.stage}>{r.stage.replaceAll("_", " ")}: <strong>{r.rate_pct}%</strong></li>)}</ul>
         </div>
         <div className="card">
           <h3>Source Effectiveness</h3>
-          <ul>
-            {analytics.source_effectiveness.map((s) => (
-              <li key={s.source}>
-                {s.source}: {s.count} ({s.share_pct}%)
-              </li>
-            ))}
-          </ul>
+          <ul>{analytics.source_effectiveness.map((s) => <li key={s.source}>{s.source}: {s.count} ({s.share_pct}%)</li>)}</ul>
         </div>
       </div>
 
