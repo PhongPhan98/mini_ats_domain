@@ -25,5 +25,15 @@ class Settings(BaseSettings):
     public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
 
+    smtp_enabled: bool = Field(default=False, alias="SMTP_ENABLED")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str = Field(default="", alias="SMTP_USERNAME")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
+    smtp_from_email: str = Field(default="", alias="SMTP_FROM_EMAIL")
+
+    webhook_signing_secret: str = Field(default="", alias="WEBHOOK_SIGNING_SECRET")
+
 
 settings = Settings()
