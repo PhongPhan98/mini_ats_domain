@@ -6,6 +6,16 @@ from sqlalchemy.dialects.postgresql import JSONB
 from .database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(32), default="recruiter", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Candidate(Base):
     __tablename__ = "candidates"
 
@@ -13,7 +23,7 @@ class Candidate(Base):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), default="new", index=True)
+    status: Mapped[str] = mapped_column(String(32), default="applied", index=True)
     years_of_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     education: Mapped[list] = mapped_column(JSONB, default=list)

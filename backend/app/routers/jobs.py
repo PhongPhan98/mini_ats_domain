@@ -4,14 +4,19 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Candidate, Job
+from app.rbac import require_roles
 from app.schemas import JobCreate, JobOut, MatchItem, MatchResponse
-from app.services.rule_based import match_candidate_rule_based
+from app.services.llm import llm_match_candidates
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 
 @router.post("", response_model=JobOut)
-def create_job(payload: JobCreate, db: Session = Depends(get_db)):
+def create_job(
+    payload: JobCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
     job = Job(title=payload.title, requirements=payload.requirements)
     db.add(job)
     db.commit()
@@ -20,39 +25,36 @@ def create_job(payload: JobCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=list[JobOut])
-def list_jobs(db: Session = Depends(get_db)):
-    stmt = select(Job).order_by(Job.created_at.desc())
-    return list(db.execute(stmt).scalars().all())
+def list_jobs(
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+):
+    return list(db.execute(select(Job).order_by(Job.created_at.desc())).scalars().all())
 
 
 @router.post("/{job_id}/match", response_model=MatchResponse)
-def match_job(job_id: int, db: Session = Depends(get_db)):
+def match_candidates(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
     job = db.get(Job, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     candidates = list(db.execute(select(Candidate)).scalars().all())
-    results: list[MatchItem] = []
+    results = llm_match_candidates(job, candidates)
 
-    for candidate in candidates:
-        candidate_payload = {
-            "name": candidate.name,
-            "skills": candidate.skills,
-            "years_of_experience": candidate.years_of_experience,
-            "education": candidate.education,
-            "previous_companies": candidate.previous_companies,
-            "summary": candidate.summary,
-        }
-        matched = match_candidate_rule_based(job.title, job.requirements, candidate_payload)
-
-        results.append(
+    return MatchResponse(
+        job_id=job.id,
+        job_title=job.title,
+        results=[
             MatchItem(
-                candidate_id=candidate.id,
-                candidate_name=candidate.name,
-                match_score=matched["match_score"],
-                explanation=matched["explanation"],
+                candidate_id=r["candidate_id"],
+                candidate_name=r.get("candidate_name"),
+                match_score=r["match_score"],
+                explanation=r["explanation"],
             )
-        )
-
-    ranked = sorted(results, key=lambda x: x.match_score, reverse=True)
-    return MatchResponse(job_id=job.id, job_title=job.title, results=ranked)
+            for r in results
+        ],
+    )

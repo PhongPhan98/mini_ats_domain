@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import analytics, automation, candidates, jobs
+from app.routers import analytics, automation, candidates, jobs, users
 
 
 Base.metadata.create_all(bind=engine)
@@ -26,6 +26,7 @@ upload_path = Path(settings.upload_dir)
 upload_path.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=upload_path), name="uploads")
 
+app.include_router(users.router)
 app.include_router(candidates.router)
 app.include_router(jobs.router)
 app.include_router(analytics.router)

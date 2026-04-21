@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Candidate
+from app.rbac import require_roles
 from app.schemas import AnalyticsSummary
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -20,7 +21,10 @@ def normalize_status(value: str | None) -> str:
 
 
 @router.get("/summary", response_model=AnalyticsSummary)
-def summary(db: Session = Depends(get_db)):
+def summary(
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+):
     candidates = list(db.execute(select(Candidate)).scalars().all())
 
     skill_counter = Counter()

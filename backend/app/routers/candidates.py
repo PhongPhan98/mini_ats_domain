@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.models import Candidate, CandidateFile
+from app.rbac import require_roles
 from app.schemas import CandidateOut, CandidateUpdate
 from app.services.automation import run_stage_change_automations
 from app.services.parser import CVTextParser
@@ -47,7 +48,11 @@ def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
 
 
 @router.post("/upload", response_model=CandidateOut)
-async def upload_cv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_cv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
     ext = Path(file.filename).suffix.lower()
     if ext not in {".pdf", ".docx"}:
         raise HTTPException(status_code=400, detail="Only PDF/DOCX supported")
@@ -100,6 +105,7 @@ def list_candidates(
     keyword: str | None = Query(default=None),
     status: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
     conditions: list[Any] = []
 
@@ -153,7 +159,11 @@ def get_skill_catalog():
 
 
 @router.get("/{candidate_id}", response_model=CandidateOut)
-def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
+def get_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+):
     stmt = select(Candidate).options(selectinload(Candidate.files)).where(Candidate.id == candidate_id)
     candidate = db.execute(stmt).scalar_one_or_none()
     if not candidate:
@@ -165,7 +175,12 @@ def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{candidate_id}", response_model=CandidateOut)
-def update_candidate(candidate_id: int, payload: CandidateUpdate, db: Session = Depends(get_db)):
+def update_candidate(
+    candidate_id: int,
+    payload: CandidateUpdate,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")

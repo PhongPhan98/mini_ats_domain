@@ -5,6 +5,18 @@ from pydantic import BaseModel, Field
 
 
 CandidateStatus = Literal["applied", "screening", "interview", "offer", "hired", "rejected"]
+UserRole = Literal["admin", "recruiter", "interviewer", "hiring_manager"]
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    role: UserRole
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class CandidateFileOut(BaseModel):
