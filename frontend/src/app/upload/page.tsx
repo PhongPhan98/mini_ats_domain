@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { uploadCandidate } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
+import { notify } from "../../lib/toast";
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { t } = useAppLanguage();
 
   const onUpload = async () => {
@@ -18,8 +20,16 @@ export default function UploadPage() {
     try {
       const data = await uploadCandidate(file);
       setResult(data);
+      notify(t("update_success"), "success");
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (e: any) {
-      setError(e.message || t("upload_failed"));
+      const msg = e.message || t("upload_failed");
+      setError(msg);
+      notify(t("upload_failed"), "error");
+      if (String(msg).includes("Could not extract text")) {
+        notify(t("parse_warning"), "info");
+      }
     } finally {
       setLoading(false);
     }
@@ -32,6 +42,7 @@ export default function UploadPage() {
         <small>{t("upload_supported")}</small>
         <div style={{ marginTop: 12 }}>
           <input
+            ref={fileInputRef}
             type="file"
             accept=".pdf,.docx"
             onChange={(e) => setFile(e.target.files?.[0] || null)}

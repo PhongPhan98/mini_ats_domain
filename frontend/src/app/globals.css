@@ -250,3 +250,40 @@ label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--muted)
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+.toolbar-actions > a,
+.toolbar-actions > button,
+.toolbar-actions > select {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+}
+
+.nav-links { align-items: center; }
+.nav-link { display: inline-flex; align-items: center; white-space: nowrap; }
+
+.toast-host {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: grid;
+  gap: 10px;
+}
+.toast {
+  min-width: 240px;
+  max-width: 360px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  animation: fadeUp .2s ease;
+}
+.toast-success { border-color: #22c55e; }
+.toast-error { border-color: #ef4444; }
+.toast-info { border-color: #3b82f6; }

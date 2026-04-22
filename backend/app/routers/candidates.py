@@ -62,10 +62,20 @@ async def upload_cv(
         raise HTTPException(status_code=400, detail="Empty file")
 
     text = CVTextParser.parse(file.filename, content)
-    if not text:
-        raise HTTPException(status_code=400, detail="Could not extract text from CV")
 
-    parsed = parse_candidate_from_cv(text)
+    if not text:
+        # Fallback: still import file and create draft candidate profile for manual review.
+        fallback_name = Path(file.filename).stem.replace("_", " ").replace("-", " ").strip() or "Unknown Candidate"
+        parsed = {
+            "name": fallback_name,
+            "summary": "Imported with limited parsing (manual review needed).",
+            "skills": [],
+            "education": [],
+            "previous_companies": [],
+            "parse_warning": "Could not extract text from CV file",
+        }
+    else:
+        parsed = parse_candidate_from_cv(text)
 
     candidate = Candidate(
         name=parsed.get("name"),

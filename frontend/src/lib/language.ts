@@ -65,6 +65,11 @@ export const text = {
     rule: "Rule",
     result: "Result",
     no_events: "No events yet.",
+
+    schedule_success: "Interview scheduled successfully",
+    update_success: "Information saved successfully",
+    save_failed: "Save failed",
+    parse_warning: "Could not extract full CV content. Please try another file or cleaner PDF.",
   },
   vi: {
     nav_dashboard: "Bảng điều khiển",
@@ -123,6 +128,11 @@ export const text = {
     rule: "Quy tắc",
     result: "Kết quả",
     no_events: "Chưa có sự kiện.",
+
+    schedule_success: "Đã lên lịch phỏng vấn thành công",
+    update_success: "Đã lưu thông tin thành công",
+    save_failed: "Lưu thất bại",
+    parse_warning: "Không thể trích xuất đầy đủ nội dung CV. Hãy thử file khác hoặc PDF rõ hơn.",
   },
 } as const;
 

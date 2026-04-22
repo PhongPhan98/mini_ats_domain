@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPatch, apiPost } from "../../../lib/api";
+import { useAppLanguage } from "../../../lib/language";
+import { notify } from "../../../lib/toast";
 import type { Candidate, CandidateStatus, TimelineEvent } from "../../../components/types";
 
 type CandidateForm = {
@@ -107,6 +109,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [schedDuration, setSchedDuration] = useState("60");
   const [schedLink, setSchedLink] = useState("");
   const [schedNotes, setSchedNotes] = useState("");
+  const { t } = useAppLanguage();
 
   const loadComments = async (id: string) => {
     const data = await apiGet<CandidateComment[]>(`/api/candidates/${id}/comments`);
@@ -173,9 +176,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       const next = toForm(updated);
       next.note = "";
       setForm(next);
-      setMessage("Candidate updated successfully");
+      setMessage(t("update_success"));
+      notify(t("update_success"), "success");
     } catch (e: any) {
-      setError(e.message || "Failed to save");
+      setError(e.message || t("save_failed"));
+      notify(t("save_failed"), "error");
     } finally {
       setSaving(false);
     }
@@ -187,6 +192,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     await apiPost(`/api/candidates/${candidateId}/comments`, { body });
     setNewComment("");
     await loadComments(candidateId);
+    notify(t("update_success"), "success");
     const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
     setCandidate(updated);
   };
@@ -207,6 +213,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     setScoreSummary("");
     setScoreOverall("");
     await loadScorecards(candidateId);
+    notify(t("update_success"), "success");
     const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
     setCandidate(updated);
   };
@@ -223,6 +230,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     setSchedNotes("");
     setSchedLink("");
     await loadSchedules(candidateId);
+    notify(t("schedule_success"), "success");
     const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
     setCandidate(updated);
   };
