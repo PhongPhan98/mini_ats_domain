@@ -606,3 +606,8 @@ label {
 :root[data-theme="dark"] .conf-high { background:#14532d; color:#dcfce7; border-color:#22c55e; }
 :root[data-theme="dark"] .conf-medium { background:#713f12; color:#fef9c3; border-color:#f59e0b; }
 :root[data-theme="dark"] .conf-low { background:#7f1d1d; color:#fee2e2; border-color:#ef4444; }
+
+.field-low { border-color:#ef4444 !important; background: color-mix(in srgb, #fee2e2 38%, var(--input-bg)); }
+.low-hint { color:#b91c1c; font-weight:600; }
+:root[data-theme="dark"] .field-low { border-color:#f87171 !important; background: color-mix(in srgb, #7f1d1d 35%, var(--input-bg)); }
+:root[data-theme="dark"] .low-hint { color:#fca5a5; }

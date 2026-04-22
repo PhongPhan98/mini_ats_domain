@@ -49,6 +49,10 @@ function confidencePill(v?: string) {
   return c === "high" ? "conf-high" : c === "medium" ? "conf-medium" : "conf-low";
 }
 
+function isLowConfidence(v?: string) {
+  return (v || "low").toLowerCase() === "low";
+}
+
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [results, setResults] = useState<EditableCandidate[]>([]);
@@ -191,6 +195,8 @@ export default function UploadPage() {
             </button>
           </div>
 
+          <small className="low-hint">Please verify red-highlighted fields before save.</small>
+
           <div className="chip-wrap" style={{ marginTop: 8 }}>
             <span className={`chip ${confidencePill(r.parsed_json?.confidence?.name)}`}>name: {r.parsed_json?.confidence?.name || "low"}</span>
             <span className={`chip ${confidencePill(r.parsed_json?.confidence?.email)}`}>email: {r.parsed_json?.confidence?.email || "low"}</span>
@@ -204,6 +210,7 @@ export default function UploadPage() {
               <label>{t("name")}</label>
               <input
                 value={r._editing?.name || ""}
+                className={isLowConfidence(r.parsed_json?.confidence?.name) ? "field-low" : ""}
                 onChange={(e) => setEditing(r.id, "name", e.target.value)}
               />
             </div>
@@ -211,6 +218,7 @@ export default function UploadPage() {
               <label>{t("email")}</label>
               <input
                 value={r._editing?.email || ""}
+                className={isLowConfidence(r.parsed_json?.confidence?.email) ? "field-low" : ""}
                 onChange={(e) => setEditing(r.id, "email", e.target.value)}
               />
             </div>
@@ -218,6 +226,7 @@ export default function UploadPage() {
               <label>{t("phone")}</label>
               <input
                 value={r._editing?.phone || ""}
+                className={isLowConfidence(r.parsed_json?.confidence?.phone) ? "field-low" : ""}
                 onChange={(e) => setEditing(r.id, "phone", e.target.value)}
               />
             </div>
@@ -234,6 +243,7 @@ export default function UploadPage() {
               <label>Projects (separate by |)</label>
               <input
                 value={r._editing?.projects_text || ""}
+                className={isLowConfidence(r.parsed_json?.confidence?.projects) ? "field-low" : ""}
                 onChange={(e) => setEditing(r.id, "projects_text", e.target.value)}
               />
             </div>
@@ -244,6 +254,7 @@ export default function UploadPage() {
               <label>{t("skills_csv")}</label>
               <input
                 value={r._editing?.skills_text || ""}
+                className={isLowConfidence(r.parsed_json?.confidence?.skills) ? "field-low" : ""}
                 onChange={(e) => setEditing(r.id, "skills_text", e.target.value)}
               />
             </div>
@@ -252,6 +263,7 @@ export default function UploadPage() {
               <textarea
                 rows={3}
                 value={r._editing?.summary || ""}
+                className={isLowConfidence(r.parsed_json?.confidence?.summary) ? "field-low" : ""}
                 onChange={(e) => setEditing(r.id, "summary", e.target.value)}
               />
             </div>
