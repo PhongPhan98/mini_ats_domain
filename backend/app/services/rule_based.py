@@ -119,6 +119,50 @@ def _looks_like_section_header(line: str) -> bool:
     return compact in {_match_normalize(x) for x in SECTION_HEADER_HINTS}
 
 
+
+
+def _extract_sections(lines: list[str]) -> dict[str, list[str]]:
+    section_aliases = {
+        "experience": ["experience", "work experience", "employment", "kinh nghiem"],
+        "education": ["education", "hoc van", "academic"],
+        "skills": ["skills", "ky nang", "tech stack"],
+        "projects": ["projects", "du an"],
+        "certifications": ["certifications", "chung chi", "certificate"],
+        "languages": ["languages", "ngoai ngu", "language"],
+    }
+
+    def detect(line: str) -> str | None:
+        lm = _match_normalize(line)
+        for key, aliases in section_aliases.items():
+            if any(_match_normalize(a) == lm or _match_normalize(a) in lm for a in aliases):
+                return key
+        return None
+
+    sections: dict[str, list[str]] = {k: [] for k in section_aliases}
+    current: str | None = None
+    for line in lines:
+        hit = detect(line)
+        if hit:
+            current = hit
+            continue
+        if current:
+            sections[current].append(line)
+    return sections
+
+
+def _extract_projects(lines: list[str]) -> list[str]:
+    out = []
+    for line in lines:
+        clean = line.strip()
+        if not clean:
+            continue
+        if len(clean) < 4:
+            continue
+        out.append(clean[:180])
+        if len(out) >= 8:
+            break
+    return out
+
 def _extract_name(lines: list[str]) -> str | None:
     blacklist = {
         "cv", "resume", "curriculum vitae", "email", "phone", "contact", "linkedin", "github",
@@ -359,6 +403,7 @@ def parse_candidate_from_cv(text: str) -> dict[str, Any]:
         "current_title": _field_confidence(result.get("current_title")),
         "certifications": _field_confidence(result.get("certifications"), "list"),
         "languages": _field_confidence(result.get("languages"), "list"),
+        "projects": _field_confidence(result.get("projects"), "list"),
     }
     score_map = {"low": 0, "medium": 0.6, "high": 1.0}
     overall = int(round(sum(score_map[c] for c in confidence.values()) / len(confidence) * 100))

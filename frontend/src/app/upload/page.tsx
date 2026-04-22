@@ -21,6 +21,7 @@ type EditableCandidate = Candidate & {
     current_title: string;
     certifications_text: string;
     languages_text: string;
+    projects_text: string;
   };
   _saving?: boolean;
 };
@@ -39,6 +40,7 @@ function toEditing(c: Candidate) {
     current_title: c.parsed_json?.current_title || "",
     certifications_text: (c.parsed_json?.certifications || []).join(", "),
     languages_text: (c.parsed_json?.languages || []).join(", "),
+    projects_text: (c.parsed_json?.projects || []).join(" | "),
   };
 }
 
@@ -125,6 +127,7 @@ export default function UploadPage() {
         current_title: item._editing.current_title || null,
         certifications: item._editing.certifications_text.split(",").map((x) => x.trim()).filter(Boolean),
         languages: item._editing.languages_text.split(",").map((x) => x.trim()).filter(Boolean),
+        projects: item._editing.projects_text.split("|").map((x) => x.trim()).filter(Boolean),
       };
 
       const updated = await apiPatch<Candidate>(`/api/candidates/${id}`, payload);
@@ -212,6 +215,13 @@ export default function UploadPage() {
                 min={0}
                 value={r._editing?.years_of_experience || ""}
                 onChange={(e) => setEditing(r.id, "years_of_experience", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>Projects (separate by |)</label>
+              <input
+                value={r._editing?.projects_text || ""}
+                onChange={(e) => setEditing(r.id, "projects_text", e.target.value)}
               />
             </div>
           </div>

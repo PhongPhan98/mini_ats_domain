@@ -37,6 +37,7 @@ export type Candidate = {
     current_title?: string;
     certifications?: string[];
     languages?: string[];
+    projects?: string[];
     timeline?: TimelineEvent[];
     [key: string]: any;
   };

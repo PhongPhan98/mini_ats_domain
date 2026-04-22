@@ -126,6 +126,7 @@ class CandidateUpdate(BaseModel):
     current_title: str | None = None
     certifications: list[str] | None = None
     languages: list[str] | None = None
+    projects: list[str] | None = None
     notes: str | None = None
 
 
