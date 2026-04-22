@@ -57,7 +57,7 @@ export default function JobsPage() {
     setLoadingMatchId(jobId);
     try {
       const threshold = thresholdByJob[jobId] ?? 50;
-      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match?threshold=${threshold}`, {});
+      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match?threshold=${threshold}&lang=${lang}`, {});
       setMatch(data);
     } finally {
       setLoadingMatchId(null);

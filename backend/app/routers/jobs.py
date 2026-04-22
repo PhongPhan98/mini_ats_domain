@@ -103,6 +103,7 @@ def list_jobs(
 def match_candidates(
     job_id: int,
     threshold: int | None = Query(default=None),
+    lang: str = Query(default="en"),
     db: Session = Depends(get_db),
     _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
@@ -115,7 +116,7 @@ def match_candidates(
     results = []
     for c in candidates:
         payload = _to_candidate_payload(c)
-        m = match_candidate_rule_based(job.title, job.requirements, payload)
+        m = match_candidate_rule_based(job.title, job.requirements, payload, lang=lang)
         if m["match_score"] >= min_threshold:
             results.append(
                 MatchItem(

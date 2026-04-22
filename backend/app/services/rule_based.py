@@ -441,7 +441,7 @@ def _required_years(requirements: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def match_candidate_rule_based(job_title: str, requirements: str, candidate: dict[str, Any]) -> dict[str, Any]:
+def match_candidate_rule_based(job_title: str, requirements: str, candidate: dict[str, Any], lang: str = "en") -> dict[str, Any]:
     req_text = f"{job_title}\n{requirements}"
 
     required_skills = set(_extract_skills(req_text))
@@ -480,16 +480,25 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
     matched_skills = sorted(overlap)
     missing_skills = sorted(required_skills - overlap) if required_skills else []
 
-    explanation = (
-        f"Overall match score: {final_score}%. "
-        f"Skills fit contributes strongly: matched {len(matched_skills)}/{len(required_skills) if required_skills else 0} required skills"
-        f" ({', '.join(matched_skills[:8]) if matched_skills else 'none explicitly required'}). "
-        f"Experience check: candidate has {cand_years} year(s)"
-        f"{f', requirement is {req_years} year(s)' if req_years is not None else ', no strict minimum set'}; "
-        f"experience component score {round(exp_score * 100)}%. "
-        f"Context relevance: keyword overlap {kw_overlap} term(s), keyword component score {round(kw_score * 100)}%. "
-        f"Main gaps: {', '.join(missing_skills[:8]) if missing_skills else 'no major required-skill gaps detected'}."
-    )
+    if str(lang).lower().startswith("vi"):
+        explanation_lines = [
+            f"Điểm phù hợp tổng thể: {final_score}%.",
+            f"Mức độ phù hợp kỹ năng: khớp {len(matched_skills)}/{len(required_skills) if required_skills else 0} kỹ năng bắt buộc ({', '.join(matched_skills[:8]) if matched_skills else 'không có kỹ năng bắt buộc cụ thể'}).",
+            f"Đánh giá kinh nghiệm: ứng viên có {cand_years} năm" + (f", yêu cầu là {req_years} năm." if req_years is not None else ", chưa có mức tối thiểu cố định.") + f" Điểm thành phần kinh nghiệm: {round(exp_score * 100)}%.",
+            f"Mức độ liên quan ngữ cảnh: trùng {kw_overlap} từ khóa, điểm thành phần từ khóa: {round(kw_score * 100)}%.",
+            f"Khoảng trống chính: {', '.join(missing_skills[:8]) if missing_skills else 'không có khoảng trống kỹ năng bắt buộc đáng kể'}.",
+        ]
+    else:
+        explanation_lines = [
+            f"Overall match score: {final_score}%.",
+            f"Skills fit: matched {len(matched_skills)}/{len(required_skills) if required_skills else 0} required skills ({', '.join(matched_skills[:8]) if matched_skills else 'none explicitly required'}).",
+            f"Experience check: candidate has {cand_years} year(s)" + (f", requirement is {req_years} year(s)." if req_years is not None else ", no strict minimum set.") + f" Experience component score: {round(exp_score * 100)}%.",
+            f"Context relevance: keyword overlap {kw_overlap} term(s), keyword component score: {round(kw_score * 100)}%.",
+            f"Main gaps: {', '.join(missing_skills[:8]) if missing_skills else 'no major required-skill gaps detected'}.",
+        ]
+
+    explanation = "
+".join(explanation_lines)
 
     return {
         "match_score": final_score,
