@@ -21,7 +21,8 @@ export default function JobsPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editReq, setEditReq] = useState("");
   const [thresholdByJob, setThresholdByJob] = useState<Record<number, number>>({});
-  const { t } = useAppLanguage();
+  const [modalFullscreen, setModalFullscreen] = useState(false);
+  const { t, lang } = useAppLanguage();
 
   const loadJobs = async () => {
     const data = await apiGet<Job[]>(`/api/jobs?include_deleted=${showTrash ? "true" : "false"}`);
@@ -82,6 +83,30 @@ export default function JobsPage() {
     await apiPatch(`/api/jobs/${id}/settings`, { threshold });
     setThresholdByJob((prev) => ({ ...prev, [id]: threshold }));
     notify("Threshold updated", "success");
+  };
+
+
+  const appendReqTemplate = (type: "must" | "nice" | "responsibility") => {
+    const head = type === "must" ? "Must-have:" : type === "nice" ? "Nice-to-have:" : "Responsibilities:";
+    const block = `\n${head}\n- `;
+    setEditReq((prev) => (prev || "") + block);
+  };
+
+  const formatExplanation = (text: string) => {
+    let out = text || "";
+    if (lang === "vi") {
+      out = out
+        .replace("Overall match score", "Điểm phù hợp tổng thể")
+        .replace("Skills fit contributes strongly", "Mức độ phù hợp kỹ năng đóng góp chính")
+        .replace("Experience check", "Đánh giá kinh nghiệm")
+        .replace("requirement is", "yêu cầu là")
+        .replace("year(s)", "năm")
+        .replace("Context relevance", "Mức độ liên quan ngữ cảnh")
+        .replace("Main gaps", "Khoảng trống chính")
+        .replace("no major required-skill gaps detected", "không có khoảng trống kỹ năng bắt buộc đáng kể")
+        .replace("none explicitly required", "không có kỹ năng bắt buộc cụ thể");
+    }
+    return out.replace(/\.\s+/g, ".\n");
   };
 
   const softDelete = async (id: number) => {
@@ -183,10 +208,13 @@ export default function JobsPage() {
 
       {editingId !== null && (
         <div className="modal-overlay" onClick={() => setEditingId(null)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className={`modal-card ${modalFullscreen ? "modal-full" : ""}`} onClick={(e) => e.stopPropagation()}>
             <div className="toolbar">
               <h3 style={{ margin: 0 }}>Edit Job</h3>
-              <button className="btn-outline" style={{ width: "auto" }} onClick={() => setEditingId(null)}>×</button>
+              <div className="toolbar-actions">
+                <button className="btn-outline" style={{ width: "auto" }} onClick={() => setModalFullscreen((v) => !v)}>{modalFullscreen ? "Window" : "Fullscreen"}</button>
+                <button className="btn-outline" style={{ width: "auto" }} onClick={() => setEditingId(null)}>×</button>
+              </div>
             </div>
             <div className="grid" style={{ marginTop: 10 }}>
               <div>
@@ -195,7 +223,12 @@ export default function JobsPage() {
               </div>
               <div>
                 <label>Requirements</label>
-                <textarea rows={8} value={editReq} onChange={(e) => setEditReq(e.target.value)} />
+                <div className="toolbar-actions" style={{ marginBottom: 8 }}>
+                  <button type="button" className="btn-outline" style={{ width: "auto" }} onClick={() => appendReqTemplate("must")}>+ Must-have</button>
+                  <button type="button" className="btn-outline" style={{ width: "auto" }} onClick={() => appendReqTemplate("nice")}>+ Nice-to-have</button>
+                  <button type="button" className="btn-outline" style={{ width: "auto" }} onClick={() => appendReqTemplate("responsibility")}>+ Responsibilities</button>
+                </div>
+                <textarea rows={12} value={editReq} onChange={(e) => setEditReq(e.target.value)} />
               </div>
               <div className="toolbar-actions" style={{ justifyContent: "flex-end" }}>
                 <button className="btn-outline" style={{ width: "auto" }} onClick={() => setEditingId(null)}>Cancel</button>
@@ -230,7 +263,7 @@ export default function JobsPage() {
                   <td>
                     <span className="chip">{r.match_score}</span>
                   </td>
-                  <td>{r.explanation}</td>
+                  <td><div className="explain-box">{formatExplanation(r.explanation)}</div></td>
                 </tr>
               ))}
               {!match.results.length && (

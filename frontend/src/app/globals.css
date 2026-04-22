@@ -636,3 +636,6 @@ label {
   box-shadow: var(--shadow);
   padding: 16px;
 }
+
+.modal-full { width: min(1200px, 98vw); height: 92vh; }
+.explain-box { white-space: pre-line; line-height: 1.5; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--card) 80%, var(--bg-elev)); border: 1px solid var(--border); }

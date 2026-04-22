@@ -65,6 +65,8 @@ export const text = {
     rule: "Rule",
     result: "Result",
     no_events: "No events yet.",
+    back_to_active: "Back to Active",
+    trash: "Trash",
 
     schedule_success: "Interview scheduled successfully",
     update_success: "Information saved successfully",
@@ -177,6 +179,8 @@ export const text = {
     rule: "Quy tắc",
     result: "Kết quả",
     no_events: "Chưa có sự kiện.",
+    back_to_active: "Quay lại danh sách",
+    trash: "Thùng rác",
 
     schedule_success: "Đã lên lịch phỏng vấn thành công",
     update_success: "Đã lưu thông tin thành công",
