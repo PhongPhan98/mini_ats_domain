@@ -147,7 +147,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   }, [params]);
 
   const canSave = useMemo(() => !!form && !saving, [form, saving]);
-  const updateField = (key: keyof CandidateForm, value: string) => setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+  const updateField = (key: keyof CandidateForm, value: string) =>
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
 
   const onSave = async () => {
     if (!form || !candidateId) return;
@@ -227,128 +228,264 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   };
 
   if (loading) return <div className="card">Loading candidate...</div>;
-  if (error && !candidate) return <div className="card"><p style={{ color: "red" }}>{error}</p><Link href="/">Back</Link></div>;
-  if (!form || !candidate) return <div className="card"><p>Candidate not found.</p><Link href="/">Back</Link></div>;
+  if (error && !candidate)
+    return (
+      <div className="card">
+        <p style={{ color: "red" }}>{error}</p>
+        <Link href="/">Back</Link>
+      </div>
+    );
+  if (!form || !candidate)
+    return (
+      <div className="card">
+        <p>Candidate not found.</p>
+        <Link href="/">Back</Link>
+      </div>
+    );
 
   return (
     <div className="grid page-enter">
-      <div className="card"><Link href="/">← Back</Link><h2 style={{ marginTop: 12 }}>Candidate Detail Edit</h2></div>
       <div className="card">
-        <div className="grid grid-2">
-          <div><label>Name</label><input value={form.name} onChange={(e) => updateField("name", e.target.value)} /></div>
-          <div><label>Email</label><input value={form.email} onChange={(e) => updateField("email", e.target.value)} /></div>
-          <div><label>Phone</label><input value={form.phone} onChange={(e) => updateField("phone", e.target.value)} /></div>
-          <div><label>Stage</label><select value={form.status} onChange={(e) => updateField("status", e.target.value)}>{STATUS_OPTIONS.map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}</select></div>
-          <div><label>Years of experience</label><input type="number" min={0} value={form.years_of_experience} onChange={(e) => updateField("years_of_experience", e.target.value)} /></div>
+        <div className="toolbar">
+          <div>
+            <Link href="/">← Back</Link>
+            <h2 style={{ margin: "10px 0 0" }}>{candidate.name || "Candidate Detail"}</h2>
+            <small>{candidate.email || "No email"}</small>
+          </div>
+          <span className={`status-badge status-${candidate.status || "applied"}`}>
+            {formatStatus(candidate.status || "applied")}
+          </span>
         </div>
-        <div style={{ marginTop: 12 }}><label>Skills (comma-separated)</label><input value={form.skills_text} onChange={(e) => updateField("skills_text", e.target.value)} /></div>
-        <div style={{ marginTop: 12 }}><label>Education</label><textarea rows={4} value={form.education_text} onChange={(e) => updateField("education_text", e.target.value)} /></div>
-        <div style={{ marginTop: 12 }}><label>Previous companies</label><textarea rows={4} value={form.previous_companies_text} onChange={(e) => updateField("previous_companies_text", e.target.value)} /></div>
-        <div style={{ marginTop: 12 }}><label>Summary</label><textarea rows={6} value={form.summary} onChange={(e) => updateField("summary", e.target.value)} /></div>
-        <div style={{ marginTop: 12 }}><label>Add note update</label><textarea rows={3} value={form.note} onChange={(e) => updateField("note", e.target.value)} /></div>
-        <div style={{ marginTop: 16 }}><button onClick={onSave} disabled={!canSave}>{saving ? "Saving..." : "Save changes"}</button></div>
+      </div>
+
+      <div className="card">
+        <h3>Profile Information</h3>
+        <div className="grid grid-2">
+          <div>
+            <label>Name</label>
+            <input value={form.name} onChange={(e) => updateField("name", e.target.value)} />
+          </div>
+          <div>
+            <label>Email</label>
+            <input value={form.email} onChange={(e) => updateField("email", e.target.value)} />
+          </div>
+          <div>
+            <label>Phone</label>
+            <input value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
+          </div>
+          <div>
+            <label>Stage</label>
+            <select value={form.status} onChange={(e) => updateField("status", e.target.value)}>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {formatStatus(s)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Years of experience</label>
+            <input
+              type="number"
+              min={0}
+              value={form.years_of_experience}
+              onChange={(e) => updateField("years_of_experience", e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label>Skills (comma-separated)</label>
+          <input value={form.skills_text} onChange={(e) => updateField("skills_text", e.target.value)} />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label>Education</label>
+          <textarea rows={4} value={form.education_text} onChange={(e) => updateField("education_text", e.target.value)} />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label>Previous companies</label>
+          <textarea rows={4} value={form.previous_companies_text} onChange={(e) => updateField("previous_companies_text", e.target.value)} />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label>Summary</label>
+          <textarea rows={6} value={form.summary} onChange={(e) => updateField("summary", e.target.value)} />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label>Add note update</label>
+          <textarea rows={3} value={form.note} onChange={(e) => updateField("note", e.target.value)} />
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <button onClick={onSave} disabled={!canSave}>
+            {saving ? "Saving..." : "Save changes"}
+          </button>
+        </div>
         {message && <p style={{ color: "green" }}>{message}</p>}
         {error && <p style={{ color: "red" }}>{error}</p>}
       </div>
 
-      <div className="card">
-        <h3>Interview Scheduling</h3>
-        <div className="grid grid-4">
-          <div><label>Interviewer Email</label><input value={schedInterviewer} onChange={(e) => setSchedInterviewer(e.target.value)} placeholder="interviewer@company.com" /></div>
-          <div><label>Scheduled At</label><input type="datetime-local" value={schedAt} onChange={(e) => setSchedAt(e.target.value)} /></div>
-          <div><label>Duration (mins)</label><input type="number" min={15} value={schedDuration} onChange={(e) => setSchedDuration(e.target.value)} /></div>
-          <div><label>Meeting Link</label><input value={schedLink} onChange={(e) => setSchedLink(e.target.value)} placeholder="https://meet..." /></div>
-        </div>
-        <div style={{ marginTop: 10 }}><label>Notes</label><textarea rows={2} value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} /></div>
-        <button style={{ marginTop: 8 }} onClick={onScheduleInterview}>Schedule Interview</button>
-        <div className="timeline" style={{ marginTop: 12 }}>
-          {schedules.map((s) => (
-            <div className="timeline-item" key={s.id}>
-              <div className="timeline-dot" />
-              <div>
-                <div><strong>{new Date(s.scheduled_at).toLocaleString()}</strong> with {s.interviewer_email}</div>
-                <small>{s.duration_minutes} mins</small>
-                {s.meeting_link ? <><br /><a href={s.meeting_link} target="_blank">{s.meeting_link}</a></> : null}
-                {s.notes ? <><br /><small>{s.notes}</small></> : null}
-              </div>
+      <div className="grid grid-2">
+        <div className="card">
+          <h3>Interview Scheduling</h3>
+          <div className="grid grid-2">
+            <div>
+              <label>Interviewer Email</label>
+              <input
+                value={schedInterviewer}
+                onChange={(e) => setSchedInterviewer(e.target.value)}
+                placeholder="interviewer@company.com"
+              />
             </div>
-          ))}
-          {!schedules.length && <small>No schedules yet.</small>}
-        </div>
-      </div>
-
-      <div className="card">
-        <h3>Interview Scorecards</h3>
-        <div className="grid grid-4">
-          <div><label>Technical (1-5)</label><input type="number" min={1} max={5} value={scoreTech} onChange={(e) => setScoreTech(e.target.value)} /></div>
-          <div><label>Communication (1-5)</label><input type="number" min={1} max={5} value={scoreComm} onChange={(e) => setScoreComm(e.target.value)} /></div>
-          <div><label>Problem Solving (1-5)</label><input type="number" min={1} max={5} value={scoreProblem} onChange={(e) => setScoreProblem(e.target.value)} /></div>
-          <div><label>Overall</label><input type="number" min={1} max={5} value={scoreOverall} onChange={(e) => setScoreOverall(e.target.value)} /></div>
-        </div>
-        <div className="grid grid-2" style={{ marginTop: 10 }}>
-          <div>
-            <label>Recommendation</label>
-            <select value={scoreRecommendation} onChange={(e) => setScoreRecommendation(e.target.value)}>
-              <option value="strong_yes">Strong Yes</option>
-              <option value="yes">Yes</option>
-              <option value="neutral">Neutral</option>
-              <option value="no">No</option>
-              <option value="strong_no">Strong No</option>
-            </select>
+            <div>
+              <label>Scheduled At</label>
+              <input type="datetime-local" value={schedAt} onChange={(e) => setSchedAt(e.target.value)} />
+            </div>
+            <div>
+              <label>Duration (mins)</label>
+              <input type="number" min={15} value={schedDuration} onChange={(e) => setSchedDuration(e.target.value)} />
+            </div>
+            <div>
+              <label>Meeting Link</label>
+              <input value={schedLink} onChange={(e) => setSchedLink(e.target.value)} placeholder="https://meet..." />
+            </div>
           </div>
-          <div>
-            <label>Summary</label>
-            <textarea rows={3} value={scoreSummary} onChange={(e) => setScoreSummary(e.target.value)} />
+          <div style={{ marginTop: 10 }}>
+            <label>Notes</label>
+            <textarea rows={2} value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} />
           </div>
-        </div>
-        <button style={{ marginTop: 10 }} onClick={onAddScorecard}>Submit Scorecard</button>
-
-        <div className="timeline" style={{ marginTop: 12 }}>
-          {scorecards.map((s) => (
-            <div className="timeline-item" key={s.id}>
-              <div className="timeline-dot" />
-              <div>
+          <button style={{ marginTop: 8 }} onClick={onScheduleInterview}>
+            Schedule Interview
+          </button>
+          <div className="timeline" style={{ marginTop: 12 }}>
+            {schedules.map((s) => (
+              <div className="timeline-item" key={s.id}>
+                <div className="timeline-dot" />
                 <div>
-                  Stage: <strong>{s.interview_stage}</strong> | Overall: <strong>{s.overall_score ?? "-"}</strong> | Rec: <strong>{s.recommendation || "-"}</strong>
+                  <div>
+                    <strong>{new Date(s.scheduled_at).toLocaleString()}</strong> with {s.interviewer_email}
+                  </div>
+                  <small>{s.duration_minutes} mins</small>
+                  {s.meeting_link ? (
+                    <>
+                      <br />
+                      <a href={s.meeting_link} target="_blank">
+                        {s.meeting_link}
+                      </a>
+                    </>
+                  ) : null}
                 </div>
-                <small>
-                  Tech {s.criteria_scores?.technical ?? "-"}, Comm {s.criteria_scores?.communication ?? "-"}, Problem {s.criteria_scores?.problem_solving ?? "-"}
-                </small>
-                <br />
-                <small>{s.summary || ""}</small>
-                <br />
-                <small>{s.created_at}</small>
               </div>
+            ))}
+            {!schedules.length && <small>No schedules yet.</small>}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3>Interview Scorecards</h3>
+          <div className="grid grid-2">
+            <div>
+              <label>Technical (1-5)</label>
+              <input type="number" min={1} max={5} value={scoreTech} onChange={(e) => setScoreTech(e.target.value)} />
             </div>
-          ))}
-          {!scorecards.length && <small>No scorecards yet.</small>}
+            <div>
+              <label>Communication (1-5)</label>
+              <input type="number" min={1} max={5} value={scoreComm} onChange={(e) => setScoreComm(e.target.value)} />
+            </div>
+            <div>
+              <label>Problem Solving (1-5)</label>
+              <input type="number" min={1} max={5} value={scoreProblem} onChange={(e) => setScoreProblem(e.target.value)} />
+            </div>
+            <div>
+              <label>Overall</label>
+              <input type="number" min={1} max={5} value={scoreOverall} onChange={(e) => setScoreOverall(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-2" style={{ marginTop: 10 }}>
+            <div>
+              <label>Recommendation</label>
+              <select value={scoreRecommendation} onChange={(e) => setScoreRecommendation(e.target.value)}>
+                <option value="strong_yes">Strong Yes</option>
+                <option value="yes">Yes</option>
+                <option value="neutral">Neutral</option>
+                <option value="no">No</option>
+                <option value="strong_no">Strong No</option>
+              </select>
+            </div>
+            <div>
+              <label>Summary</label>
+              <textarea rows={3} value={scoreSummary} onChange={(e) => setScoreSummary(e.target.value)} />
+            </div>
+          </div>
+          <button style={{ marginTop: 10 }} onClick={onAddScorecard}>
+            Submit Scorecard
+          </button>
+
+          <div className="timeline" style={{ marginTop: 12 }}>
+            {scorecards.map((s) => (
+              <div className="timeline-item" key={s.id}>
+                <div className="timeline-dot" />
+                <div>
+                  <div>
+                    Stage: <strong>{s.interview_stage}</strong> | Overall: <strong>{s.overall_score ?? "-"}</strong>
+                  </div>
+                  <small>
+                    Tech {s.criteria_scores?.technical ?? "-"}, Comm {s.criteria_scores?.communication ?? "-"}, Problem{" "}
+                    {s.criteria_scores?.problem_solving ?? "-"}
+                  </small>
+                </div>
+              </div>
+            ))}
+            {!scorecards.length && <small>No scorecards yet.</small>}
+          </div>
         </div>
       </div>
 
-      <div className="card">
-        <h3>Comments & Mentions</h3>
-        <small>Use @username or @emailprefix to mention teammates.</small>
-        <div style={{ marginTop: 10 }}>
-          <textarea rows={3} value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Example: @john please review this candidate for frontend interview" />
-          <button style={{ marginTop: 8 }} onClick={onAddComment}>Add Comment</button>
-        </div>
-        <div className="timeline" style={{ marginTop: 12 }}>
-          {comments.map((c) => (
-            <div className="timeline-item" key={c.id}>
-              <div className="timeline-dot" />
-              <div>
-                <div>{c.body}</div>
-                {!!c.mentions?.length && <small>Mentions: {c.mentions.map((m) => `@${m}`).join(", ")}</small>}
-                <br />
-                <small>{c.created_at}</small>
+      <div className="grid grid-2">
+        <div className="card">
+          <h3>Comments & Mentions</h3>
+          <small>Use @username or @emailprefix to mention teammates.</small>
+          <div style={{ marginTop: 10 }}>
+            <textarea
+              rows={3}
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Example: @john please review this candidate"
+            />
+            <button style={{ marginTop: 8 }} onClick={onAddComment}>
+              Add Comment
+            </button>
+          </div>
+          <div className="timeline" style={{ marginTop: 12 }}>
+            {comments.map((c) => (
+              <div className="timeline-item" key={c.id}>
+                <div className="timeline-dot" />
+                <div>
+                  <div>{c.body}</div>
+                  {!!c.mentions?.length && <small>Mentions: {c.mentions.map((m) => `@${m}`).join(", ")}</small>}
+                  <br />
+                  <small>{c.created_at}</small>
+                </div>
               </div>
-            </div>
-          ))}
-          {!comments.length && <small>No comments yet.</small>}
+            ))}
+            {!comments.length && <small>No comments yet.</small>}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3>Candidate Timeline</h3>
+          <div className="timeline">
+            {timelineOf(candidate).map((event, idx) => (
+              <div className="timeline-item" key={`${event.timestamp}-${idx}`}>
+                <div className="timeline-dot" />
+                <div>
+                  <div className="timeline-title">{formatStatus(event.type)}</div>
+                  <div>{event.value}</div>
+                  <small>{event.timestamp}</small>
+                </div>
+              </div>
+            ))}
+            {!timelineOf(candidate).length && <small>No timeline events yet.</small>}
+          </div>
         </div>
       </div>
-
-      <div className="card"><h3>Candidate Timeline</h3><div className="timeline">{timelineOf(candidate).map((event, idx) => <div className="timeline-item" key={`${event.timestamp}-${idx}`}><div className="timeline-dot" /><div><div className="timeline-title">{formatStatus(event.type)}</div><div>{event.value}</div><small>{event.timestamp}</small></div></div>)}</div></div>
     </div>
   );
 }
