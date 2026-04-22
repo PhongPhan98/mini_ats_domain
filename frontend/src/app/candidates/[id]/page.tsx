@@ -188,7 +188,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
   const onAddComment = async () => {
     const body = newComment.trim();
-    if (!body || !candidateId) return;
+    if (!body || !candidateId) { notify(t("missing_required_fields"), "error"); return; }
     await apiPost(`/api/candidates/${candidateId}/comments`, { body });
     setNewComment("");
     await loadComments(candidateId);
@@ -219,7 +219,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   };
 
   const onScheduleInterview = async () => {
-    if (!candidateId || !schedInterviewer || !schedAt) return;
+    if (!candidateId || !schedInterviewer || !schedAt) { notify(t("missing_required_fields"), "error"); return; }
     await apiPost(`/api/candidates/${candidateId}/schedules`, {
       interviewer_email: schedInterviewer,
       scheduled_at: new Date(schedAt).toISOString(),
@@ -256,9 +256,9 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       <div className="card">
         <div className="toolbar">
           <div>
-            <Link href="/">← Back</Link>
-            <h2 style={{ margin: "10px 0 0" }}>{candidate.name || "Candidate Detail"}</h2>
-            <small>{candidate.email || "No email"}</small>
+            <Link href="/">← {t("back")}</Link>
+            <h2 style={{ margin: "10px 0 0" }}>{candidate.name || t("candidate_detail")}</h2>
+            <small>{candidate.email || t("no_email")}</small>
           </div>
           <span className={`status-badge status-${candidate.status || "applied"}`}>
             {formatStatus(candidate.status || "applied")}
@@ -267,18 +267,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       <div className="card">
-        <h3>Profile Information</h3>
+        <h3>{t("profile_information")}</h3>
         <div className="grid grid-2">
           <div>
-            <label>Name</label>
+            <label>{t("name")}</label>
             <input value={form.name} onChange={(e) => updateField("name", e.target.value)} />
           </div>
           <div>
-            <label>Email</label>
+            <label>{t("email")}</label>
             <input value={form.email} onChange={(e) => updateField("email", e.target.value)} />
           </div>
           <div>
-            <label>Phone</label>
+            <label>{t("phone")}</label>
             <input value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
           </div>
           <div>
@@ -292,7 +292,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             </select>
           </div>
           <div>
-            <label>Years of experience</label>
+            <label>{t("years_experience")}</label>
             <input
               type="number"
               min={0}
@@ -302,28 +302,28 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
         <div style={{ marginTop: 12 }}>
-          <label>Skills (comma-separated)</label>
+          <label>{t("skills_csv")}</label>
           <input value={form.skills_text} onChange={(e) => updateField("skills_text", e.target.value)} />
         </div>
         <div style={{ marginTop: 12 }}>
-          <label>Education</label>
+          <label>{t("education")}</label>
           <textarea rows={4} value={form.education_text} onChange={(e) => updateField("education_text", e.target.value)} />
         </div>
         <div style={{ marginTop: 12 }}>
-          <label>Previous companies</label>
+          <label>{t("previous_companies")}</label>
           <textarea rows={4} value={form.previous_companies_text} onChange={(e) => updateField("previous_companies_text", e.target.value)} />
         </div>
         <div style={{ marginTop: 12 }}>
-          <label>Summary</label>
+          <label>{t("summary")}</label>
           <textarea rows={6} value={form.summary} onChange={(e) => updateField("summary", e.target.value)} />
         </div>
         <div style={{ marginTop: 12 }}>
-          <label>Add note update</label>
+          <label>{t("add_note_update")}</label>
           <textarea rows={3} value={form.note} onChange={(e) => updateField("note", e.target.value)} />
         </div>
         <div style={{ marginTop: 16 }}>
           <button onClick={onSave} disabled={!canSave}>
-            {saving ? "Saving..." : "Save changes"}
+            {saving ? t("saving") : t("save_changes")}
           </button>
         </div>
         {message && <p style={{ color: "green" }}>{message}</p>}
@@ -332,10 +332,10 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
       <div className="grid grid-2">
         <div className="card">
-          <h3>Interview Scheduling</h3>
+          <h3>{t("interview_scheduling")}</h3>
           <div className="grid grid-2">
             <div>
-              <label>Interviewer Email</label>
+              <label>{t("interviewer_email")}</label>
               <input
                 value={schedInterviewer}
                 onChange={(e) => setSchedInterviewer(e.target.value)}
@@ -343,24 +343,24 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               />
             </div>
             <div>
-              <label>Scheduled At</label>
+              <label>{t("scheduled_at")}</label>
               <input type="datetime-local" value={schedAt} onChange={(e) => setSchedAt(e.target.value)} />
             </div>
             <div>
-              <label>Duration (mins)</label>
+              <label>{t("duration_mins")}</label>
               <input type="number" min={15} value={schedDuration} onChange={(e) => setSchedDuration(e.target.value)} />
             </div>
             <div>
-              <label>Meeting Link</label>
+              <label>{t("meeting_link")}</label>
               <input value={schedLink} onChange={(e) => setSchedLink(e.target.value)} placeholder="https://meet..." />
             </div>
           </div>
           <div style={{ marginTop: 10 }}>
-            <label>Notes</label>
+            <label>{t("notes")}</label>
             <textarea rows={2} value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} />
           </div>
           <button style={{ marginTop: 8 }} onClick={onScheduleInterview}>
-            Schedule Interview
+            {t("schedule_interview")}
           </button>
           <div className="timeline" style={{ marginTop: 12 }}>
             {schedules.map((s) => (
@@ -382,33 +382,33 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!schedules.length && <small>No schedules yet.</small>}
+            {!schedules.length && <small>{t("no_schedules")}</small>}
           </div>
         </div>
 
         <div className="card">
-          <h3>Interview Scorecards</h3>
+          <h3>{t("interview_scorecards")}</h3>
           <div className="grid grid-2">
             <div>
-              <label>Technical (1-5)</label>
+              <label>{t("technical")}</label>
               <input type="number" min={1} max={5} value={scoreTech} onChange={(e) => setScoreTech(e.target.value)} />
             </div>
             <div>
-              <label>Communication (1-5)</label>
+              <label>{t("communication")}</label>
               <input type="number" min={1} max={5} value={scoreComm} onChange={(e) => setScoreComm(e.target.value)} />
             </div>
             <div>
-              <label>Problem Solving (1-5)</label>
+              <label>{t("problem_solving")}</label>
               <input type="number" min={1} max={5} value={scoreProblem} onChange={(e) => setScoreProblem(e.target.value)} />
             </div>
             <div>
-              <label>Overall</label>
+              <label>{t("overall")}</label>
               <input type="number" min={1} max={5} value={scoreOverall} onChange={(e) => setScoreOverall(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-2" style={{ marginTop: 10 }}>
             <div>
-              <label>Recommendation</label>
+              <label>{t("recommendation")}</label>
               <select value={scoreRecommendation} onChange={(e) => setScoreRecommendation(e.target.value)}>
                 <option value="strong_yes">Strong Yes</option>
                 <option value="yes">Yes</option>
@@ -418,12 +418,12 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               </select>
             </div>
             <div>
-              <label>Summary</label>
+              <label>{t("summary")}</label>
               <textarea rows={3} value={scoreSummary} onChange={(e) => setScoreSummary(e.target.value)} />
             </div>
           </div>
           <button style={{ marginTop: 10 }} onClick={onAddScorecard}>
-            Submit Scorecard
+            {t("submit_scorecard")}
           </button>
 
           <div className="timeline" style={{ marginTop: 12 }}>
@@ -441,15 +441,15 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!scorecards.length && <small>No scorecards yet.</small>}
+            {!scorecards.length && <small>{t("no_scorecards")}</small>}
           </div>
         </div>
       </div>
 
       <div className="grid grid-2">
         <div className="card">
-          <h3>Comments & Mentions</h3>
-          <small>Use @username or @emailprefix to mention teammates.</small>
+          <h3>{t("comments_mentions")}</h3>
+          <small>{t("mention_hint")}</small>
           <div style={{ marginTop: 10 }}>
             <textarea
               rows={3}
@@ -458,7 +458,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               placeholder="Example: @john please review this candidate"
             />
             <button style={{ marginTop: 8 }} onClick={onAddComment}>
-              Add Comment
+              {t("add_comment")}
             </button>
           </div>
           <div className="timeline" style={{ marginTop: 12 }}>
@@ -473,12 +473,12 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!comments.length && <small>No comments yet.</small>}
+            {!comments.length && <small>{t("no_comments")}</small>}
           </div>
         </div>
 
         <div className="card">
-          <h3>Candidate Timeline</h3>
+          <h3>{t("candidate_timeline")}</h3>
           <div className="timeline">
             {timelineOf(candidate).map((event, idx) => (
               <div className="timeline-item" key={`${event.timestamp}-${idx}`}>
@@ -490,7 +490,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!timelineOf(candidate).length && <small>No timeline events yet.</small>}
+            {!timelineOf(candidate).length && <small>{t("no_timeline")}</small>}
           </div>
         </div>
       </div>
