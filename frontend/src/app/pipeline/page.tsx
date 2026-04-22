@@ -14,6 +14,7 @@ function label(s: CandidateStatus) {
 export default function PipelinePage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [dragId, setDragId] = useState<number | null>(null);
+  const [keyword, setKeyword] = useState("");
 
   const load = async () => {
     const data = await apiGet<Candidate[]>("/api/candidates");
@@ -24,15 +25,24 @@ export default function PipelinePage() {
     load();
   }, []);
 
+  const filtered = useMemo(() => {
+    const q = keyword.trim().toLowerCase();
+    if (!q) return candidates;
+    return candidates.filter((c) => {
+      const txt = `${c.name || ""} ${c.email || ""} ${(c.skills || []).join(" ")}`.toLowerCase();
+      return txt.includes(q);
+    });
+  }, [candidates, keyword]);
+
   const byStage = useMemo(() => {
     const map: Record<string, Candidate[]> = {};
     for (const s of STAGES) map[s] = [];
-    for (const c of candidates) {
+    for (const c of filtered) {
       const s = STAGES.includes(c.status) ? c.status : "applied";
       map[s].push(c);
     }
     return map;
-  }, [candidates]);
+  }, [filtered]);
 
   const onDropToStage = async (stage: CandidateStatus) => {
     if (!dragId) return;
@@ -44,8 +54,18 @@ export default function PipelinePage() {
   return (
     <div className="grid page-enter">
       <div className="card">
-        <h2>Recruitment Pipeline</h2>
-        <small>Drag candidates between stages to update pipeline status.</small>
+        <div className="toolbar">
+          <div>
+            <h2 style={{ margin: 0 }}>Recruitment Pipeline</h2>
+            <small>Drag candidates between stages to update status and trigger automation.</small>
+          </div>
+          <input
+            style={{ maxWidth: 320 }}
+            placeholder="Search by name/email/skills"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="kanban-board">
@@ -58,7 +78,7 @@ export default function PipelinePage() {
           >
             <div className="kanban-column-head">
               <strong>{label(stage)}</strong>
-              <span className="chip">{byStage[stage].length}</span>
+              <span className={`status-badge status-${stage}`}>{byStage[stage].length}</span>
             </div>
 
             <div className="kanban-cards">
@@ -78,13 +98,17 @@ export default function PipelinePage() {
                       </span>
                     ))}
                   </div>
-                  <div style={{ marginTop: 10 }}>
+                  <div className="toolbar-actions" style={{ marginTop: 10 }}>
                     <Link href={`/candidates/${c.id}`} className="chip">
                       Open
                     </Link>
+                    <span className={`status-badge status-${c.status || "applied"}`}>
+                      {label(c.status || "applied")}
+                    </span>
                   </div>
                 </div>
               ))}
+              {!byStage[stage].length && <small style={{ opacity: 0.7 }}>No candidates</small>}
             </div>
           </div>
         ))}

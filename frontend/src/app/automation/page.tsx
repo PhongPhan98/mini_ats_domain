@@ -101,8 +101,8 @@ export default function AutomationPage() {
   return (
     <div className="grid page-enter">
       <div className="card">
-        <h2>Automation Rules</h2>
-        <small>Trigger log/email/webhook actions on stage change.</small>
+        <h2 style={{ marginTop: 0 }}>Automation Rules</h2>
+        <small>Trigger log/email/webhook actions on stage changes.</small>
       </div>
 
       <div className="card">
@@ -165,6 +165,7 @@ export default function AutomationPage() {
               </div>
             </div>
           ))}
+          {!rules.length && <small>No automation rules yet.</small>}
         </div>
       </div>
 
@@ -190,6 +191,9 @@ export default function AutomationPage() {
                 <td>{e.result}</td>
               </tr>
             ))}
+            {!events.length && (
+              <tr><td colSpan={5}><small>No events yet.</small></td></tr>
+            )}
           </tbody>
         </table>
       </div>

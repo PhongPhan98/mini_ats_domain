@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "../../lib/api";
 
-type Job = { id: number; title: string; requirements: string };
+type Job = { id: number; title: string; requirements: string; created_at?: string };
 type MatchItem = { candidate_id: number; candidate_name?: string; match_score: number; explanation: string };
-
 type MatchResponse = { job_id: number; job_title: string; results: MatchItem[] };
 
 export default function JobsPage() {
@@ -13,6 +12,7 @@ export default function JobsPage() {
   const [requirements, setRequirements] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [match, setMatch] = useState<MatchResponse | null>(null);
+  const [loadingMatchId, setLoadingMatchId] = useState<number | null>(null);
 
   const loadJobs = async () => {
     const data = await apiGet<Job[]>("/api/jobs");
@@ -32,14 +32,24 @@ export default function JobsPage() {
   };
 
   const runMatch = async (jobId: number) => {
-    const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match`, {});
-    setMatch(data);
+    setLoadingMatchId(jobId);
+    try {
+      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match`, {});
+      setMatch(data);
+    } finally {
+      setLoadingMatchId(null);
+    }
   };
 
   return (
-    <div className="grid">
+    <div className="grid page-enter">
       <div className="card">
-        <h2>Create Job</h2>
+        <h2 style={{ marginTop: 0 }}>Jobs & Matching</h2>
+        <small>Create jobs, then run AI matching against candidate pool.</small>
+      </div>
+
+      <div className="card">
+        <h3>Create Job</h3>
         <div className="grid" style={{ marginTop: 8 }}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Job title" />
           <textarea
@@ -53,11 +63,12 @@ export default function JobsPage() {
       </div>
 
       <div className="card">
-        <h2>Jobs</h2>
+        <h3>Job List</h3>
         <table>
           <thead>
             <tr>
               <th>Title</th>
+              <th>Created</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -65,20 +76,26 @@ export default function JobsPage() {
             {jobs.map((job) => (
               <tr key={job.id}>
                 <td>{job.title}</td>
+                <td>{job.created_at ? new Date(job.created_at).toLocaleString() : "-"}</td>
                 <td>
                   <button className="btn-outline" onClick={() => runMatch(job.id)}>
-                    Run Matching
+                    {loadingMatchId === job.id ? "Running..." : "Run Matching"}
                   </button>
                 </td>
               </tr>
             ))}
+            {!jobs.length && (
+              <tr>
+                <td colSpan={3}><small>No jobs yet.</small></td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
       {match && (
         <div className="card">
-          <h2>Match Results: {match.job_title}</h2>
+          <h3>Match Results: {match.job_title}</h3>
           <table>
             <thead>
               <tr>
