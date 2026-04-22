@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "../../lib/api";
+import { useAppLanguage } from "../../lib/language";
 
 type Job = { id: number; title: string; requirements: string; created_at?: string };
 type MatchItem = { candidate_id: number; candidate_name?: string; match_score: number; explanation: string };
@@ -13,6 +14,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [match, setMatch] = useState<MatchResponse | null>(null);
   const [loadingMatchId, setLoadingMatchId] = useState<number | null>(null);
+  const { t } = useAppLanguage();
 
   const loadJobs = async () => {
     const data = await apiGet<Job[]>("/api/jobs");
@@ -44,32 +46,32 @@ export default function JobsPage() {
   return (
     <div className="grid page-enter">
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Jobs & Matching</h2>
-        <small>Create jobs, then run AI matching against candidate pool.</small>
+        <h2 style={{ marginTop: 0 }}>{t("jobs_title")}</h2>
+        <small>{t("jobs_hint")}</small>
       </div>
 
       <div className="card">
-        <h3>Create Job</h3>
+        <h3>{t("create_job")}</h3>
         <div className="grid" style={{ marginTop: 8 }}>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Job title" />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("job_title")} />
           <textarea
             style={{ minHeight: 120 }}
             value={requirements}
             onChange={(e) => setRequirements(e.target.value)}
-            placeholder="Enter requirements"
+            placeholder={t("enter_requirements")}
           />
-          <button onClick={createJob}>Save Job</button>
+          <button onClick={createJob}>{t("save_job")}</button>
         </div>
       </div>
 
       <div className="card">
-        <h3>Job List</h3>
+        <h3>{t("job_list")}</h3>
         <table>
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Created</th>
-              <th>Actions</th>
+              <th>{t("job_title")}</th>
+              <th>{t("created")}</th>
+              <th>{t("actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -79,14 +81,14 @@ export default function JobsPage() {
                 <td>{job.created_at ? new Date(job.created_at).toLocaleString() : "-"}</td>
                 <td>
                   <button className="btn-outline" onClick={() => runMatch(job.id)}>
-                    {loadingMatchId === job.id ? "Running..." : "Run Matching"}
+                    {loadingMatchId === job.id ? t("running") : t("run_matching")}
                   </button>
                 </td>
               </tr>
             ))}
             {!jobs.length && (
               <tr>
-                <td colSpan={3}><small>No jobs yet.</small></td>
+                <td colSpan={3}><small>{t("no_jobs")}</small></td>
               </tr>
             )}
           </tbody>
@@ -95,13 +97,13 @@ export default function JobsPage() {
 
       {match && (
         <div className="card">
-          <h3>Match Results: {match.job_title}</h3>
+          <h3>{t("match_results")}: {match.job_title}</h3>
           <table>
             <thead>
               <tr>
-                <th>Candidate</th>
-                <th>Score</th>
-                <th>Explanation</th>
+                <th>{t("candidate")}</th>
+                <th>{t("score")}</th>
+                <th>{t("explanation")}</th>
               </tr>
             </thead>
             <tbody>

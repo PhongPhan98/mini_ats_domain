@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "../../lib/api";
+import { useAppLanguage } from "../../lib/language";
 
 type Action = {
   type: "log" | "email" | "webhook";
@@ -25,6 +26,7 @@ export default function AutomationPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const { t } = useAppLanguage();
 
   const load = async () => {
     const [rulesData, eventsData] = await Promise.all([
@@ -101,16 +103,16 @@ export default function AutomationPage() {
   return (
     <div className="grid page-enter">
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Automation Rules</h2>
-        <small>Trigger log/email/webhook actions on stage changes.</small>
+        <h2 style={{ marginTop: 0 }}>{t("automation_title")}</h2>
+        <small>{t("automation_hint")}</small>
       </div>
 
       <div className="card">
         <div className="toolbar">
-          <h3>Rules ({rules.length})</h3>
+          <h3>{t("rules")} ({rules.length})</h3>
           <div className="toolbar-actions">
-            <button className="btn-outline" onClick={addRule}>Add Rule</button>
-            <button onClick={saveRules} disabled={saving}>{saving ? "Saving..." : "Save Rules"}</button>
+            <button className="btn-outline" onClick={addRule}>{t("add_rule")}</button>
+            <button onClick={saveRules} disabled={saving}>{saving ? t("saving") : t("save_rules")}</button>
           </div>
         </div>
 
@@ -165,20 +167,20 @@ export default function AutomationPage() {
               </div>
             </div>
           ))}
-          {!rules.length && <small>No automation rules yet.</small>}
+          {!rules.length && <small>{t("no_rules")}</small>}
         </div>
       </div>
 
       <div className="card">
-        <h3>Automation Event Log</h3>
+        <h3>{t("event_log")}</h3>
         <table>
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Candidate</th>
-              <th>Stage</th>
-              <th>Rule</th>
-              <th>Result</th>
+              <th>{t("time")}</th>
+              <th>{t("candidate")}</th>
+              <th>{t("stage")}</th>
+              <th>{t("rule")}</th>
+              <th>{t("result")}</th>
             </tr>
           </thead>
           <tbody>
@@ -192,7 +194,7 @@ export default function AutomationPage() {
               </tr>
             ))}
             {!events.length && (
-              <tr><td colSpan={5}><small>No events yet.</small></td></tr>
+              <tr><td colSpan={5}><small>{t("no_events")}</small></td></tr>
             )}
           </tbody>
         </table>

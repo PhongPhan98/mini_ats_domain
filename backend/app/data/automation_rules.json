@@ -1,0 +1,38 @@
+{
+  "rules": [
+    {
+      "id": "notify-interview",
+      "enabled": true,
+      "on_stage": "hired",
+      "actions": [
+        {
+          "type": "email",
+          "subject": "Interview stage update",
+          "body": "Hello {{candidate_name}}, your application moved to interview stage."
+        },
+        {
+          "type": "email",
+          "subject": "Candidate stage update",
+          "body": "Hi {{candidate_name}}, status: {{stage}}"
+        },
+        {
+          "type": "webhook",
+          "url": "https://example.com/webhook"
+        },
+        {
+          "type": "webhook",
+          "url": "https://example.com/webhook"
+        },
+        {
+          "type": "log",
+          "message": "Stage changed"
+        },
+        {
+          "type": "email",
+          "subject": "Candidate stage update",
+          "body": "Hi {{candidate_name}}, status: {{stage}}"
+        }
+      ]
+    }
+  ]
+}

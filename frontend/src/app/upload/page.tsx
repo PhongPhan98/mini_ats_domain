@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { uploadCandidate } from "../../lib/api";
+import { useAppLanguage } from "../../lib/language";
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const { t } = useAppLanguage();
 
   const onUpload = async () => {
     if (!file) return;
@@ -17,7 +19,7 @@ export default function UploadPage() {
       const data = await uploadCandidate(file);
       setResult(data);
     } catch (e: any) {
-      setError(e.message || "Upload failed");
+      setError(e.message || t("upload_failed"));
     } finally {
       setLoading(false);
     }
@@ -26,8 +28,8 @@ export default function UploadPage() {
   return (
     <div className="grid">
       <div className="card">
-        <h2>Upload CV</h2>
-        <small>Supported formats: PDF, DOCX</small>
+        <h2>{t("upload_title")}</h2>
+        <small>{t("upload_supported")}</small>
         <div style={{ marginTop: 12 }}>
           <input
             type="file"
@@ -37,7 +39,7 @@ export default function UploadPage() {
         </div>
         <div style={{ marginTop: 12 }}>
           <button onClick={onUpload} disabled={!file || loading}>
-            {loading ? "Uploading..." : "Upload & Parse with AI"}
+            {loading ? t("uploading") : t("upload_action")}
           </button>
         </div>
         {error && <p style={{ color: "#ef4444" }}>{error}</p>}
@@ -45,7 +47,7 @@ export default function UploadPage() {
 
       {result && (
         <div className="card">
-          <h3>Parsed Candidate</h3>
+          <h3>{t("parsed_candidate")}</h3>
           <div className="grid grid-2">
             <div>
               <small>Name</small>
@@ -67,7 +69,7 @@ export default function UploadPage() {
           </div>
 
           <details style={{ marginTop: 12 }}>
-            <summary>Raw JSON</summary>
+            <summary>{t("raw_json")}</summary>
             <pre className="card" style={{ whiteSpace: "pre-wrap", marginTop: 10 }}>
               {JSON.stringify(result, null, 2)}
             </pre>

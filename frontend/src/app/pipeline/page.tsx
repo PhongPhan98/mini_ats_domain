@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPatch } from "../../lib/api";
+import { useAppLanguage } from "../../lib/language";
 import type { Candidate, CandidateStatus } from "../../components/types";
 
 const STAGES: CandidateStatus[] = ["applied", "screening", "interview", "offer", "hired", "rejected"];
@@ -15,6 +16,7 @@ export default function PipelinePage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [dragId, setDragId] = useState<number | null>(null);
   const [keyword, setKeyword] = useState("");
+  const { t } = useAppLanguage();
 
   const load = async () => {
     const data = await apiGet<Candidate[]>("/api/candidates");
@@ -56,12 +58,12 @@ export default function PipelinePage() {
       <div className="card">
         <div className="toolbar">
           <div>
-            <h2 style={{ margin: 0 }}>Recruitment Pipeline</h2>
-            <small>Drag candidates between stages to update status and trigger automation.</small>
+            <h2 style={{ margin: 0 }}>{t("pipeline_title")}</h2>
+            <small>{t("pipeline_hint")}</small>
           </div>
           <input
             style={{ maxWidth: 320 }}
-            placeholder="Search by name/email/skills"
+            placeholder={t("search_placeholder")}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
@@ -100,7 +102,7 @@ export default function PipelinePage() {
                   </div>
                   <div className="toolbar-actions" style={{ marginTop: 10 }}>
                     <Link href={`/candidates/${c.id}`} className="chip">
-                      Open
+                      {t("open")}
                     </Link>
                     <span className={`status-badge status-${c.status || "applied"}`}>
                       {label(c.status || "applied")}
@@ -108,7 +110,7 @@ export default function PipelinePage() {
                   </div>
                 </div>
               ))}
-              {!byStage[stage].length && <small style={{ opacity: 0.7 }}>No candidates</small>}
+              {!byStage[stage].length && <small style={{ opacity: 0.7 }}>{t("no_candidates")}</small>}
             </div>
           </div>
         ))}
