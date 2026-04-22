@@ -70,3 +70,10 @@ export async function uploadCandidateReviewed(file: File, edited: Record<string,
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+
+export async function apiDelete<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

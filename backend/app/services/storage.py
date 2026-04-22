@@ -20,3 +20,15 @@ class LocalStorageService:
         target = self.base_dir / safe_name
         target.write_bytes(content)
         return f"{settings.public_base_url}/uploads/{safe_name}"
+
+
+    def delete_by_url(self, file_url: str) -> bool:
+        try:
+            name = file_url.rstrip('/').split('/')[-1]
+            target = self.base_dir / name
+            if target.exists():
+                target.unlink()
+                return True
+        except Exception:
+            return False
+        return False

@@ -267,3 +267,25 @@ def update_candidate(
 
     stmt = select(Candidate).options(selectinload(Candidate.files)).where(Candidate.id == candidate.id)
     return db.execute(stmt).scalar_one()
+
+
+@router.delete("/{candidate_id}/files/{file_id}")
+def delete_candidate_file(
+    candidate_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    file = db.get(CandidateFile, file_id)
+    if not file or file.candidate_id != candidate_id:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    storage.delete_by_url(file.file_url)
+    db.delete(file)
+    _append_timeline_event(candidate, "note", f"deleted_cv_file:{file.original_filename}")
+    db.commit()
+    return {"ok": True}

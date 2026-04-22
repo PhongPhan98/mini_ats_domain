@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPatch, apiPost } from "../../../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
 import { notify } from "../../../lib/toast";
 import type { Candidate, CandidateStatus, TimelineEvent } from "../../../components/types";
@@ -109,6 +109,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [schedDuration, setSchedDuration] = useState("60");
   const [schedLink, setSchedLink] = useState("");
   const [schedNotes, setSchedNotes] = useState("");
+  const [selectedFileUrl, setSelectedFileUrl] = useState("");
   const { t } = useAppLanguage();
 
   const loadComments = async (id: string) => {
@@ -137,6 +138,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         if (cancelled) return;
         setCandidate(data);
         setForm(toForm(data));
+        setSelectedFileUrl(data.files?.[0]?.file_url || "");
         await Promise.all([loadComments(resolved.id), loadScorecards(resolved.id), loadSchedules(resolved.id)]);
       } catch (e: any) {
         if (!cancelled) setError(e.message || "Failed to load candidate");
@@ -235,6 +237,19 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     setCandidate(updated);
   };
 
+  const onDeleteFile = async (fileId: number) => {
+    if (!candidateId) return;
+    try {
+      await apiDelete(`/api/candidates/${candidateId}/files/${fileId}`);
+      const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
+      setCandidate(updated);
+      setSelectedFileUrl(updated.files?.[0]?.file_url || "");
+      notify(t("update_success"), "success");
+    } catch {
+      notify(t("save_failed"), "error");
+    }
+  };
+
   if (loading) return <div className="card">{t("loading_candidate")}</div>;
   if (error && !candidate)
     return (
@@ -263,6 +278,36 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           <span className={`status-badge status-${candidate.status || "applied"}`}>
             {formatStatus(candidate.status || "applied")}
           </span>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="toolbar">
+          <h3 style={{ margin: 0 }}>Original CV Files</h3>
+          <small>{candidate.files?.length || 0} file(s)</small>
+        </div>
+        <div className="split-grid" style={{ marginTop: 10 }}>
+          <div className="card" style={{ marginBottom: 0 }}>
+            <div className="grid">
+              {(candidate.files || []).map((f) => (
+                <div key={f.id} className="toolbar" style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 8 }}>
+                  <a href={f.file_url} target="_blank">{f.original_filename}</a>
+                  <div className="toolbar-actions">
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedFileUrl(f.file_url)}>View</button>
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => onDeleteFile(f.id)}>Delete</button>
+                  </div>
+                </div>
+              ))}
+              {!candidate.files?.length && <small>No CV files</small>}
+            </div>
+          </div>
+          <div className="card" style={{ marginBottom: 0 }}>
+            {selectedFileUrl ? (
+              <iframe title="cv-preview" src={selectedFileUrl} style={{ width: "100%", height: 560, border: "1px solid var(--border)", borderRadius: 10 }} />
+            ) : (
+              <small>Select a file to preview</small>
+            )}
+          </div>
         </div>
       </div>
 
