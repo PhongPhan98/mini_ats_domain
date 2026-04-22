@@ -139,16 +139,7 @@ export default function JobsPage() {
           <tbody>
             {jobs.map((job) => (
               <tr key={job.id}>
-                <td>
-                  {editingId === job.id ? (
-                    <div className="grid" style={{ gap: 6 }}>
-                      <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                      <textarea rows={3} value={editReq} onChange={(e) => setEditReq(e.target.value)} />
-                    </div>
-                  ) : (
-                    job.title
-                  )}
-                </td>
+                <td>{job.title}</td>
                 <td>{job.created_at ? new Date(job.created_at).toLocaleString() : "-"}</td>
                 <td>
                   <div className="toolbar-actions">
@@ -171,12 +162,6 @@ export default function JobsPage() {
                     {!showTrash && editingId !== job.id && (
                       <button className="btn-outline" onClick={() => startEdit(job)}>Edit</button>
                     )}
-                    {!showTrash && editingId === job.id && (
-                      <>
-                        <button onClick={saveEdit}>Save</button>
-                        <button className="btn-outline" onClick={() => setEditingId(null)}>Cancel</button>
-                      </>
-                    )}
                     {!showTrash ? (
                       <button className="btn-outline" onClick={() => softDelete(job.id)}>Delete</button>
                     ) : (
@@ -194,6 +179,32 @@ export default function JobsPage() {
           </tbody>
         </table>
       </div>
+
+
+      {editingId !== null && (
+        <div className="modal-overlay" onClick={() => setEditingId(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="toolbar">
+              <h3 style={{ margin: 0 }}>Edit Job</h3>
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => setEditingId(null)}>×</button>
+            </div>
+            <div className="grid" style={{ marginTop: 10 }}>
+              <div>
+                <label>{t("job_title")}</label>
+                <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+              </div>
+              <div>
+                <label>Requirements</label>
+                <textarea rows={8} value={editReq} onChange={(e) => setEditReq(e.target.value)} />
+              </div>
+              <div className="toolbar-actions" style={{ justifyContent: "flex-end" }}>
+                <button className="btn-outline" style={{ width: "auto" }} onClick={() => setEditingId(null)}>Cancel</button>
+                <button style={{ width: "auto" }} onClick={saveEdit}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {match && (
         <div className="card">
