@@ -235,7 +235,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     setCandidate(updated);
   };
 
-  if (loading) return <div className="card">Loading candidate...</div>;
+  if (loading) return <div className="card">{t("loading_candidate")}</div>;
   if (error && !candidate)
     return (
       <div className="card">
@@ -246,7 +246,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   if (!form || !candidate)
     return (
       <div className="card">
-        <p>Candidate not found.</p>
+        <p>{t("candidate_not_found")}</p>
         <Link href="/">Back</Link>
       </div>
     );
@@ -282,7 +282,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             <input value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
           </div>
           <div>
-            <label>Stage</label>
+            <label>{t("stage_label")}</label>
             <select value={form.status} onChange={(e) => updateField("status", e.target.value)}>
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
@@ -368,9 +368,9 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 <div className="timeline-dot" />
                 <div>
                   <div>
-                    <strong>{new Date(s.scheduled_at).toLocaleString()}</strong> with {s.interviewer_email}
+                    <strong>{new Date(s.scheduled_at).toLocaleString()}</strong> {t("with_label")} {s.interviewer_email}
                   </div>
-                  <small>{s.duration_minutes} mins</small>
+                  <small>{s.duration_minutes} {t("mins_label")}</small>
                   {s.meeting_link ? (
                     <>
                       <br />
@@ -467,7 +467,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 <div className="timeline-dot" />
                 <div>
                   <div>{c.body}</div>
-                  {!!c.mentions?.length && <small>Mentions: {c.mentions.map((m) => `@${m}`).join(", ")}</small>}
+                  {!!c.mentions?.length && <small>{t("mentions_label")}: {c.mentions.map((m) => `@${m}`).join(", ")}</small>}
                   <br />
                   <small>{c.created_at}</small>
                 </div>

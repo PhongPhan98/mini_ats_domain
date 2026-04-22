@@ -108,6 +108,13 @@ export const text = {
     candidate_timeline: "Candidate Timeline",
     no_timeline: "No timeline events yet.",
     missing_required_fields: "Please fill required fields first",
+
+    loading_candidate: "Loading candidate...",
+    candidate_not_found: "Candidate not found.",
+    stage_label: "Stage",
+    with_label: "with",
+    mins_label: "mins",
+    mentions_label: "Mentions",
   },
   vi: {
     nav_dashboard: "Bảng điều khiển",
@@ -209,6 +216,13 @@ export const text = {
     candidate_timeline: "Dòng thời gian ứng viên",
     no_timeline: "Chưa có sự kiện dòng thời gian.",
     missing_required_fields: "Vui lòng nhập đủ thông tin bắt buộc",
+
+    loading_candidate: "Đang tải ứng viên...",
+    candidate_not_found: "Không tìm thấy ứng viên.",
+    stage_label: "Vòng",
+    with_label: "với",
+    mins_label: "phút",
+    mentions_label: "Gắn nhắc",
   },
 } as const;
 
