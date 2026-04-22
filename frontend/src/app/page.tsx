@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPatch, apiUrl } from "../lib/api";
+import { useAppLanguage } from "../lib/language";
 import type { Analytics, Candidate, CandidateStatus } from "../components/types";
 
 type SearchParams = {
@@ -61,6 +62,7 @@ export default function DashboardPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [reportRange, setReportRange] = useState("last_30_days");
+  const { t } = useAppLanguage();
   const pageSize = 10;
 
   const loadData = async (nextFilters: SearchParams) => {
@@ -153,7 +155,7 @@ export default function DashboardPage() {
   return (
     <div className="grid page-enter">
       <div className="toolbar">
-        <h2>Recruitment Dashboard</h2>
+        <h2>{t("dashboard_title")}</h2>
         <div className="toolbar-actions">
           <select style={{ width: 170 }} value={reportRange} onChange={(e) => setReportRange(e.target.value)}>
             <option value="last_7_days">Last 7 days</option>
@@ -161,10 +163,10 @@ export default function DashboardPage() {
             <option value="last_90_days">Last 90 days</option>
             <option value="all_time">All time</option>
           </select>
-          <a className="btn-outline" href={apiUrl("/api/reports/candidates.csv")}>Candidates CSV</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/analytics.csv")}>Analytics CSV</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/reports.xlsx")}>XLSX</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/report.pdf")}>PDF</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/candidates.csv")}>{t("report_candidates_csv")}</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/analytics.csv")}>{t("report_analytics_csv")}</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/reports.xlsx")}>{t("report_xlsx")}</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/report.pdf")}>{t("report_pdf")}</a>
         </div>
       </div>
 

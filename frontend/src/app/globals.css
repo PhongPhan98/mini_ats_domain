@@ -89,9 +89,25 @@ button:hover { transform: translateY(-1px); }
 
 .nav-bar { display: flex; gap: 16px; justify-content: space-between; align-items: center; }
 .nav-links { display: flex; gap: 14px; flex-wrap: wrap; }
-.nav-links a { padding: 8px 10px; border-radius: 8px; }
-.nav-links a:hover { background: color-mix(in srgb, var(--card) 70%, var(--bg-elev)); }
+.nav-link {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: background .2s ease, color .2s ease, border-color .2s ease;
+}
+.nav-link:hover { background: color-mix(in srgb, var(--card) 70%, var(--bg-elev)); }
+.nav-link-active {
+  background: color-mix(in srgb, var(--button-bg) 15%, var(--card));
+  border-color: color-mix(in srgb, var(--button-bg) 35%, var(--border));
+  color: color-mix(in srgb, var(--button-bg) 82%, var(--text));
+  font-weight: 700;
+}
+:root[data-theme="dark"] .nav-link-active {
+  background: color-mix(in srgb, var(--button-bg) 22%, var(--card));
+  color: #dbeafe;
+}
 .nav-actions { display: flex; gap: 8px; }
+.nav-toggle { width: auto; padding: 8px 10px; }
 
 .toolbar { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
 .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
