@@ -1,8 +1,9 @@
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+import json
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -32,6 +33,42 @@ def normalize_status(value: str | None) -> str:
     return legacy_map.get(value, value)
 
 
+
+
+def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
+    text = CVTextParser.parse(filename, content)
+    if not text:
+        fallback_name = Path(filename).stem.replace("_", " ").replace("-", " ").strip() or "Unknown Candidate"
+        return {
+            "name": fallback_name,
+            "summary": "Imported with limited parsing (manual review needed).",
+            "skills": [],
+            "education": [],
+            "previous_companies": [],
+            "parse_warning": "Could not extract text from CV file",
+            "confidence": {},
+            "confidence_score": 0,
+            "source": "fallback",
+        }
+    return parse_candidate_from_cv(text)
+
+
+@router.post("/parse")
+async def parse_cv_preview(
+    file: UploadFile = File(...),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    ext = Path(file.filename).suffix.lower()
+    if ext not in {".pdf", ".docx"}:
+        raise HTTPException(status_code=400, detail="Only PDF/DOCX supported")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    parsed = _parse_or_fallback(file.filename, content)
+    return {"filename": file.filename, "parsed": parsed}
+
 def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
     parsed_json = dict(candidate.parsed_json or {})
     timeline = list(parsed_json.get("timeline", []))
@@ -50,6 +87,7 @@ def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
 @router.post("/upload", response_model=CandidateOut)
 async def upload_cv(
     file: UploadFile = File(...),
+    edited_json: str | None = Form(default=None),
     db: Session = Depends(get_db),
     _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
@@ -61,21 +99,16 @@ async def upload_cv(
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
 
-    text = CVTextParser.parse(file.filename, content)
+    parsed = _parse_or_fallback(file.filename, content)
 
-    if not text:
-        # Fallback: still import file and create draft candidate profile for manual review.
-        fallback_name = Path(file.filename).stem.replace("_", " ").replace("-", " ").strip() or "Unknown Candidate"
-        parsed = {
-            "name": fallback_name,
-            "summary": "Imported with limited parsing (manual review needed).",
-            "skills": [],
-            "education": [],
-            "previous_companies": [],
-            "parse_warning": "Could not extract text from CV file",
-        }
-    else:
-        parsed = parse_candidate_from_cv(text)
+    if edited_json:
+        try:
+            edited = json.loads(edited_json)
+            if isinstance(edited, dict):
+                for k, v in edited.items():
+                    parsed[k] = v
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid edited_json")
 
     candidate = Candidate(
         name=parsed.get("name"),

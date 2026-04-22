@@ -2,152 +2,153 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
-import { apiPatch, uploadCandidate } from "../../lib/api";
+import { parseCandidatePreview, uploadCandidateReviewed } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
 import { notify } from "../../lib/toast";
-import type { Candidate } from "../../components/types";
 
-type EditableCandidate = Candidate & {
-  _editing?: {
+type Draft = {
+  file: File;
+  filename: string;
+  data: any;
+  editing: {
     name: string;
     email: string;
     phone: string;
     years_of_experience: string;
     skills_text: string;
     summary: string;
+    current_title: string;
+    location: string;
     linkedin_url: string;
     github_url: string;
-    location: string;
-    current_title: string;
     certifications_text: string;
     languages_text: string;
     projects_text: string;
   };
-  _saving?: boolean;
+  saving?: boolean;
+  savedCandidateId?: number;
 };
 
-function toEditing(c: Candidate) {
+function fromParsed(file: File, parsed: any): Draft {
   return {
-    name: c.name || "",
-    email: c.email || "",
-    phone: c.phone || "",
-    years_of_experience: c.years_of_experience?.toString() || "",
-    skills_text: (c.skills || []).join(", "),
-    summary: c.summary || "",
-    linkedin_url: c.parsed_json?.linkedin_url || "",
-    github_url: c.parsed_json?.github_url || "",
-    location: c.parsed_json?.location || "",
-    current_title: c.parsed_json?.current_title || "",
-    certifications_text: (c.parsed_json?.certifications || []).join(", "),
-    languages_text: (c.parsed_json?.languages || []).join(", "),
-    projects_text: (c.parsed_json?.projects || []).join(" | "),
+    file,
+    filename: file.name,
+    data: parsed,
+    editing: {
+      name: parsed?.name || "",
+      email: parsed?.email || "",
+      phone: parsed?.phone || "",
+      years_of_experience: parsed?.years_of_experience?.toString?.() || "",
+      skills_text: (parsed?.skills || []).join(", "),
+      summary: parsed?.summary || "",
+      current_title: parsed?.current_title || "",
+      location: parsed?.location || "",
+      linkedin_url: parsed?.linkedin_url || "",
+      github_url: parsed?.github_url || "",
+      certifications_text: (parsed?.certifications || []).join(", "),
+      languages_text: (parsed?.languages || []).join(", "),
+      projects_text: (parsed?.projects || []).join(" | "),
+    },
   };
 }
 
-function confidencePill(v?: string) {
+function confidenceClass(v?: string) {
   const c = (v || "low").toLowerCase();
   return c === "high" ? "conf-high" : c === "medium" ? "conf-medium" : "conf-low";
 }
-
-function isLowConfidence(v?: string) {
-  return (v || "low").toLowerCase() === "low";
+function isLow(v?: string, current?: string) {
+  return (v || "low").toLowerCase() === "low" && !(current || "").trim();
 }
 
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
-  const [results, setResults] = useState<EditableCandidate[]>([]);
-  const [error, setError] = useState<string>("");
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [idx, setIdx] = useState(0);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const { t } = useAppLanguage();
 
-  const totalReadiness = useMemo(() => {
-    if (!results.length) return 0;
-    const scoreOne = (r: EditableCandidate) => {
-      let pts = 0;
-      if (r.name) pts += 25;
-      if (r.email) pts += 25;
-      if ((r.skills || []).length >= 3) pts += 25;
-      if (r.summary) pts += 25;
-      return pts;
-    };
-    return Math.round(results.reduce((sum, x) => sum + scoreOne(x), 0) / results.length);
-  }, [results]);
+  const current = drafts[idx];
 
-  const onUpload = async () => {
+  const score = useMemo(() => {
+    if (!current?.data) return 0;
+    let pts = 0;
+    if (current.editing.name) pts += 20;
+    if (current.editing.email) pts += 20;
+    if (current.editing.phone) pts += 10;
+    if (current.editing.skills_text) pts += 20;
+    if (current.editing.summary) pts += 20;
+    if (current.editing.current_title) pts += 10;
+    return pts;
+  }, [current]);
+
+  const onParseOnly = async () => {
     if (!files.length) return;
     setLoading(true);
     setError("");
-
-    const ok: EditableCandidate[] = [];
+    const next: Draft[] = [];
     let failed = 0;
 
     for (const f of files) {
       try {
-        const data = await uploadCandidate(f);
-        ok.push({ ...data, _editing: toEditing(data) });
-      } catch (e: any) {
+        const res = await parseCandidatePreview(f);
+        next.push(fromParsed(f, res.parsed));
+      } catch {
         failed += 1;
       }
     }
 
-    setResults(ok);
+    setDrafts(next);
+    setIdx(0);
     setFiles([]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-
-    if (ok.length) notify(`Imported ${ok.length} CV(s)`, "success");
+    if (inputRef.current) inputRef.current.value = "";
+    if (next.length) notify(`Parsed ${next.length} CV(s). Review before import.`, "success");
     if (failed) {
-      setError(`${failed} file(s) failed to import.`);
-      notify(`${failed} file(s) failed`, "error");
+      setError(`${failed} file(s) failed to parse.`);
+      notify(`${failed} file(s) failed to parse`, "error");
     }
-
     setLoading(false);
   };
 
-  const setEditing = (id: number, key: keyof NonNullable<EditableCandidate["_editing"]>, value: string) => {
-    setResults((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, _editing: { ...(r._editing || toEditing(r)), [key]: value } } : r
-      )
-    );
+  const update = (k: keyof Draft["editing"], v: string) => {
+    setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, editing: { ...d.editing, [k]: v } } : d)));
   };
 
-  const saveCandidate = async (id: number) => {
-    const item = results.find((x) => x.id === id);
-    if (!item || !item._editing) return;
+  const removeCurrent = () => {
+    setDrafts((prev) => {
+      const arr = prev.filter((_, i) => i !== idx);
+      const nextIdx = Math.min(idx, Math.max(0, arr.length - 1));
+      setIdx(nextIdx);
+      return arr;
+    });
+  };
 
-    setResults((prev) => prev.map((x) => (x.id === id ? { ...x, _saving: true } : x)));
+  const saveCurrent = async () => {
+    if (!current) return;
+    setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: true } : d)));
     try {
-      const payload = {
-        name: item._editing.name || null,
-        email: item._editing.email || null,
-        phone: item._editing.phone || null,
-        years_of_experience: item._editing.years_of_experience
-          ? Number(item._editing.years_of_experience)
-          : null,
-        skills: item._editing.skills_text
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        summary: item._editing.summary || null,
-        linkedin_url: item._editing.linkedin_url || null,
-        github_url: item._editing.github_url || null,
-        location: item._editing.location || null,
-        current_title: item._editing.current_title || null,
-        certifications: item._editing.certifications_text.split(",").map((x) => x.trim()).filter(Boolean),
-        languages: item._editing.languages_text.split(",").map((x) => x.trim()).filter(Boolean),
-        projects: item._editing.projects_text.split("|").map((x) => x.trim()).filter(Boolean),
+      const edited = {
+        name: current.editing.name || null,
+        email: current.editing.email || null,
+        phone: current.editing.phone || null,
+        years_of_experience: current.editing.years_of_experience ? Number(current.editing.years_of_experience) : null,
+        skills: current.editing.skills_text.split(",").map((x) => x.trim()).filter(Boolean),
+        summary: current.editing.summary || null,
+        current_title: current.editing.current_title || null,
+        location: current.editing.location || null,
+        linkedin_url: current.editing.linkedin_url || null,
+        github_url: current.editing.github_url || null,
+        certifications: current.editing.certifications_text.split(",").map((x) => x.trim()).filter(Boolean),
+        languages: current.editing.languages_text.split(",").map((x) => x.trim()).filter(Boolean),
+        projects: current.editing.projects_text.split("|").map((x) => x.trim()).filter(Boolean),
       };
-
-      const updated = await apiPatch<Candidate>(`/api/candidates/${id}`, payload);
-      setResults((prev) =>
-        prev.map((x) => (x.id === id ? { ...updated, _editing: toEditing(updated) } : x))
-      );
-      notify(t("update_success"), "success");
-    } catch {
+      const saved = await uploadCandidateReviewed(current.file, edited);
+      setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: false, savedCandidateId: saved.id } : d)));
+      notify("Imported after review successfully", "success");
+    } catch (e: any) {
+      setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: false } : d)));
       notify(t("save_failed"), "error");
-    } finally {
-      setResults((prev) => prev.map((x) => (x.id === id ? { ...x, _saving: false } : x)));
     }
   };
 
@@ -155,166 +156,86 @@ export default function UploadPage() {
     <div className="grid">
       <div className="card">
         <h2>{t("upload_title")}</h2>
-        <small>{t("upload_supported")}</small>
+        <small>{t("upload_supported")} — parse only first, then review and save to import.</small>
         <div style={{ marginTop: 12 }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".pdf,.docx"
-            onChange={(e) => setFiles(Array.from(e.target.files || []))}
-          />
+          <input ref={inputRef} type="file" multiple accept=".pdf,.docx" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
         </div>
         <div className="toolbar" style={{ marginTop: 12 }}>
           <small>{files.length ? `${files.length} ${t("files_selected")}` : t("no_files_selected")}</small>
-          <button style={{ width: "auto" }} onClick={onUpload} disabled={!files.length || loading}>
-            {loading ? t("uploading") : `${t("upload_action")} (${files.length || 0})`}
+          <button style={{ width: "auto" }} onClick={onParseOnly} disabled={!files.length || loading}>
+            {loading ? t("uploading") : "Parse with AI (Review First)"}
           </button>
         </div>
         {error && <p style={{ color: "#ef4444" }}>{error}</p>}
       </div>
 
-      {!!results.length && (
-        <div className="card parsed-card">
+      {!!drafts.length && current && (
+        <div className="card split-review">
           <div className="toolbar">
-            <h3 style={{ margin: 0 }}>{t("imported_cvs")} ({results.length})</h3>
-            <span className="score-pill">{t("avg_readiness")}: {totalReadiness}%</span>
+            <div className="toolbar-actions">
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx <= 0}>↑ Prev</button>
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => setIdx((i) => Math.min(drafts.length - 1, i + 1))} disabled={idx >= drafts.length - 1}>↓ Next</button>
+              <span className="chip">{idx + 1}/{drafts.length}</span>
+              <span className="score-pill">Readiness: {score}%</span>
+            </div>
+            <div className="toolbar-actions">
+              <button className="btn-outline" style={{ width: "auto" }} onClick={removeCurrent}>Delete Draft</button>
+              <button style={{ width: "auto" }} onClick={saveCurrent} disabled={!!current.savedCandidateId || current.saving}>{current.saving ? t("saving") : current.savedCandidateId ? "Imported" : "Save & Import"}</button>
+            </div>
+          </div>
+
+          <div className="split-grid" style={{ marginTop: 12 }}>
+            <div className="card" style={{ marginBottom: 0 }}>
+              <h3 style={{ marginTop: 0 }}>Original CV</h3>
+              <small>{current.filename}</small>
+              <div style={{ marginTop: 10 }}>
+                <iframe
+                  title={current.filename}
+                  src={URL.createObjectURL(current.file)}
+                  style={{ width: "100%", height: 700, border: "1px solid var(--border)", borderRadius: 10 }}
+                />
+              </div>
+              {current.savedCandidateId ? (
+                <div style={{ marginTop: 10 }}>
+                  <Link className="chip" href={`/candidates/${current.savedCandidateId}`}>Open Candidate Profile</Link>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="card" style={{ marginBottom: 0 }}>
+              <h3 style={{ marginTop: 0 }}>HR Review Form</h3>
+              <small className="low-hint">Red fields are low-confidence and still empty.</small>
+
+              <div className="chip-wrap" style={{ marginTop: 8 }}>
+                <span className={`chip ${confidenceClass(current.data?.confidence?.name)}`}>name: {current.data?.confidence?.name || "low"}</span>
+                <span className={`chip ${confidenceClass(current.data?.confidence?.email)}`}>email: {current.data?.confidence?.email || "low"}</span>
+                <span className={`chip ${confidenceClass(current.data?.confidence?.phone)}`}>phone: {current.data?.confidence?.phone || "low"}</span>
+                <span className={`chip ${confidenceClass(current.data?.confidence?.skills)}`}>skills: {current.data?.confidence?.skills || "low"}</span>
+                <span className={`chip ${confidenceClass(current.data?.confidence?.projects)}`}>projects: {current.data?.confidence?.projects || "low"}</span>
+              </div>
+
+              <div className="grid grid-2" style={{ marginTop: 10 }}>
+                <div><label>{t("name")}</label><input className={isLow(current.data?.confidence?.name, current.editing.name) ? "field-low" : ""} value={current.editing.name} onChange={(e) => update("name", e.target.value)} /></div>
+                <div><label>{t("email")}</label><input className={isLow(current.data?.confidence?.email, current.editing.email) ? "field-low" : ""} value={current.editing.email} onChange={(e) => update("email", e.target.value)} /></div>
+                <div><label>{t("phone")}</label><input className={isLow(current.data?.confidence?.phone, current.editing.phone) ? "field-low" : ""} value={current.editing.phone} onChange={(e) => update("phone", e.target.value)} /></div>
+                <div><label>{t("years_experience")}</label><input type="number" min={0} value={current.editing.years_of_experience} onChange={(e) => update("years_of_experience", e.target.value)} /></div>
+                <div><label>Current Title</label><input value={current.editing.current_title} onChange={(e) => update("current_title", e.target.value)} /></div>
+                <div><label>Location</label><input value={current.editing.location} onChange={(e) => update("location", e.target.value)} /></div>
+                <div><label>LinkedIn</label><input value={current.editing.linkedin_url} onChange={(e) => update("linkedin_url", e.target.value)} /></div>
+                <div><label>GitHub</label><input value={current.editing.github_url} onChange={(e) => update("github_url", e.target.value)} /></div>
+              </div>
+
+              <div className="grid" style={{ marginTop: 10 }}>
+                <div><label>{t("skills_csv")}</label><input className={isLow(current.data?.confidence?.skills, current.editing.skills_text) ? "field-low" : ""} value={current.editing.skills_text} onChange={(e) => update("skills_text", e.target.value)} /></div>
+                <div><label>Certifications (CSV)</label><input value={current.editing.certifications_text} onChange={(e) => update("certifications_text", e.target.value)} /></div>
+                <div><label>Languages (CSV)</label><input value={current.editing.languages_text} onChange={(e) => update("languages_text", e.target.value)} /></div>
+                <div><label>Projects (separate by |)</label><input className={isLow(current.data?.confidence?.projects, current.editing.projects_text) ? "field-low" : ""} value={current.editing.projects_text} onChange={(e) => update("projects_text", e.target.value)} /></div>
+                <div><label>{t("summary")}</label><textarea className={isLow(current.data?.confidence?.summary, current.editing.summary) ? "field-low" : ""} rows={5} value={current.editing.summary} onChange={(e) => update("summary", e.target.value)} /></div>
+              </div>
+            </div>
           </div>
         </div>
       )}
-
-      {results.map((r) => (
-        <div className="card parsed-card" key={r.id}>
-          <div className="toolbar">
-            <div className="toolbar-actions">
-              <strong>Candidate #{r.id}</strong>
-              <Link className="chip" href={`/candidates/${r.id}`}>Review Full CV</Link>
-            </div>
-            <button style={{ width: "auto" }} onClick={() => saveCandidate(r.id)} disabled={r._saving}>
-              {r._saving ? t("saving") : t("save_changes")}
-            </button>
-          </div>
-
-          <small className="low-hint">Please verify red-highlighted fields before save.</small>
-
-          <div className="chip-wrap" style={{ marginTop: 8 }}>
-            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.name)}`}>name: {r.parsed_json?.confidence?.name || "low"}</span>
-            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.email)}`}>email: {r.parsed_json?.confidence?.email || "low"}</span>
-            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.phone)}`}>phone: {r.parsed_json?.confidence?.phone || "low"}</span>
-            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.skills)}`}>skills: {r.parsed_json?.confidence?.skills || "low"}</span>
-            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.projects)}`}>projects: {r.parsed_json?.confidence?.projects || "low"}</span>
-          </div>
-
-          <div className="grid grid-2" style={{ marginTop: 10 }}>
-            <div className="info-tile">
-              <label>{t("name")}</label>
-              <input
-                value={r._editing?.name || ""}
-                className={isLowConfidence(r.parsed_json?.confidence?.name) ? "field-low" : ""}
-                onChange={(e) => setEditing(r.id, "name", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>{t("email")}</label>
-              <input
-                value={r._editing?.email || ""}
-                className={isLowConfidence(r.parsed_json?.confidence?.email) ? "field-low" : ""}
-                onChange={(e) => setEditing(r.id, "email", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>{t("phone")}</label>
-              <input
-                value={r._editing?.phone || ""}
-                className={isLowConfidence(r.parsed_json?.confidence?.phone) ? "field-low" : ""}
-                onChange={(e) => setEditing(r.id, "phone", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>{t("years_experience")}</label>
-              <input
-                type="number"
-                min={0}
-                value={r._editing?.years_of_experience || ""}
-                onChange={(e) => setEditing(r.id, "years_of_experience", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>Projects (separate by |)</label>
-              <input
-                value={r._editing?.projects_text || ""}
-                className={isLowConfidence(r.parsed_json?.confidence?.projects) ? "field-low" : ""}
-                onChange={(e) => setEditing(r.id, "projects_text", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-2" style={{ marginTop: 10 }}>
-            <div className="info-tile">
-              <label>{t("skills_csv")}</label>
-              <input
-                value={r._editing?.skills_text || ""}
-                className={isLowConfidence(r.parsed_json?.confidence?.skills) ? "field-low" : ""}
-                onChange={(e) => setEditing(r.id, "skills_text", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>{t("summary")}</label>
-              <textarea
-                rows={3}
-                value={r._editing?.summary || ""}
-                className={isLowConfidence(r.parsed_json?.confidence?.summary) ? "field-low" : ""}
-                onChange={(e) => setEditing(r.id, "summary", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-2" style={{ marginTop: 10 }}>
-            <div className="info-tile">
-              <label>Current Title</label>
-              <input
-                value={r._editing?.current_title || ""}
-                onChange={(e) => setEditing(r.id, "current_title", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>Location</label>
-              <input
-                value={r._editing?.location || ""}
-                onChange={(e) => setEditing(r.id, "location", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>LinkedIn URL</label>
-              <input
-                value={r._editing?.linkedin_url || ""}
-                onChange={(e) => setEditing(r.id, "linkedin_url", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>GitHub URL</label>
-              <input
-                value={r._editing?.github_url || ""}
-                onChange={(e) => setEditing(r.id, "github_url", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>Certifications (CSV)</label>
-              <input
-                value={r._editing?.certifications_text || ""}
-                onChange={(e) => setEditing(r.id, "certifications_text", e.target.value)}
-              />
-            </div>
-            <div className="info-tile">
-              <label>Languages (CSV)</label>
-              <input
-                value={r._editing?.languages_text || ""}
-                onChange={(e) => setEditing(r.id, "languages_text", e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

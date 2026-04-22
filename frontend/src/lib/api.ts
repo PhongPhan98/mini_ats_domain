@@ -42,3 +42,31 @@ export async function uploadCandidate(file: File) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+
+export async function parseCandidatePreview(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch(`${API_BASE}/api/candidates/parse`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function uploadCandidateReviewed(file: File, edited: Record<string, any>) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("edited_json", JSON.stringify(edited));
+
+  const res = await fetch(`${API_BASE}/api/candidates/upload`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

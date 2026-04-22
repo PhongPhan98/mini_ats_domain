@@ -611,3 +611,7 @@ label {
 .low-hint { color:#b91c1c; font-weight:600; }
 :root[data-theme="dark"] .field-low { border-color:#f87171 !important; background: color-mix(in srgb, #7f1d1d 35%, var(--input-bg)); }
 :root[data-theme="dark"] .low-hint { color:#fca5a5; }
+
+.split-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .split-grid { grid-template-columns: 1fr; } }
+.split-review { overflow: hidden; }
