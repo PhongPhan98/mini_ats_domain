@@ -121,6 +121,24 @@ def _looks_like_section_header(line: str) -> bool:
 
 
 
+
+
+def _clean_lines(items: list[str], min_len: int = 3, max_items: int = 12) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in items:
+        line = re.sub(r"\s+", " ", (raw or "").strip("-•* 	"))
+        if len(line) < min_len:
+            continue
+        key = _match_normalize(line)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(line)
+        if len(out) >= max_items:
+            break
+    return out
+
 def _extract_sections(lines: list[str]) -> dict[str, list[str]]:
     section_aliases = {
         "experience": ["experience", "work experience", "employment", "kinh nghiem"],

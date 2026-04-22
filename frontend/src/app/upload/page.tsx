@@ -44,6 +44,11 @@ function toEditing(c: Candidate) {
   };
 }
 
+function confidencePill(v?: string) {
+  const c = (v || "low").toLowerCase();
+  return c === "high" ? "conf-high" : c === "medium" ? "conf-medium" : "conf-low";
+}
+
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [results, setResults] = useState<EditableCandidate[]>([]);
@@ -184,6 +189,14 @@ export default function UploadPage() {
             <button style={{ width: "auto" }} onClick={() => saveCandidate(r.id)} disabled={r._saving}>
               {r._saving ? t("saving") : t("save_changes")}
             </button>
+          </div>
+
+          <div className="chip-wrap" style={{ marginTop: 8 }}>
+            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.name)}`}>name: {r.parsed_json?.confidence?.name || "low"}</span>
+            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.email)}`}>email: {r.parsed_json?.confidence?.email || "low"}</span>
+            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.phone)}`}>phone: {r.parsed_json?.confidence?.phone || "low"}</span>
+            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.skills)}`}>skills: {r.parsed_json?.confidence?.skills || "low"}</span>
+            <span className={`chip ${confidencePill(r.parsed_json?.confidence?.projects)}`}>projects: {r.parsed_json?.confidence?.projects || "low"}</span>
           </div>
 
           <div className="grid grid-2" style={{ marginTop: 10 }}>
