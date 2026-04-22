@@ -15,14 +15,7 @@ type SearchParams = {
 type SortKey = "name" | "email" | "phone" | "status" | "years_of_experience" | "created_at";
 type SortDir = "asc" | "desc";
 
-const STATUS_OPTIONS: CandidateStatus[] = [
-  "applied",
-  "screening",
-  "interview",
-  "offer",
-  "hired",
-  "rejected",
-];
+const STATUS_OPTIONS: CandidateStatus[] = ["applied", "screening", "interview", "offer", "hired", "rejected"];
 
 function formatStatus(status: string) {
   return status.charAt(0).toUpperCase() + status.slice(1);
@@ -67,6 +60,7 @@ export default function DashboardPage() {
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
+  const [reportRange, setReportRange] = useState("last_30_days");
   const pageSize = 10;
 
   const loadData = async (nextFilters: SearchParams) => {
@@ -161,12 +155,20 @@ export default function DashboardPage() {
       <div className="toolbar">
         <h2>Recruitment Dashboard</h2>
         <div className="toolbar-actions">
+          <select style={{ width: 170 }} value={reportRange} onChange={(e) => setReportRange(e.target.value)}>
+            <option value="last_7_days">Last 7 days</option>
+            <option value="last_30_days">Last 30 days</option>
+            <option value="last_90_days">Last 90 days</option>
+            <option value="all_time">All time</option>
+          </select>
           <a className="btn-outline" href={apiUrl("/api/reports/candidates.csv")}>Candidates CSV</a>
           <a className="btn-outline" href={apiUrl("/api/reports/analytics.csv")}>Analytics CSV</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/reports.xlsx")}>Download XLSX</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/report.pdf")}>Download PDF</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/reports.xlsx")}>XLSX</a>
+          <a className="btn-outline" href={apiUrl("/api/reports/report.pdf")}>PDF</a>
         </div>
       </div>
+
+      <small>Report range preset selected: {reportRange.replaceAll("_", " ")} (export filtering hook prepared for next iteration).</small>
 
       <div className="grid grid-4">
         <div className="card stat-card"><h3>Total</h3><h1>{analytics.total_candidates}</h1></div>
@@ -188,7 +190,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-2">
+      <div className="grid grid-3">
         <div className="card">
           <h3>Pipeline Conversion Rates</h3>
           <ul>{analytics.conversion_rates.map((r) => <li key={r.stage}>{r.stage.replaceAll("_", " ")}: <strong>{r.rate_pct}%</strong></li>)}</ul>
@@ -196,6 +198,43 @@ export default function DashboardPage() {
         <div className="card">
           <h3>Source Effectiveness</h3>
           <ul>{analytics.source_effectiveness.map((s) => <li key={s.source}>{s.source}: {s.count} ({s.share_pct}%)</li>)}</ul>
+        </div>
+        <div className="card">
+          <h3>Source → Hire Rate</h3>
+          <ul>{analytics.source_hire_effectiveness.map((s) => <li key={s.source}>{s.source}: {s.hired}/{s.total} (<strong>{s.hire_rate_pct}%</strong>)</li>)}</ul>
+        </div>
+      </div>
+
+      <div className="grid grid-2">
+        <div className="card">
+          <h3>Average Days in Stage</h3>
+          <table>
+            <thead><tr><th>Stage</th><th>Candidates</th><th>Avg Days</th></tr></thead>
+            <tbody>
+              {analytics.stage_age_summary.map((s) => (
+                <tr key={s.status}>
+                  <td>{formatStatus(s.status)}</td>
+                  <td>{s.count}</td>
+                  <td>{s.avg_days_in_stage}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card">
+          <h3>Hiring Trend (Weekly)</h3>
+          <table>
+            <thead><tr><th>Week Start</th><th>Hired</th></tr></thead>
+            <tbody>
+              {analytics.hiring_trend.map((w) => (
+                <tr key={w.week_start}>
+                  <td>{w.week_start}</td>
+                  <td>{w.hired_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

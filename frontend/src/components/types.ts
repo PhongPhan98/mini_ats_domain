@@ -47,4 +47,7 @@ export type Analytics = {
   conversion_rates: { stage: string; rate_pct: number }[];
   avg_time_to_hire_days: number;
   hired_count: number;
+  stage_age_summary: { status: CandidateStatus; count: number; avg_days_in_stage: number }[];
+  source_hire_effectiveness: { source: string; total: number; hired: number; hire_rate_pct: number }[];
+  hiring_trend: { week_start: string; hired_count: number }[];
 };

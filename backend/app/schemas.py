@@ -167,3 +167,6 @@ class AnalyticsSummary(BaseModel):
     avg_time_to_hire_days: float
     hired_count: int
     total_candidates: int
+    stage_age_summary: list[dict] = Field(default_factory=list)
+    source_hire_effectiveness: list[dict] = Field(default_factory=list)
+    hiring_trend: list[dict] = Field(default_factory=list)

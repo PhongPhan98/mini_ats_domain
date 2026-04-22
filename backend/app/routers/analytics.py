@@ -1,5 +1,5 @@
-from collections import Counter
-from datetime import datetime
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -52,6 +52,8 @@ def summary(
     exp_distribution = Counter()
     status_distribution = Counter()
     source_counter = Counter()
+    source_hired_counter = Counter()
+    stage_age_days: dict[str, list[float]] = defaultdict(list)
 
     for c in candidates:
         for skill in c.skills or []:
@@ -68,8 +70,16 @@ def summary(
         else:
             exp_distribution["8+ years"] += 1
 
-        status_distribution[normalize_status(c.status)] += 1
-        source_counter[_candidate_source(c)] += 1
+        normalized_status = normalize_status(c.status)
+        status_distribution[normalized_status] += 1
+
+        source = _candidate_source(c)
+        source_counter[source] += 1
+        if normalized_status == "hired":
+            source_hired_counter[source] += 1
+
+        if c.created_at:
+            stage_age_days[normalized_status].append((datetime.utcnow() - c.created_at).total_seconds() / 86400)
 
     top_skills = [{"skill": k, "count": v} for k, v in skill_counter.most_common(10)]
     experience_distribution = [{"range": k, "count": v} for k, v in exp_distribution.items()]
@@ -106,6 +116,41 @@ def summary(
 
     avg_time_to_hire_days = round(sum(tth_days) / len(tth_days), 2) if tth_days else 0.0
 
+    stage_age_summary = [
+        {
+            "status": s,
+            "count": len(stage_age_days.get(s, [])),
+            "avg_days_in_stage": round(sum(stage_age_days.get(s, [])) / max(len(stage_age_days.get(s, [])), 1), 2),
+        }
+        for s in status_order
+    ]
+
+    source_hire_effectiveness = [
+        {
+            "source": s,
+            "total": source_counter.get(s, 0),
+            "hired": source_hired_counter.get(s, 0),
+            "hire_rate_pct": round(source_hired_counter.get(s, 0) * 100 / max(source_counter.get(s, 1), 1), 2),
+        }
+        for s, _ in source_counter.most_common()
+    ]
+
+    now = datetime.utcnow()
+    weekly_buckets: dict[str, int] = {}
+    for i in range(7, -1, -1):
+        week_start = (now - timedelta(days=now.weekday())) - timedelta(weeks=i)
+        key = week_start.date().isoformat()
+        weekly_buckets[key] = 0
+
+    for c in candidates:
+        if normalize_status(c.status) != "hired" or not c.created_at:
+            continue
+        week_start = (c.created_at - timedelta(days=c.created_at.weekday())).date().isoformat()
+        if week_start in weekly_buckets:
+            weekly_buckets[week_start] += 1
+
+    hiring_trend = [{"week_start": k, "hired_count": v} for k, v in weekly_buckets.items()]
+
     return AnalyticsSummary(
         top_skills=top_skills,
         experience_distribution=experience_distribution,
@@ -115,4 +160,7 @@ def summary(
         avg_time_to_hire_days=avg_time_to_hire_days,
         hired_count=status_distribution.get("hired", 0),
         total_candidates=len(candidates),
+        stage_age_summary=stage_age_summary,
+        source_hire_effectiveness=source_hire_effectiveness,
+        hiring_trend=hiring_trend,
     )
