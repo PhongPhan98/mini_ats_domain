@@ -85,6 +85,8 @@ SECTION_HEADER_HINTS = {
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PHONE_RE = re.compile(r"(\+?\d[\d\s().-]{8,}\d)")
+LINKEDIN_RE = re.compile(r"https?://(?:www\.)?linkedin\.com/[^\s]+", re.IGNORECASE)
+GITHUB_RE = re.compile(r"https?://(?:www\.)?github\.com/[^\s]+", re.IGNORECASE)
 YEARS_EXPLICIT_RE = re.compile(
     r"(\d{1,2})\s*\+?\s*(?:years?|yrs?|nam)\s*(?:of\s+)?(?:experience|kinh\s*nghiem)?",
     re.IGNORECASE,
@@ -231,6 +233,58 @@ def _extract_previous_companies(lines: list[str]) -> list[str]:
     return out
 
 
+
+
+def _extract_linkedin(text: str) -> str | None:
+    m = LINKEDIN_RE.search(text)
+    return m.group(0).strip() if m else None
+
+
+def _extract_github(text: str) -> str | None:
+    m = GITHUB_RE.search(text)
+    return m.group(0).strip() if m else None
+
+
+def _extract_location(lines: list[str]) -> str | None:
+    hints = ("ho chi minh", "hanoi", "da nang", "vietnam", "tp.hcm", "ha noi", "remote")
+    for line in lines[:20]:
+        ll = _match_normalize(line)
+        if any(h in ll for h in hints):
+            return line.strip()[:120]
+    return None
+
+
+def _extract_headline(lines: list[str]) -> str | None:
+    role_hints = ("developer", "engineer", "designer", "tester", "qa", "data", "product", "manager", "devops", "frontend", "backend", "fullstack")
+    for line in lines[:15]:
+        ll = _match_normalize(line)
+        if any(h in ll for h in role_hints) and len(line.strip()) <= 120:
+            return line.strip()
+    return None
+
+
+def _extract_certifications(lines: list[str]) -> list[str]:
+    out = []
+    hints = ("cert", "certificate", "aws", "google", "microsoft", "coursera", "udemy")
+    for line in lines:
+        ll = _match_normalize(line)
+        if any(h in ll for h in hints):
+            out.append(line.strip())
+        if len(out) >= 8:
+            break
+    return out
+
+
+def _extract_languages(lines: list[str]) -> list[str]:
+    langs = []
+    known = ["english", "vietnamese", "japanese", "korean", "chinese", "french", "german"]
+    for line in lines:
+        ll = _match_normalize(line)
+        for k in known:
+            if k in ll and k not in langs:
+                langs.append(k)
+    return langs[:6]
+
 def _extract_summary(paragraphs: list[str]) -> str | None:
     for p in paragraphs[:8]:
         cleaned = p.strip()
@@ -281,6 +335,12 @@ def parse_candidate_from_cv(text: str) -> dict[str, Any]:
         "education": _extract_education(lines),
         "previous_companies": _extract_previous_companies(lines),
         "summary": _extract_summary(paragraphs),
+        "linkedin_url": _extract_linkedin(normalized),
+        "github_url": _extract_github(normalized),
+        "location": _extract_location(lines),
+        "current_title": _extract_headline(lines),
+        "certifications": _extract_certifications(lines),
+        "languages": _extract_languages(lines),
         "source": "rule_based_vn_en",
     }
 
@@ -293,6 +353,12 @@ def parse_candidate_from_cv(text: str) -> dict[str, Any]:
         "education": _field_confidence(result["education"], "list"),
         "previous_companies": _field_confidence(result["previous_companies"], "list"),
         "summary": _field_confidence(result["summary"]),
+        "linkedin_url": "high" if result.get("linkedin_url") else "low",
+        "github_url": "high" if result.get("github_url") else "low",
+        "location": _field_confidence(result.get("location")),
+        "current_title": _field_confidence(result.get("current_title")),
+        "certifications": _field_confidence(result.get("certifications"), "list"),
+        "languages": _field_confidence(result.get("languages"), "list"),
     }
     score_map = {"low": 0, "medium": 0.6, "high": 1.0}
     overall = int(round(sum(score_map[c] for c in confidence.values()) / len(confidence) * 100))

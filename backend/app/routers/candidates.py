@@ -216,11 +216,14 @@ def update_candidate(
             )
         update_data["status"] = normalized_status
 
-    for key, value in update_data.items():
-        setattr(candidate, key, value)
-
     parsed_json = dict(candidate.parsed_json or {})
-    parsed_json.update(update_data)
+    for key, value in update_data.items():
+        if hasattr(candidate, key):
+            setattr(candidate, key, value)
+        else:
+            parsed_json[key] = value
+
+    parsed_json.update({k: v for k, v in update_data.items() if not hasattr(candidate, k)})
     parsed_json["manual_reviewed"] = True
     candidate.parsed_json = parsed_json
 

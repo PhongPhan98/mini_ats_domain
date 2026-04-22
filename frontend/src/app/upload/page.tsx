@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { apiPatch, uploadCandidate } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
@@ -14,6 +15,12 @@ type EditableCandidate = Candidate & {
     years_of_experience: string;
     skills_text: string;
     summary: string;
+    linkedin_url: string;
+    github_url: string;
+    location: string;
+    current_title: string;
+    certifications_text: string;
+    languages_text: string;
   };
   _saving?: boolean;
 };
@@ -26,6 +33,12 @@ function toEditing(c: Candidate) {
     years_of_experience: c.years_of_experience?.toString() || "",
     skills_text: (c.skills || []).join(", "),
     summary: c.summary || "",
+    linkedin_url: c.parsed_json?.linkedin_url || "",
+    github_url: c.parsed_json?.github_url || "",
+    location: c.parsed_json?.location || "",
+    current_title: c.parsed_json?.current_title || "",
+    certifications_text: (c.parsed_json?.certifications || []).join(", "),
+    languages_text: (c.parsed_json?.languages || []).join(", "),
   };
 }
 
@@ -106,6 +119,12 @@ export default function UploadPage() {
           .map((s) => s.trim())
           .filter(Boolean),
         summary: item._editing.summary || null,
+        linkedin_url: item._editing.linkedin_url || null,
+        github_url: item._editing.github_url || null,
+        location: item._editing.location || null,
+        current_title: item._editing.current_title || null,
+        certifications: item._editing.certifications_text.split(",").map((x) => x.trim()).filter(Boolean),
+        languages: item._editing.languages_text.split(",").map((x) => x.trim()).filter(Boolean),
       };
 
       const updated = await apiPatch<Candidate>(`/api/candidates/${id}`, payload);
@@ -155,7 +174,10 @@ export default function UploadPage() {
       {results.map((r) => (
         <div className="card parsed-card" key={r.id}>
           <div className="toolbar">
-            <strong>Candidate #{r.id}</strong>
+            <div className="toolbar-actions">
+              <strong>Candidate #{r.id}</strong>
+              <Link className="chip" href={`/candidates/${r.id}`}>Review Full CV</Link>
+            </div>
             <button style={{ width: "auto" }} onClick={() => saveCandidate(r.id)} disabled={r._saving}>
               {r._saving ? t("saving") : t("save_changes")}
             </button>
@@ -208,6 +230,51 @@ export default function UploadPage() {
                 rows={3}
                 value={r._editing?.summary || ""}
                 onChange={(e) => setEditing(r.id, "summary", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-2" style={{ marginTop: 10 }}>
+            <div className="info-tile">
+              <label>Current Title</label>
+              <input
+                value={r._editing?.current_title || ""}
+                onChange={(e) => setEditing(r.id, "current_title", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>Location</label>
+              <input
+                value={r._editing?.location || ""}
+                onChange={(e) => setEditing(r.id, "location", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>LinkedIn URL</label>
+              <input
+                value={r._editing?.linkedin_url || ""}
+                onChange={(e) => setEditing(r.id, "linkedin_url", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>GitHub URL</label>
+              <input
+                value={r._editing?.github_url || ""}
+                onChange={(e) => setEditing(r.id, "github_url", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>Certifications (CSV)</label>
+              <input
+                value={r._editing?.certifications_text || ""}
+                onChange={(e) => setEditing(r.id, "certifications_text", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>Languages (CSV)</label>
+              <input
+                value={r._editing?.languages_text || ""}
+                onChange={(e) => setEditing(r.id, "languages_text", e.target.value)}
               />
             </div>
           </div>

@@ -120,6 +120,12 @@ class CandidateUpdate(BaseModel):
     education: list[str] | None = None
     previous_companies: list[str] | None = None
     summary: str | None = None
+    linkedin_url: str | None = None
+    github_url: str | None = None
+    location: str | None = None
+    current_title: str | None = None
+    certifications: list[str] | None = None
+    languages: list[str] | None = None
     notes: str | None = None
 
 

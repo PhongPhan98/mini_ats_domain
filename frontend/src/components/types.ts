@@ -31,6 +31,12 @@ export type Candidate = {
   previous_companies: string[];
   summary?: string;
   parsed_json: {
+    linkedin_url?: string;
+    github_url?: string;
+    location?: string;
+    current_title?: string;
+    certifications?: string[];
+    languages?: string[];
     timeline?: TimelineEvent[];
     [key: string]: any;
   };
