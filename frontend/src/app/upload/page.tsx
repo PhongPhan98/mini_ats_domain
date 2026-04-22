@@ -65,6 +65,7 @@ export default function UploadPage() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [idx, setIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { t } = useAppLanguage();
@@ -124,32 +125,59 @@ export default function UploadPage() {
     });
   };
 
+
+  const buildEditedPayload = (d: Draft) => ({
+    name: d.editing.name || null,
+    email: d.editing.email || null,
+    phone: d.editing.phone || null,
+    years_of_experience: d.editing.years_of_experience ? Number(d.editing.years_of_experience) : null,
+    skills: d.editing.skills_text.split(",").map((x) => x.trim()).filter(Boolean),
+    summary: d.editing.summary || null,
+    current_title: d.editing.current_title || null,
+    location: d.editing.location || null,
+    linkedin_url: d.editing.linkedin_url || null,
+    github_url: d.editing.github_url || null,
+    certifications: d.editing.certifications_text.split(",").map((x) => x.trim()).filter(Boolean),
+    languages: d.editing.languages_text.split(",").map((x) => x.trim()).filter(Boolean),
+    projects: d.editing.projects_text.split("|").map((x) => x.trim()).filter(Boolean),
+  });
+
   const saveCurrent = async () => {
     if (!current) return;
     setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: true } : d)));
     try {
-      const edited = {
-        name: current.editing.name || null,
-        email: current.editing.email || null,
-        phone: current.editing.phone || null,
-        years_of_experience: current.editing.years_of_experience ? Number(current.editing.years_of_experience) : null,
-        skills: current.editing.skills_text.split(",").map((x) => x.trim()).filter(Boolean),
-        summary: current.editing.summary || null,
-        current_title: current.editing.current_title || null,
-        location: current.editing.location || null,
-        linkedin_url: current.editing.linkedin_url || null,
-        github_url: current.editing.github_url || null,
-        certifications: current.editing.certifications_text.split(",").map((x) => x.trim()).filter(Boolean),
-        languages: current.editing.languages_text.split(",").map((x) => x.trim()).filter(Boolean),
-        projects: current.editing.projects_text.split("|").map((x) => x.trim()).filter(Boolean),
-      };
-      const saved = await uploadCandidateReviewed(current.file, edited);
+      const saved = await uploadCandidateReviewed(current.file, buildEditedPayload(current));
       setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: false, savedCandidateId: saved.id } : d)));
       notify("Imported after review successfully", "success");
     } catch (e: any) {
       setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: false } : d)));
       notify(t("save_failed"), "error");
     }
+  };
+
+  const saveAllReviewed = async () => {
+    const pending = drafts.map((d, i) => ({ d, i })).filter(({ d }) => !d.savedCandidateId);
+    if (!pending.length) return;
+
+    setBulkSaving(true);
+    let ok = 0;
+    let fail = 0;
+
+    for (const { d, i } of pending) {
+      setDrafts((prev) => prev.map((x, idx) => (idx === i ? { ...x, saving: true } : x)));
+      try {
+        const saved = await uploadCandidateReviewed(d.file, buildEditedPayload(d));
+        ok += 1;
+        setDrafts((prev) => prev.map((x, idx) => (idx === i ? { ...x, saving: false, savedCandidateId: saved.id } : x)));
+      } catch {
+        fail += 1;
+        setDrafts((prev) => prev.map((x, idx) => (idx === i ? { ...x, saving: false } : x)));
+      }
+    }
+
+    setBulkSaving(false);
+    if (ok) notify(`Imported ${ok} CV(s)`, "success");
+    if (fail) notify(`${fail} CV(s) failed`, "error");
   };
 
   return (
@@ -174,6 +202,7 @@ export default function UploadPage() {
           <div className="toolbar">
             <div className="toolbar-actions">
               <button className="btn-outline" style={{ width: "auto" }} onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx <= 0}>↑ Prev</button>
+              <button className="btn-outline" style={{ width: "auto" }} onClick={saveAllReviewed} disabled={bulkSaving}>{bulkSaving ? "Importing..." : "Save & Import All Reviewed"}</button>
               <button className="btn-outline" style={{ width: "auto" }} onClick={() => setIdx((i) => Math.min(drafts.length - 1, i + 1))} disabled={idx >= drafts.length - 1}>↓ Next</button>
               <span className="chip">{idx + 1}/{drafts.length}</span>
               <span className="score-pill">Readiness: {score}%</span>
