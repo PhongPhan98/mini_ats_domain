@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { uploadCandidate } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
 import { notify } from "../../lib/toast";
@@ -12,6 +12,16 @@ export default function UploadPage() {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { t } = useAppLanguage();
+
+  const score = useMemo(() => {
+    if (!result) return null;
+    let pts = 0;
+    if (result.name) pts += 25;
+    if (result.email) pts += 25;
+    if ((result.skills || []).length >= 3) pts += 25;
+    if (result.summary) pts += 25;
+    return pts;
+  }, [result]);
 
   const onUpload = async () => {
     if (!file) return;
@@ -57,26 +67,44 @@ export default function UploadPage() {
       </div>
 
       {result && (
-        <div className="card">
-          <h3>{t("parsed_candidate")}</h3>
-          <div className="grid grid-2">
-            <div>
+        <div className="card parsed-card">
+          <div className="toolbar">
+            <h3 style={{ margin: 0 }}>{t("parsed_candidate")}</h3>
+            <span className="score-pill">Readiness: {score ?? 0}%</span>
+          </div>
+
+          <div className="grid grid-2" style={{ marginTop: 8 }}>
+            <div className="info-tile">
               <small>Name</small>
               <p>{result.name || "-"}</p>
             </div>
-            <div>
+            <div className="info-tile">
               <small>Email</small>
               <p>{result.email || "-"}</p>
             </div>
+            <div className="info-tile">
+              <small>Phone</small>
+              <p>{result.phone || "-"}</p>
+            </div>
+            <div className="info-tile">
+              <small>Experience</small>
+              <p>{result.years_of_experience ?? "-"}</p>
+            </div>
           </div>
 
-          <small>Skills</small>
-          <div className="chip-wrap" style={{ marginTop: 8 }}>
-            {(result.skills || []).map((s: string) => (
-              <span key={s} className="chip">
-                {s}
-              </span>
-            ))}
+          <div className="grid grid-2" style={{ marginTop: 8 }}>
+            <div className="info-tile">
+              <small>Skills</small>
+              <div className="chip-wrap" style={{ marginTop: 8 }}>
+                {(result.skills || []).length ? (result.skills || []).map((s: string) => (
+                  <span key={s} className="chip">{s}</span>
+                )) : <small>-</small>}
+              </div>
+            </div>
+            <div className="info-tile">
+              <small>Summary</small>
+              <p style={{ marginTop: 8 }}>{result.summary || "-"}</p>
+            </div>
           </div>
 
           <details style={{ marginTop: 12 }}>

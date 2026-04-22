@@ -163,10 +163,10 @@ export default function DashboardPage() {
             <option value="last_90_days">Last 90 days</option>
             <option value="all_time">All time</option>
           </select>
-          <a className="btn-outline" href={apiUrl("/api/reports/candidates.csv")}>{t("report_candidates_csv")}</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/analytics.csv")}>{t("report_analytics_csv")}</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/reports.xlsx")}>{t("report_xlsx")}</a>
-          <a className="btn-outline" href={apiUrl("/api/reports/report.pdf")}>{t("report_pdf")}</a>
+          <a className="report-btn report-csv" href={apiUrl("/api/reports/candidates.csv")}>{t("report_candidates_csv")}</a>
+          <a className="report-btn report-analytics" href={apiUrl("/api/reports/analytics.csv")}>{t("report_analytics_csv")}</a>
+          <a className="report-btn report-xlsx" href={apiUrl("/api/reports/reports.xlsx")}>{t("report_xlsx")}</a>
+          <a className="report-btn report-pdf" href={apiUrl("/api/reports/report.pdf")}>{t("report_pdf")}</a>
         </div>
       </div>
 
