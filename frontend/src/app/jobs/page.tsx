@@ -19,11 +19,23 @@ export default function JobsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editReq, setEditReq] = useState("");
+  const [thresholdByJob, setThresholdByJob] = useState<Record<number, number>>({});
   const { t } = useAppLanguage();
 
   const loadJobs = async () => {
     const data = await apiGet<Job[]>(`/api/jobs?include_deleted=${showTrash ? "true" : "false"}`);
     setJobs(data);
+
+    const next: Record<number, number> = {};
+    await Promise.all(data.map(async (j) => {
+      try {
+        const cfg = await apiGet<{ job_id: number; threshold: number }>(`/api/jobs/${j.id}/settings`);
+        next[j.id] = cfg.threshold;
+      } catch {
+        next[j.id] = 50;
+      }
+    }));
+    setThresholdByJob(next);
   };
 
   useEffect(() => {
@@ -42,7 +54,8 @@ export default function JobsPage() {
   const runMatch = async (jobId: number) => {
     setLoadingMatchId(jobId);
     try {
-      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match`, {});
+      const threshold = thresholdByJob[jobId] ?? 50;
+      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match?threshold=${threshold}`, {});
       setMatch(data);
     } finally {
       setLoadingMatchId(null);
@@ -61,6 +74,13 @@ export default function JobsPage() {
     setEditingId(null);
     await loadJobs();
     notify("Job updated", "success");
+  };
+
+  const saveThreshold = async (id: number) => {
+    const threshold = Math.max(0, Math.min(100, Number(thresholdByJob[id] ?? 50)));
+    await apiPatch(`/api/jobs/${id}/settings`, { threshold });
+    setThresholdByJob((prev) => ({ ...prev, [id]: threshold }));
+    notify("Threshold updated", "success");
   };
 
   const softDelete = async (id: number) => {
@@ -132,9 +152,20 @@ export default function JobsPage() {
                 <td>
                   <div className="toolbar-actions">
                     {!showTrash && editingId !== job.id && (
-                      <button className="btn-outline" onClick={() => runMatch(job.id)}>
-                        {loadingMatchId === job.id ? t("running") : `${t("run_matching")} (Rule-based ≥50%)`}
-                      </button>
+                      <>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={thresholdByJob[job.id] ?? 50}
+                          onChange={(e) => setThresholdByJob((prev) => ({ ...prev, [job.id]: Number(e.target.value || 0) }))}
+                          style={{ width: 90 }}
+                        />
+                        <button className="btn-outline" onClick={() => saveThreshold(job.id)}>Save %</button>
+                        <button className="btn-outline" onClick={() => runMatch(job.id)}>
+                          {loadingMatchId === job.id ? t("running") : `${t("run_matching")} (≥${thresholdByJob[job.id] ?? 50}%)`}
+                        </button>
+                      </>
                     )}
                     {!showTrash && editingId !== job.id && (
                       <button className="btn-outline" onClick={() => startEdit(job)}>Edit</button>
@@ -166,7 +197,7 @@ export default function JobsPage() {
       {match && (
         <div className="card">
           <h3>{t("match_results")}: {match.job_title}</h3>
-          <small>Only candidates with matching score ≥ 50% are shown.</small>
+          <small>Only candidates with matching score above selected threshold are shown.</small>
           <table>
             <thead>
               <tr>

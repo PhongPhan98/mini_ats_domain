@@ -15,6 +15,32 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 _TRASH_PATH = Path(__file__).resolve().parents[1] / "data" / "jobs_deleted.json"
 
+_SETTINGS_PATH = Path(__file__).resolve().parents[1] / "data" / "jobs_settings.json"
+
+
+def _load_job_settings() -> dict[str, dict]:
+    try:
+        data = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_job_settings(data: dict[str, dict]):
+    _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _SETTINGS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _job_threshold(job_id: int) -> int:
+    cfg = _load_job_settings().get(str(job_id), {})
+    v = cfg.get("threshold", 50)
+    try:
+        iv = int(v)
+    except Exception:
+        iv = 50
+    return max(0, min(100, iv))
+
+
 
 def _load_deleted_ids() -> set[int]:
     try:
@@ -76,6 +102,7 @@ def list_jobs(
 @router.post("/{job_id}/match", response_model=MatchResponse)
 def match_candidates(
     job_id: int,
+    threshold: int | None = Query(default=None),
     db: Session = Depends(get_db),
     _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
@@ -84,11 +111,12 @@ def match_candidates(
         raise HTTPException(status_code=404, detail="Job not found")
 
     candidates = list(db.execute(select(Candidate)).scalars().all())
+    min_threshold = max(0, min(100, int(threshold))) if threshold is not None else _job_threshold(job_id)
     results = []
     for c in candidates:
         payload = _to_candidate_payload(c)
         m = match_candidate_rule_based(job.title, job.requirements, payload)
-        if m["match_score"] >= 50:
+        if m["match_score"] >= min_threshold:
             results.append(
                 MatchItem(
                     candidate_id=c.id,
@@ -153,3 +181,36 @@ def restore_job(
         deleted.remove(job_id)
         _save_deleted_ids(deleted)
     return {"ok": True}
+
+
+@router.get("/{job_id}/settings")
+def get_job_settings(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    job = db.get(Job, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    threshold = _job_threshold(job_id)
+    return {"job_id": job_id, "threshold": threshold}
+
+
+@router.patch("/{job_id}/settings")
+def update_job_settings(
+    job_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    job = db.get(Job, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    threshold = int(payload.get("threshold", 50))
+    threshold = max(0, min(100, threshold))
+
+    settings = _load_job_settings()
+    settings[str(job_id)] = {"threshold": threshold}
+    _save_job_settings(settings)
+    return {"job_id": job_id, "threshold": threshold}
