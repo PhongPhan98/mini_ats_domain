@@ -69,6 +69,11 @@ async def parse_cv_preview(
     parsed = _parse_or_fallback(file.filename, content)
     return {"filename": file.filename, "parsed": parsed}
 
+def _is_candidate_deleted(candidate: Candidate) -> bool:
+    parsed = candidate.parsed_json or {}
+    return bool(parsed.get("deleted"))
+
+
 def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
     parsed_json = dict(candidate.parsed_json or {})
     timeline = list(parsed_json.get("timeline", []))
@@ -147,6 +152,7 @@ def list_candidates(
     min_experience: int | None = Query(default=None),
     keyword: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    include_deleted: bool = Query(default=False),
     db: Session = Depends(get_db),
     _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
@@ -180,6 +186,11 @@ def list_candidates(
         stmt = stmt.where(and_(*conditions))
 
     result = list(db.execute(stmt).scalars().all())
+    if not include_deleted:
+        result = [c for c in result if not _is_candidate_deleted(c)]
+    else:
+        result = [c for c in result if _is_candidate_deleted(c)]
+
     changed = False
     for c in result:
         normalized = normalize_status(c.status)
@@ -287,5 +298,43 @@ def delete_candidate_file(
     storage.delete_by_url(file.file_url)
     db.delete(file)
     _append_timeline_event(candidate, "note", f"deleted_cv_file:{file.original_filename}")
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/{candidate_id}")
+def soft_delete_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    parsed = dict(candidate.parsed_json or {})
+    parsed["deleted"] = True
+    parsed["deleted_at"] = datetime.utcnow().isoformat()
+    candidate.parsed_json = parsed
+    _append_timeline_event(candidate, "note", "candidate_soft_deleted")
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/{candidate_id}/restore")
+def restore_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    parsed = dict(candidate.parsed_json or {})
+    parsed["deleted"] = False
+    parsed.pop("deleted_at", None)
+    candidate.parsed_json = parsed
+    _append_timeline_event(candidate, "note", "candidate_restored")
     db.commit()
     return {"ok": True}

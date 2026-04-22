@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPatch, apiUrl } from "../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiUrl } from "../lib/api";
 import { useAppLanguage } from "../lib/language";
 import type { Analytics, Candidate, CandidateStatus } from "../components/types";
 
@@ -62,12 +62,13 @@ export default function DashboardPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [reportRange, setReportRange] = useState("last_30_days");
+  const [showTrash, setShowTrash] = useState(false);
   const { t } = useAppLanguage();
   const pageSize = 10;
 
   const loadData = async (nextFilters: SearchParams) => {
     const [candidateData, analyticsData] = await Promise.all([
-      apiGet<Candidate[]>(buildCandidateQuery(nextFilters)),
+      apiGet<Candidate[]>(`${buildCandidateQuery(nextFilters)}${buildCandidateQuery(nextFilters).includes("?") ? "&" : "?"}include_deleted=${showTrash ? "true" : "false"}`),
       apiGet<Analytics>("/api/analytics/summary"),
     ]);
     setCandidates(candidateData);
@@ -80,7 +81,7 @@ export default function DashboardPage() {
     const initial = parseQuery();
     setFilters(initial);
     loadData(initial);
-  }, []);
+  }, [showTrash]);
 
   const sortedCandidates = useMemo(() => {
     const arr = [...candidates];
@@ -122,6 +123,16 @@ export default function DashboardPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const deleteCandidate = async (id: number) => {
+    await apiDelete(`/api/candidates/${id}`);
+    await loadData(filters);
+  };
+
+  const restoreCandidate = async (id: number) => {
+    await apiPost(`/api/candidates/${id}/restore`, {});
+    await loadData(filters);
   };
 
   const updateOneStatus = async (id: number, status: CandidateStatus) => {
@@ -167,6 +178,7 @@ export default function DashboardPage() {
           <a className="report-btn report-analytics" href={apiUrl("/api/reports/analytics.csv")}>{t("report_analytics_csv")}</a>
           <a className="report-btn report-xlsx" href={apiUrl("/api/reports/reports.xlsx")}>{t("report_xlsx")}</a>
           <a className="report-btn report-pdf" href={apiUrl("/api/reports/report.pdf")}>{t("report_pdf")}</a>
+          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>{showTrash ? "Back to Active" : "Trash"}</button>
         </div>
       </div>
 
@@ -255,7 +267,7 @@ export default function DashboardPage() {
 
       <div className="card">
         <div className="toolbar">
-          <h3>Candidates ({sortedCandidates.length})</h3>
+          <h3>{showTrash ? "Deleted Candidates" : "Candidates"} ({sortedCandidates.length})</h3>
           <div className="toolbar-actions">
             <button className="btn-outline" type="button" onClick={() => setSelectedIds(pagedCandidates.map((c) => c.id))}>Select Page</button>
             <button className="btn-outline" type="button" onClick={() => setSelectedIds([])}>Clear</button>
@@ -292,7 +304,16 @@ export default function DashboardPage() {
                 </td>
                 <td>{c.years_of_experience ?? "-"}</td>
                 <td>{c.created_at ? new Date(c.created_at).toLocaleDateString() : "-"}</td>
-                <td><Link href={`/candidates/${c.id}`} className="chip">Edit</Link></td>
+                <td>
+                  <div className="toolbar-actions">
+                    <Link href={`/candidates/${c.id}`} className="chip">Edit</Link>
+                    {showTrash ? (
+                      <button className="btn-outline" style={{ width: "auto" }} onClick={() => restoreCandidate(c.id)}>Restore</button>
+                    ) : (
+                      <button className="btn-outline" style={{ width: "auto" }} onClick={() => deleteCandidate(c.id)}>Delete</button>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
