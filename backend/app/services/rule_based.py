@@ -497,9 +497,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
             f"Main gaps: {', '.join(missing_skills[:8]) if missing_skills else 'no major required-skill gaps detected'}.",
         ]
 
-    explanation = "
-".join(explanation_lines)
-
+    explanation = "\n".join(explanation_lines)
     return {
         "match_score": final_score,
         "explanation": explanation,
