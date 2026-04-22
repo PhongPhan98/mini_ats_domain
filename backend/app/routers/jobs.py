@@ -110,7 +110,7 @@ def match_candidates(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    candidates = list(db.execute(select(Candidate)).scalars().all())
+    candidates = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted")]
     min_threshold = max(0, min(100, int(threshold))) if threshold is not None else _job_threshold(job_id)
     results = []
     for c in candidates:

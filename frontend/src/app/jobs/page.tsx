@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
@@ -209,7 +210,12 @@ export default function JobsPage() {
             <tbody>
               {match.results.map((r) => (
                 <tr key={r.candidate_id}>
-                  <td>{r.candidate_name || `#${r.candidate_id}`}</td>
+                  <td>
+                    <div className="toolbar-actions">
+                      <span>{r.candidate_name || `#${r.candidate_id}`}</span>
+                      <Link className="chip" href={`/candidates/${r.candidate_id}`}>View</Link>
+                    </div>
+                  </td>
                   <td>
                     <span className="chip">{r.match_score}</span>
                   </td>

@@ -477,17 +477,27 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
     final_score = int(round((skill_score * 0.62 + exp_score * 0.25 + kw_score * 0.13) * 100))
     final_score = max(0, min(100, final_score))
 
+    matched_skills = sorted(overlap)
+    missing_skills = sorted(required_skills - overlap) if required_skills else []
+
     explanation = (
-        f"Rule-based match: {len(overlap)} skill overlap"
-        f"/{len(required_skills) if required_skills else 0}, "
-        f"experience {cand_years}y"
-        f"{' vs required ' + str(req_years) + 'y' if req_years is not None else ''}, "
-        f"keyword overlap {kw_overlap}."
+        f"Overall match score: {final_score}%. "
+        f"Skills fit contributes strongly: matched {len(matched_skills)}/{len(required_skills) if required_skills else 0} required skills"
+        f" ({', '.join(matched_skills[:8]) if matched_skills else 'none explicitly required'}). "
+        f"Experience check: candidate has {cand_years} year(s)"
+        f"{f', requirement is {req_years} year(s)' if req_years is not None else ', no strict minimum set'}; "
+        f"experience component score {round(exp_score * 100)}%. "
+        f"Context relevance: keyword overlap {kw_overlap} term(s), keyword component score {round(kw_score * 100)}%. "
+        f"Main gaps: {', '.join(missing_skills[:8]) if missing_skills else 'no major required-skill gaps detected'}."
     )
 
     return {
         "match_score": final_score,
         "explanation": explanation,
-        "matched_skills": sorted(overlap),
+        "matched_skills": matched_skills,
+        "missing_skills": missing_skills,
         "required_skills": sorted(required_skills),
+        "skill_score_pct": round(skill_score * 100, 2),
+        "experience_score_pct": round(exp_score * 100, 2),
+        "keyword_score_pct": round(kw_score * 100, 2),
     }
