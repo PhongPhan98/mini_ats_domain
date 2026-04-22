@@ -1,47 +1,122 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { uploadCandidate } from "../../lib/api";
+import { apiPatch, uploadCandidate } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
 import { notify } from "../../lib/toast";
+import type { Candidate } from "../../components/types";
+
+type EditableCandidate = Candidate & {
+  _editing?: {
+    name: string;
+    email: string;
+    phone: string;
+    years_of_experience: string;
+    skills_text: string;
+    summary: string;
+  };
+  _saving?: boolean;
+};
+
+function toEditing(c: Candidate) {
+  return {
+    name: c.name || "",
+    email: c.email || "",
+    phone: c.phone || "",
+    years_of_experience: c.years_of_experience?.toString() || "",
+    skills_text: (c.skills || []).join(", "),
+    summary: c.summary || "",
+  };
+}
 
 export default function UploadPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [results, setResults] = useState<EditableCandidate[]>([]);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { t } = useAppLanguage();
 
-  const score = useMemo(() => {
-    if (!result) return null;
-    let pts = 0;
-    if (result.name) pts += 25;
-    if (result.email) pts += 25;
-    if ((result.skills || []).length >= 3) pts += 25;
-    if (result.summary) pts += 25;
-    return pts;
-  }, [result]);
+  const totalReadiness = useMemo(() => {
+    if (!results.length) return 0;
+    const scoreOne = (r: EditableCandidate) => {
+      let pts = 0;
+      if (r.name) pts += 25;
+      if (r.email) pts += 25;
+      if ((r.skills || []).length >= 3) pts += 25;
+      if (r.summary) pts += 25;
+      return pts;
+    };
+    return Math.round(results.reduce((sum, x) => sum + scoreOne(x), 0) / results.length);
+  }, [results]);
 
   const onUpload = async () => {
-    if (!file) return;
+    if (!files.length) return;
     setLoading(true);
     setError("");
-    try {
-      const data = await uploadCandidate(file);
-      setResult(data);
-      notify(t("update_success"), "success");
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (e: any) {
-      const msg = e.message || t("upload_failed");
-      setError(msg);
-      notify(t("upload_failed"), "error");
-      if (String(msg).includes("Could not extract text")) {
-        notify(t("parse_warning"), "info");
+
+    const ok: EditableCandidate[] = [];
+    let failed = 0;
+
+    for (const f of files) {
+      try {
+        const data = await uploadCandidate(f);
+        ok.push({ ...data, _editing: toEditing(data) });
+      } catch (e: any) {
+        failed += 1;
       }
+    }
+
+    setResults(ok);
+    setFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    if (ok.length) notify(`Imported ${ok.length} CV(s)`, "success");
+    if (failed) {
+      setError(`${failed} file(s) failed to import.`);
+      notify(`${failed} file(s) failed`, "error");
+    }
+
+    setLoading(false);
+  };
+
+  const setEditing = (id: number, key: keyof NonNullable<EditableCandidate["_editing"]>, value: string) => {
+    setResults((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, _editing: { ...(r._editing || toEditing(r)), [key]: value } } : r
+      )
+    );
+  };
+
+  const saveCandidate = async (id: number) => {
+    const item = results.find((x) => x.id === id);
+    if (!item || !item._editing) return;
+
+    setResults((prev) => prev.map((x) => (x.id === id ? { ...x, _saving: true } : x)));
+    try {
+      const payload = {
+        name: item._editing.name || null,
+        email: item._editing.email || null,
+        phone: item._editing.phone || null,
+        years_of_experience: item._editing.years_of_experience
+          ? Number(item._editing.years_of_experience)
+          : null,
+        skills: item._editing.skills_text
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        summary: item._editing.summary || null,
+      };
+
+      const updated = await apiPatch<Candidate>(`/api/candidates/${id}`, payload);
+      setResults((prev) =>
+        prev.map((x) => (x.id === id ? { ...updated, _editing: toEditing(updated) } : x))
+      );
+      notify(t("update_success"), "success");
+    } catch {
+      notify(t("save_failed"), "error");
     } finally {
-      setLoading(false);
+      setResults((prev) => prev.map((x) => (x.id === id ? { ...x, _saving: false } : x)));
     }
   };
 
@@ -54,67 +129,90 @@ export default function UploadPage() {
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             accept=".pdf,.docx"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            onChange={(e) => setFiles(Array.from(e.target.files || []))}
           />
         </div>
-        <div style={{ marginTop: 12 }}>
-          <button onClick={onUpload} disabled={!file || loading}>
-            {loading ? t("uploading") : t("upload_action")}
+        <div className="toolbar" style={{ marginTop: 12 }}>
+          <small>{files.length ? `${files.length} ${t("files_selected")}` : t("no_files_selected")}</small>
+          <button style={{ width: "auto" }} onClick={onUpload} disabled={!files.length || loading}>
+            {loading ? t("uploading") : `${t("upload_action")} (${files.length || 0})`}
           </button>
         </div>
         {error && <p style={{ color: "#ef4444" }}>{error}</p>}
       </div>
 
-      {result && (
+      {!!results.length && (
         <div className="card parsed-card">
           <div className="toolbar">
-            <h3 style={{ margin: 0 }}>{t("parsed_candidate")}</h3>
-            <span className="score-pill">Readiness: {score ?? 0}%</span>
+            <h3 style={{ margin: 0 }}>{t("imported_cvs")} ({results.length})</h3>
+            <span className="score-pill">{t("avg_readiness")}: {totalReadiness}%</span>
           </div>
-
-          <div className="grid grid-2" style={{ marginTop: 8 }}>
-            <div className="info-tile">
-              <small>Name</small>
-              <p>{result.name || "-"}</p>
-            </div>
-            <div className="info-tile">
-              <small>Email</small>
-              <p>{result.email || "-"}</p>
-            </div>
-            <div className="info-tile">
-              <small>Phone</small>
-              <p>{result.phone || "-"}</p>
-            </div>
-            <div className="info-tile">
-              <small>Experience</small>
-              <p>{result.years_of_experience ?? "-"}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-2" style={{ marginTop: 8 }}>
-            <div className="info-tile">
-              <small>Skills</small>
-              <div className="chip-wrap" style={{ marginTop: 8 }}>
-                {(result.skills || []).length ? (result.skills || []).map((s: string) => (
-                  <span key={s} className="chip">{s}</span>
-                )) : <small>-</small>}
-              </div>
-            </div>
-            <div className="info-tile">
-              <small>Summary</small>
-              <p style={{ marginTop: 8 }}>{result.summary || "-"}</p>
-            </div>
-          </div>
-
-          <details style={{ marginTop: 12 }}>
-            <summary>{t("raw_json")}</summary>
-            <pre className="card" style={{ whiteSpace: "pre-wrap", marginTop: 10 }}>
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          </details>
         </div>
       )}
+
+      {results.map((r) => (
+        <div className="card parsed-card" key={r.id}>
+          <div className="toolbar">
+            <strong>Candidate #{r.id}</strong>
+            <button style={{ width: "auto" }} onClick={() => saveCandidate(r.id)} disabled={r._saving}>
+              {r._saving ? t("saving") : t("save_changes")}
+            </button>
+          </div>
+
+          <div className="grid grid-2" style={{ marginTop: 10 }}>
+            <div className="info-tile">
+              <label>{t("name")}</label>
+              <input
+                value={r._editing?.name || ""}
+                onChange={(e) => setEditing(r.id, "name", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>{t("email")}</label>
+              <input
+                value={r._editing?.email || ""}
+                onChange={(e) => setEditing(r.id, "email", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>{t("phone")}</label>
+              <input
+                value={r._editing?.phone || ""}
+                onChange={(e) => setEditing(r.id, "phone", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>{t("years_experience")}</label>
+              <input
+                type="number"
+                min={0}
+                value={r._editing?.years_of_experience || ""}
+                onChange={(e) => setEditing(r.id, "years_of_experience", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-2" style={{ marginTop: 10 }}>
+            <div className="info-tile">
+              <label>{t("skills_csv")}</label>
+              <input
+                value={r._editing?.skills_text || ""}
+                onChange={(e) => setEditing(r.id, "skills_text", e.target.value)}
+              />
+            </div>
+            <div className="info-tile">
+              <label>{t("summary")}</label>
+              <textarea
+                rows={3}
+                value={r._editing?.summary || ""}
+                onChange={(e) => setEditing(r.id, "summary", e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

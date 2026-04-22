@@ -115,6 +115,10 @@ export const text = {
     with_label: "with",
     mins_label: "mins",
     mentions_label: "Mentions",
+    no_files_selected: "No files selected",
+    files_selected: "files selected",
+    imported_cvs: "Imported CVs",
+    avg_readiness: "Avg readiness",
   },
   vi: {
     nav_dashboard: "Bảng điều khiển",
@@ -223,6 +227,10 @@ export const text = {
     with_label: "với",
     mins_label: "phút",
     mentions_label: "Gắn nhắc",
+    no_files_selected: "Chưa chọn tệp",
+    files_selected: "tệp đã chọn",
+    imported_cvs: "CV đã nhập",
+    avg_readiness: "Độ sẵn sàng TB",
   },
 } as const;
 
