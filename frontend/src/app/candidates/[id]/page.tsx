@@ -170,6 +170,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [ownershipReason, setOwnershipReason] = useState("");
   const [selectedFileUrl, setSelectedFileUrl] = useState("");
   const { t, lang } = useAppLanguage();
+  const { me } = useMe();
 
   const loadComments = async (id: string) => {
     const data = await apiGet<CandidateComment[]>(`/api/candidates/${id}/comments`);
@@ -211,9 +212,10 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   }, [params]);
 
   const canSave = useMemo(() => !!form && !saving, [form, saving]);
-  const meEmail = (typeof window !== "undefined" ? (window.localStorage.getItem("miniats_me_email") || "") : "").toLowerCase();
+  const meEmail = String(me?.email || "").toLowerCase();
   const ownerEmail = String((candidate?.parsed_json as any)?.owner_email || "").toLowerCase();
-  const isOwner = !ownerEmail || !meEmail ? true : ownerEmail === meEmail;
+  const ownerUserId = Number((candidate?.parsed_json as any)?.owner_user_id || 0);
+  const isOwner = (!!meEmail && !!ownerEmail && ownerEmail === meEmail) || (!!me?.id && ownerUserId > 0 && Number(me.id) === ownerUserId);
   const isViewOnly = !isOwner;
   const pendingOwnershipRequests = (((candidate?.parsed_json as any)?.ownership_requests || []) as any[]).filter((r) => r.status === "pending" && String(r.to_email || "").toLowerCase() === ownerEmail);
   const updateField = (key: keyof CandidateForm, value: string) =>
