@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Candidate
-from app.rbac import require_roles
+from app.rbac import get_current_user, require_roles
 from app.schemas import AnalyticsSummary
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -45,8 +45,20 @@ def _first_timeline_ts(candidate: Candidate, event_type: str):
 def summary(
     db: Session = Depends(get_db),
     _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+    actor=Depends(get_current_user),
 ):
     candidates = list(db.execute(select(Candidate)).scalars().all())
+
+    # Personal management mode for recruiters: only candidates they own.
+    if getattr(actor, "role", "") == "recruiter":
+        owned = []
+        for c in candidates:
+            parsed = c.parsed_json or {}
+            owner_id = parsed.get("owner_user_id")
+            owner_email = str(parsed.get("owner_email") or "").lower()
+            if (owner_id is not None and int(owner_id) == int(actor.id)) or (owner_email and owner_email == actor.email.lower()):
+                owned.append(c)
+        candidates = owned
 
     skill_counter = Counter()
     exp_distribution = Counter()

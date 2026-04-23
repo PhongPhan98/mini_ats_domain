@@ -119,6 +119,8 @@ async def upload_cv(
         raise HTTPException(status_code=400, detail="Empty file")
 
     parsed = _parse_or_fallback(file.filename, content)
+    parsed["owner_user_id"] = _actor.id
+    parsed["owner_email"] = _actor.email
 
     if edited_json:
         try:
