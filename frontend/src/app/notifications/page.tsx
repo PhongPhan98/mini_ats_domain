@@ -56,7 +56,7 @@ export default function NotificationsPage() {
                 <div className="timeline-title">Candidate #{r.candidate_id} — {r.status}</div>
                 <div>Your request to transfer ownership is <strong>{r.status}</strong>.</div>
                 <small>{r.updated_at || r.created_at}</small>
-                <div style={{ marginTop: 6 }}><Link className="chip" href={`/candidates/${r.candidate_id}`}>Open Candidate</Link></div>
+                <div style={{ marginTop: 6 }}><Link className="chip" href={`/candidates/${r.candidate_id}#req-${r.id}`}>Open Candidate</Link></div>
               </div>
             </div>
           ))}

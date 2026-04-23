@@ -460,6 +460,7 @@ def unshare_candidate(
 @router.post("/{candidate_id}/ownership/request")
 def request_candidate_ownership(
     candidate_id: int,
+    payload: dict | None = None,
     db: Session = Depends(get_db),
     actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
@@ -477,15 +478,19 @@ def request_candidate_ownership(
     requests = list(parsed.get("ownership_requests", []))
     rid = str(__import__("uuid").uuid4())
     now = __import__("datetime").datetime.utcnow().isoformat()
+    reason = str((payload or {}).get("reason") or "").strip()
+    expires_at = (__import__("datetime").datetime.utcnow() + __import__("datetime").timedelta(days=14)).isoformat()
     req = {
         "id": rid,
         "candidate_id": candidate_id,
         "from_user_id": actor.id,
         "from_email": actor.email,
         "to_email": owner_email,
+        "reason": reason[:500],
         "status": "pending",
         "created_at": now,
         "updated_at": now,
+        "expires_at": expires_at,
     }
     requests.append(req)
     parsed["ownership_requests"] = requests
@@ -503,14 +508,27 @@ def list_ownership_requests(
 ):
     candidates = list(db.execute(select(Candidate)).scalars().all())
     out = []
+    now = __import__("datetime").datetime.utcnow().isoformat()
+    changed = False
     for c in candidates:
         parsed = c.parsed_json or {}
-        for r in parsed.get("ownership_requests", []):
+        reqs = list(parsed.get("ownership_requests", []))
+        for r in reqs:
+            if r.get("status") == "pending" and r.get("expires_at") and str(r.get("expires_at")) < now:
+                r["status"] = "expired"
+                r["updated_at"] = now
+                changed = True
+        if changed:
+            parsed["ownership_requests"] = reqs
+            c.parsed_json = parsed
+        for r in reqs:
             if scope == "sent" and str(r.get("from_email", "")).lower() != actor.email.lower():
                 continue
             if scope != "sent" and str(r.get("to_email", "")).lower() != actor.email.lower():
                 continue
             out.append({**r, "candidate_name": c.name})
+    if changed:
+        db.commit()
     out.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return {"requests": out}
 
@@ -543,6 +561,8 @@ def decide_ownership_request(
             break
     if not target:
         raise HTTPException(status_code=404, detail="Request not found")
+    if target.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Request is already resolved")
 
     target["status"] = "approved" if decision == "approve" else "rejected"
     target["updated_at"] = __import__("datetime").datetime.utcnow().isoformat()

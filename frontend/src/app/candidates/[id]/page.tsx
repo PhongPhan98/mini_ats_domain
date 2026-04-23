@@ -166,6 +166,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [schedLink, setSchedLink] = useState("");
   const [schedNotes, setSchedNotes] = useState("");
   const [shareEmail, setShareEmail] = useState("");
+  const [ownershipReason, setOwnershipReason] = useState("");
   const [selectedFileUrl, setSelectedFileUrl] = useState("");
   const { t, lang } = useAppLanguage();
 
@@ -364,7 +365,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           <span className={`status-badge status-${candidate.status || "applied"}`}>
             {formatStatus(candidate.status || "applied")}
           </span>
-          {!isOwner ? <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/ownership/request`, {}); notify("Ownership request sent", "success"); const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`); setCandidate(updated); }} disabled={(((candidate?.parsed_json as any)?.ownership_requests || []) as any[]).some((r) => String(r.from_email||"").toLowerCase()===meEmail && r.status==="pending")}>Request ownership</button> : null}
+          {!isOwner ? <div className="toolbar-actions"><input style={{ maxWidth: 260 }} value={ownershipReason} onChange={(e) => setOwnershipReason(e.target.value)} placeholder="Reason to request ownership" /> <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/ownership/request`, { reason: ownershipReason }); notify("Ownership request sent", "success"); const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`); setCandidate(updated); }} disabled={(((candidate?.parsed_json as any)?.ownership_requests || []) as any[]).some((r) => String(r.from_email||"").toLowerCase()===meEmail && r.status==="pending")}>Request ownership</button></div> : null}
         </div>
       </div>
 
@@ -614,10 +615,10 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           <small>Approve or reject transfer requests from other HR members.</small>
           <div className="timeline" style={{ marginTop: 10 }}>
             {pendingOwnershipRequests.map((r: any) => (
-              <div key={r.id} className="timeline-item">
+              <div id={`req-${r.id}`} key={r.id} className="timeline-item">
                 <div className="timeline-dot" />
                 <div>
-                  <div><strong>{r.from_email}</strong> requested ownership</div>
+                  <div><strong>{r.from_email}</strong> requested ownership</div>{r.reason ? <small>Reason: {r.reason}</small> : null}
                   <small>{r.created_at}</small>
                   <div className="toolbar-actions" style={{ marginTop: 6 }}>
                     <button style={{ width: "auto" }} onClick={() => onOwnershipDecision(r.id, "approve")}>Approve</button>
