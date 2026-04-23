@@ -286,7 +286,7 @@ def delete_candidate_file(
     candidate_id: int,
     file_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
@@ -308,7 +308,7 @@ def delete_candidate_file(
 def soft_delete_candidate(
     candidate_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
@@ -328,7 +328,7 @@ def soft_delete_candidate(
 def restore_candidate(
     candidate_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:

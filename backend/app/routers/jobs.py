@@ -175,7 +175,7 @@ def soft_delete_job(
 def restore_job(
     job_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     job = db.get(Job, job_id)
     if not job:
