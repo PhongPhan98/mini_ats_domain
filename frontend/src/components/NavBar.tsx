@@ -9,6 +9,15 @@ import AuthStatus from "./AuthStatus";
 import { useAppLanguage } from "../lib/language";
 import { useMe } from "../lib/me";
 
+function NavLabel({ full, short }: { full: string; short: string }) {
+  return (
+    <>
+      <span className="label-full">{full}</span>
+      <span className="label-short">{short}</span>
+    </>
+  );
+}
+
 export default function NavBar() {
   const pathname = usePathname();
   const isLogin = pathname === "/login";
@@ -20,13 +29,13 @@ export default function NavBar() {
   return (
     <nav className="card nav-bar">
       {!isLogin && <div className="nav-links">
-        <Link className={isActive("/") ? "nav-link nav-link-active" : "nav-link"} href="/">{t("nav_dashboard")}</Link>
-        <Link className={isActive("/pipeline") ? "nav-link nav-link-active" : "nav-link"} href="/pipeline">{t("nav_pipeline")}</Link>
-        <Link className={isActive("/automation") ? "nav-link nav-link-active" : "nav-link"} href="/automation">{t("nav_automation")}</Link>
-        <Link className={isActive("/upload") ? "nav-link nav-link-active" : "nav-link"} href="/upload">{t("nav_upload")}</Link>
-        <Link className={isActive("/jobs") ? "nav-link nav-link-active" : "nav-link"} href="/jobs">{t("nav_jobs")}</Link>
-        {me?.role === "admin" && <Link className={isActive("/users") ? "nav-link nav-link-active" : "nav-link"} href="/users">Users</Link>}
-        {me?.role === "admin" && <Link className={isActive("/audit") ? "nav-link nav-link-active" : "nav-link"} href="/audit">Audit</Link>}
+        <Link className={isActive("/") ? "nav-link nav-link-active" : "nav-link"} href="/"><NavLabel full={t("nav_dashboard")} short="Home" /></Link>
+        <Link className={isActive("/pipeline") ? "nav-link nav-link-active" : "nav-link"} href="/pipeline"><NavLabel full={t("nav_pipeline")} short="Pipe" /></Link>
+        <Link className={isActive("/automation") ? "nav-link nav-link-active" : "nav-link"} href="/automation"><NavLabel full={t("nav_automation")} short="Auto" /></Link>
+        <Link className={isActive("/upload") ? "nav-link nav-link-active" : "nav-link"} href="/upload"><NavLabel full={t("nav_upload")} short="Upload" /></Link>
+        <Link className={isActive("/jobs") ? "nav-link nav-link-active" : "nav-link"} href="/jobs"><NavLabel full={t("nav_jobs")} short="Jobs" /></Link>
+        {me?.role === "admin" && <Link className={isActive("/users") ? "nav-link nav-link-active" : "nav-link"} href="/users"><NavLabel full="Users" short="User" /></Link>}
+        {me?.role === "admin" && <Link className={isActive("/audit") ? "nav-link nav-link-active" : "nav-link"} href="/audit"><NavLabel full="Audit" short="Log" /></Link>}
       </div>}
       <div className="nav-actions">
         <LanguageToggle />

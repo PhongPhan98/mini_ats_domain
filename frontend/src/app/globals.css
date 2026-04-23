@@ -671,3 +671,6 @@ label {
   }
   .nav-link { font-size: 13px; padding: 6px 9px; }
 }
+
+.label-short { display: none; }
+@media (max-width: 980px) { .label-full { display:none; } .label-short { display:inline; } }
