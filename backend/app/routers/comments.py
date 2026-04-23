@@ -90,7 +90,7 @@ def create_comment(
     return comment
 
 
-@router.get("/mentions")
+@router.get("/notifications/mentions")
 def my_mentions(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),

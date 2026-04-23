@@ -31,7 +31,7 @@ export default function NavBar() {
     if (!me) return;
     (async () => {
       try {
-        const data = await apiGet<{ mentions: any[] }>("/api/candidates/mentions");
+        const data = await apiGet<{ mentions: any[] }>("/api/candidates/notifications/mentions");
         setMentionCount((data.mentions || []).length);
       } catch {
         setMentionCount(0);

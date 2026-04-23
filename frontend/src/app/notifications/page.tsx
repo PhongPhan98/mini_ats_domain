@@ -9,7 +9,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     (async () => {
-      const data = await apiGet<{ mentions: any[] }>("/api/candidates/mentions");
+      const data = await apiGet<{ mentions: any[] }>("/api/candidates/notifications/mentions");
       setMentions(data.mentions || []);
     })();
   }, []);

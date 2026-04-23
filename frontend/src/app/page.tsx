@@ -63,6 +63,7 @@ export default function DashboardPage() {
   const [page, setPage] = useState(1);
   const [reportRange, setReportRange] = useState("last_30_days");
   const [showTrash, setShowTrash] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
   const { t } = useAppLanguage();
   const pageSize = 10;
 
@@ -103,6 +104,8 @@ export default function DashboardPage() {
   }, [sortedCandidates, page]);
 
   const totalPages = Math.max(1, Math.ceil(sortedCandidates.length / pageSize));
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
 
   const funnel = useMemo(() => {
     const base = analytics?.status_distribution || [];
@@ -178,7 +181,6 @@ export default function DashboardPage() {
           <a className="report-btn report-analytics" href={apiUrl("/api/reports/analytics.csv")}>{t("report_analytics_csv")}</a>
           <a className="report-btn report-xlsx" href={apiUrl("/api/reports/reports.xlsx")}>{t("report_xlsx")}</a>
           <a className="report-btn report-pdf" href={apiUrl("/api/reports/report.pdf")}>{t("report_pdf")}</a>
-          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>{showTrash ? "Back to Active" : "Trash"}</button>
         </div>
       </div>
 
@@ -197,8 +199,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <small>Report range preset selected: {reportRange.replaceAll("_", " ")} (export filtering hook prepared for next iteration).</small>
+      <div className="card">
+        <div className="toolbar">
+          <small>Report range: {reportRange.replaceAll("_", " ")}</small>
+          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowInsights((v) => !v)}>{showInsights ? "Hide insights" : "Show insights"}</button>
+        </div>
+      </div>
 
+      {showInsights && <>
       <div className="grid grid-4">
         <div className="card stat-card"><h3>Total</h3><h1>{analytics.total_candidates}</h1></div>
         <div className="card stat-card"><h3>Hired</h3><h1>{analytics.hired_count}</h1></div>
@@ -267,6 +275,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      </> }
+
       <div className="card">
         <form className="grid grid-4" onSubmit={applyFilters}>
           <input name="keyword" defaultValue={filters.keyword || ""} placeholder="Keyword" />
@@ -284,6 +294,7 @@ export default function DashboardPage() {
         <div className="toolbar">
           <h3>{showTrash ? "Deleted Candidates" : "Candidates"} ({sortedCandidates.length})</h3>
           <div className="toolbar-actions">
+            <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>{showTrash ? "Back to Active" : "Trash"}</button>
             <button className="btn-outline" type="button" onClick={() => setSelectedIds(pagedCandidates.map((c) => c.id))}>Select Page</button>
             <button className="btn-outline" type="button" onClick={() => setSelectedIds([])}>Clear</button>
             <button type="button" onClick={() => bulkSetStatus("screening")} disabled={busy || !selectedIds.length}>Move Screening</button>
@@ -292,7 +303,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <table>
+        <table className="candidate-table">
           <thead>
             <tr>
               <th></th>
@@ -319,7 +330,7 @@ export default function DashboardPage() {
                 </td>
                 <td>{c.years_of_experience ?? "-"}</td>
                 <td>{c.created_at ? new Date(c.created_at).toLocaleDateString() : "-"}</td>
-                <td>
+                <td className="candidate-actions">
                   <div className="toolbar-actions">
                     <Link href={`/candidates/${c.id}`} className="chip">Edit</Link>
                     {showTrash ? (
@@ -337,8 +348,8 @@ export default function DashboardPage() {
         <div className="toolbar" style={{ marginTop: 12 }}>
           <small>Page {page} / {totalPages}</small>
           <div className="toolbar-actions">
-            <button className="btn-outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
-            <button className="btn-outline" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+            <button className="btn-outline" disabled={!canPrev} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
+            <button className="btn-outline" disabled={!canNext} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
           </div>
         </div>
       </div>

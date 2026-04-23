@@ -47,7 +47,7 @@ def summary(
     _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
     actor=Depends(get_current_user),
 ):
-    candidates = list(db.execute(select(Candidate)).scalars().all())
+    candidates = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted")]
 
     # Personal management mode for recruiters: only candidates they own.
     if getattr(actor, "role", "") == "recruiter":
