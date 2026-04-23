@@ -1,7 +1,7 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store", credentials: "include" });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -11,6 +11,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -21,6 +22,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -37,6 +39,7 @@ export async function uploadCandidate(file: File) {
   const res = await fetch(`${API_BASE}/api/candidates/upload`, {
     method: "POST",
     body: form,
+    credentials: "include",
   });
 
   if (!res.ok) throw new Error(await res.text());
@@ -51,6 +54,7 @@ export async function parseCandidatePreview(file: File) {
   const res = await fetch(`${API_BASE}/api/candidates/parse`, {
     method: "POST",
     body: form,
+    credentials: "include",
   });
 
   if (!res.ok) throw new Error(await res.text());
@@ -65,6 +69,7 @@ export async function uploadCandidateReviewed(file: File, edited: Record<string,
   const res = await fetch(`${API_BASE}/api/candidates/upload`, {
     method: "POST",
     body: form,
+    credentials: "include",
   });
 
   if (!res.ok) throw new Error(await res.text());
@@ -73,7 +78,7 @@ export async function uploadCandidateReviewed(file: File, edited: Record<string,
 
 
 export async function apiDelete<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", credentials: "include" });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import CompactModeToggle from "./CompactModeToggle";
 import ThemeToggle from "./ThemeToggle";
 import LanguageToggle from "./LanguageToggle";
+import AuthStatus from "./AuthStatus";
 import { useAppLanguage } from "../lib/language";
 
 export default function NavBar() {
@@ -26,6 +27,7 @@ export default function NavBar() {
         <LanguageToggle />
         <CompactModeToggle />
         <ThemeToggle />
+        <AuthStatus />
       </div>
     </nav>
   );

@@ -35,5 +35,14 @@ class Settings(BaseSettings):
 
     webhook_signing_secret: str = Field(default="", alias="WEBHOOK_SIGNING_SECRET")
 
+    auth_jwt_secret: str = Field(default="change-me", alias="AUTH_JWT_SECRET")
+    auth_jwt_exp_hours: int = Field(default=72, alias="AUTH_JWT_EXP_HOURS")
+    auth_cookie_name: str = Field(default="miniats_session", alias="AUTH_COOKIE_NAME")
+
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
+    google_client_secret: str = Field(default="", alias="GOOGLE_CLIENT_SECRET")
+    google_redirect_uri: str = Field(default="http://localhost:8000/api/auth/google/callback", alias="GOOGLE_REDIRECT_URI")
+    google_allowed_domain: str = Field(default="", alias="GOOGLE_ALLOWED_DOMAIN")
+
 
 settings = Settings()
