@@ -22,7 +22,12 @@ def _can_access_candidate(user, candidate: Candidate) -> bool:
     owner_email = (parsed.get("owner_email") or "").lower()
     collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
     collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
-    return ((owner_id is not None and int(owner_id) == int(user.id)) or (owner_email == user.email.lower()) or (int(user.id) in collab_ids) or (user.email.lower() in collab_emails))
+    invited_emails = {
+        str(inv.get("to_email", "")).lower()
+        for inv in parsed.get("share_invitations", [])
+        if inv.get("status") == "pending"
+    }
+    return ((owner_id is not None and int(owner_id) == int(user.id)) or (owner_email == user.email.lower()) or (int(user.id) in collab_ids) or (user.email.lower() in collab_emails) or (user.email.lower() in invited_emails))
 
 
 def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
