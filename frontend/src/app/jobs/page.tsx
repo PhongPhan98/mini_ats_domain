@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
 import { notify } from "../../lib/toast";
+import { useMe } from "../../lib/me";
 
-type Job = { id: number; title: string; requirements: string; created_at?: string };
+type Job = { id: number; title: string; requirements: string; created_at?: string; owner_user_id?: number; owner_email?: string };
 type MatchItem = { candidate_id: number; candidate_name?: string; match_score: number; explanation: string };
 type MatchResponse = { job_id: number; job_title: string; results: MatchItem[] };
 
@@ -17,12 +18,14 @@ export default function JobsPage() {
   const [match, setMatch] = useState<MatchResponse | null>(null);
   const [loadingMatchId, setLoadingMatchId] = useState<number | null>(null);
   const [showTrash, setShowTrash] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editReq, setEditReq] = useState("");
   const [thresholdByJob, setThresholdByJob] = useState<Record<number, number>>({});
   const [modalFullscreen, setModalFullscreen] = useState(false);
   const { t, lang } = useAppLanguage();
+  const { me } = useMe();
 
   const loadJobs = async () => {
     const data = await apiGet<Job[]>(`/api/jobs?include_deleted=${showTrash ? "true" : "false"}`);
@@ -126,6 +129,8 @@ export default function JobsPage() {
     notify("Job restored", "success");
   };
 
+  const visibleJobs = jobs.filter((j) => !onlyMine || !me?.email || (j.owner_email || "").toLowerCase() === String(me.email || "").toLowerCase());
+
   return (
     <div className="grid page-enter">
       <div className="card">
@@ -137,6 +142,7 @@ export default function JobsPage() {
           <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>
             {showTrash ? "Back to Active" : "Trash"}
           </button>
+          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setOnlyMine((v) => !v)}>{onlyMine ? "Showing: Mine" : "Showing: All visible"}</button>
         </div>
       </div>
 
@@ -167,9 +173,9 @@ export default function JobsPage() {
             </tr>
           </thead>
           <tbody>
-            {jobs.map((job) => (
+            {visibleJobs.map((job) => (
               <tr key={job.id}>
-                <td>{job.title}</td>
+                <td><div className="toolbar-actions"><span>{job.title}</span>{me?.email && (job.owner_email || "").toLowerCase() === String(me.email).toLowerCase() ? <span className="chip">Owned by me</span> : null}</div></td>
                 <td>{job.created_at ? new Date(job.created_at).toLocaleString() : "-"}</td>
                 <td>
                   <div className="toolbar-actions">
@@ -201,7 +207,7 @@ export default function JobsPage() {
                 </td>
               </tr>
             ))}
-            {!jobs.length && (
+            {!visibleJobs.length && (
               <tr>
                 <td colSpan={3}><small>{showTrash ? "Trash is empty." : t("no_jobs")}</small></td>
               </tr>

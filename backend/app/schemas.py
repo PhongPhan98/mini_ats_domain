@@ -147,6 +147,8 @@ class JobOut(BaseModel):
     title: str
     requirements: str
     created_at: datetime
+    owner_user_id: int | None = None
+    owner_email: str | None = None
 
     class Config:
         from_attributes = True
