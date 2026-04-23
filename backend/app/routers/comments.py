@@ -88,3 +88,28 @@ def create_comment(
     db.commit()
     db.refresh(comment)
     return comment
+
+
+@router.get("/mentions")
+def my_mentions(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    comments = list(db.execute(select(CandidateComment).order_by(CandidateComment.created_at.desc())).scalars().all())
+    mine = []
+    me_email = user.email.lower()
+    me_local = me_email.split("@")[0]
+    me_name = (user.full_name or "").lower()
+    for c in comments:
+        mentions = [str(x).lower() for x in (c.mentions or [])]
+        hit = any(m in {me_email, me_local, me_name} for m in mentions)
+        if hit:
+            mine.append({
+                "comment_id": c.id,
+                "candidate_id": c.candidate_id,
+                "body": c.body,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            })
+        if len(mine) >= 100:
+            break
+    return {"mentions": mine}

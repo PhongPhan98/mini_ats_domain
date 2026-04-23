@@ -86,6 +86,28 @@ function timelineOf(candidate: Candidate): TimelineEvent[] {
   return (candidate.parsed_json?.timeline || []).slice().reverse();
 }
 
+function formatTimelineEvent(lang: string, ev: TimelineEvent) {
+  const vi = lang === "vi";
+  const type = String(ev.type || "").toLowerCase();
+  const val = String(ev.value || "");
+
+  if (type === "created") return vi ? "Tạo hồ sơ ứng viên" : "Candidate profile created";
+  if (type === "status") {
+    return vi ? `Chuyển trạng thái: ${val}` : `Status moved to ${val}`;
+  }
+  if (type === "automation") {
+    const stage = val.split(":").pop() || val;
+    return vi ? `Tự động hoá đã gửi thông báo cho vòng ${stage}` : `Automation triggered notification for stage ${stage}`;
+  }
+  if (type === "comment") return vi ? `Bình luận: ${val}` : `Comment: ${val}`;
+  if (type === "mention") return vi ? `Đã nhắc thẻ: ${val}` : `Mentioned: ${val}`;
+  if (type === "share") {
+    if (val.startsWith("shared_with:")) return vi ? `Đã chia sẻ cho ${val.replace("shared_with:", "")}` : `Shared with ${val.replace("shared_with:", "")}`;
+    if (val.startsWith("unshared_with:")) return vi ? `Đã huỷ chia sẻ với ${val.replace("unshared_with:", "")}` : `Unshared with ${val.replace("unshared_with:", "")}`;
+  }
+  return val;
+}
+
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [form, setForm] = useState<CandidateForm | null>(null);
@@ -109,6 +131,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [schedDuration, setSchedDuration] = useState("60");
   const [schedLink, setSchedLink] = useState("");
   const [schedNotes, setSchedNotes] = useState("");
+  const [shareEmail, setShareEmail] = useState("");
   const [selectedFileUrl, setSelectedFileUrl] = useState("");
   const { t } = useAppLanguage();
 
@@ -218,6 +241,23 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     notify(t("update_success"), "success");
     const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
     setCandidate(updated);
+  };
+
+  const onShareCandidate = async () => {
+    if (!candidateId || !shareEmail.trim()) { notify(t("missing_required_fields"), "error"); return; }
+    await apiPost(`/api/candidates/${candidateId}/share`, { email: shareEmail.trim() });
+    setShareEmail("");
+    const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
+    setCandidate(updated);
+    notify(t("update_success"), "success");
+  };
+
+  const onUnshareCandidate = async (email: string) => {
+    if (!candidateId) return;
+    await apiPost(`/api/candidates/${candidateId}/unshare`, { email });
+    const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
+    setCandidate(updated);
+    notify(t("update_success"), "success");
   };
 
   const onScheduleInterview = async () => {
@@ -523,6 +563,24 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div>
 
         <div className="card">
+          <h3>Team Collaboration Sharing</h3>
+          <small>Share this candidate with other HR members by email.</small>
+          <div className="toolbar-actions" style={{ marginTop: 8 }}>
+            <input style={{ maxWidth: 320 }} value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} placeholder="hr@company.com" />
+            <button style={{ width: "auto" }} onClick={onShareCandidate}>Share</button>
+          </div>
+          <div className="chip-wrap" style={{ marginTop: 10 }}>
+            {((candidate.parsed_json as any)?.collaborator_emails || []).map((em: string) => (
+              <span key={em} className="chip">
+                {em}
+                <button className="btn-outline" style={{ width: "auto", marginLeft: 8, padding: "2px 6px" }} onClick={() => onUnshareCandidate(em)}>x</button>
+              </span>
+            ))}
+            {!((candidate.parsed_json as any)?.collaborator_emails || []).length && <small>No collaborators yet.</small>}
+          </div>
+        </div>
+
+        <div className="card">
           <h3>{t("candidate_timeline")}</h3>
           <div className="timeline">
             {timelineOf(candidate).map((event, idx) => (
@@ -530,7 +588,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 <div className="timeline-dot" />
                 <div>
                   <div className="timeline-title">{formatStatus(event.type)}</div>
-                  <div>{event.value}</div>
+                  <div>{formatTimelineEvent(lang, event)}</div>
                   <small>{event.timestamp}</small>
                 </div>
               </div>

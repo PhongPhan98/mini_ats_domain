@@ -75,13 +75,21 @@ async def parse_cv_preview(
 
 
 def _can_access_candidate(user, candidate: Candidate) -> bool:
-    # recruiter can only access candidates they uploaded/own
+    # recruiter can only access candidates they own or are shared with.
     if getattr(user, "role", "") != "recruiter":
         return True
     parsed = candidate.parsed_json or {}
     owner_id = parsed.get("owner_user_id")
     owner_email = (parsed.get("owner_email") or "").lower()
-    return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())
+    collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
+    collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
+
+    return (
+        (owner_id is not None and int(owner_id) == int(user.id))
+        or (owner_email and owner_email == user.email.lower())
+        or (int(user.id) in collab_ids)
+        or (user.email.lower() in collab_emails)
+    )
 
 def _is_candidate_deleted(candidate: Candidate) -> bool:
     parsed = candidate.parsed_json or {}
@@ -369,3 +377,72 @@ def restore_candidate(
     db.commit()
     log_event(_actor.email, "candidate.restore", f"candidate:{candidate_id}", {})
     return {"ok": True}
+
+
+@router.post("/{candidate_id}/share")
+def share_candidate(
+    candidate_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to share this candidate")
+
+    email = str(payload.get("email", "")).strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+
+    user = db.query(__import__("app.models", fromlist=["User"]).User).filter_by(email=email).first()
+
+    parsed = dict(candidate.parsed_json or {})
+    collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
+    collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
+
+    collab_emails.add(email)
+    if user:
+        collab_ids.add(int(user.id))
+
+    parsed["collaborator_emails"] = sorted(collab_emails)
+    parsed["collaborator_user_ids"] = sorted(collab_ids)
+    candidate.parsed_json = parsed
+    _append_timeline_event(candidate, "share", f"shared_with:{email}")
+    db.commit()
+    return {"ok": True, "collaborator_emails": parsed["collaborator_emails"]}
+
+
+@router.post("/{candidate_id}/unshare")
+def unshare_candidate(
+    candidate_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to unshare this candidate")
+
+    email = str(payload.get("email", "")).strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+
+    parsed = dict(candidate.parsed_json or {})
+    collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
+    collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
+
+    collab_emails.discard(email)
+    user = db.query(__import__("app.models", fromlist=["User"]).User).filter_by(email=email).first()
+    if user:
+        collab_ids.discard(int(user.id))
+
+    parsed["collaborator_emails"] = sorted(collab_emails)
+    parsed["collaborator_user_ids"] = sorted(collab_ids)
+    candidate.parsed_json = parsed
+    _append_timeline_event(candidate, "share", f"unshared_with:{email}")
+    db.commit()
+    return {"ok": True, "collaborator_emails": parsed["collaborator_emails"]}

@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import CompactModeToggle from "./CompactModeToggle";
 import ThemeToggle from "./ThemeToggle";
 import LanguageToggle from "./LanguageToggle";
 import AuthStatus from "./AuthStatus";
 import { useAppLanguage } from "../lib/language";
 import { useMe } from "../lib/me";
+import { apiGet } from "../lib/api";
 
 function NavLabel({ full, short }: { full: string; short: string }) {
   return (
@@ -23,6 +25,19 @@ export default function NavBar() {
   const isLogin = pathname === "/login";
   const { t } = useAppLanguage();
   const { me } = useMe();
+  const [mentionCount, setMentionCount] = useState(0);
+
+  useEffect(() => {
+    if (!me) return;
+    (async () => {
+      try {
+        const data = await apiGet<{ mentions: any[] }>("/api/candidates/mentions");
+        setMentionCount((data.mentions || []).length);
+      } catch {
+        setMentionCount(0);
+      }
+    })();
+  }, [me?.id]);
 
   const isActive = (href: string) => pathname === href;
 
@@ -41,6 +56,7 @@ export default function NavBar() {
         <LanguageToggle />
         <CompactModeToggle />
         <ThemeToggle />
+        {mentionCount > 0 ? <span className="chip">@ {mentionCount}</span> : null}
         <AuthStatus />
       </div>
     </nav>
