@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Candidate, CandidateFile, User
+from app.models import Candidate, CandidateFile, User, CandidateComment
 from app.rbac import require_roles
 from app.schemas import CandidateOut, CandidateUpdate
 from app.services.automation import run_stage_change_automations
@@ -105,6 +105,19 @@ def _can_access_candidate(user, candidate: Candidate) -> bool:
         or (user.email.lower() in collab_emails)
         or (user.email.lower() in invited_emails)
     )
+
+
+
+def _has_mention_access(db: Session, user, candidate_id: int) -> bool:
+    me_email = (getattr(user, "email", "") or "").lower()
+    me_local = me_email.split("@")[0] if me_email else ""
+    me_name = (getattr(user, "full_name", "") or "").lower()
+    comments = list(db.execute(select(CandidateComment).where(CandidateComment.candidate_id == candidate_id)).scalars().all())
+    for c in comments:
+        mentions = [str(x).lower() for x in (c.mentions or [])]
+        if any(m in {me_email, me_local, me_name} for m in mentions):
+            return True
+    return False
 
 def _is_candidate_deleted(candidate: Candidate) -> bool:
     parsed = candidate.parsed_json or {}
@@ -263,7 +276,7 @@ def get_candidate(
     candidate = db.execute(stmt).scalar_one_or_none()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(_actor, candidate):
+    if not _can_access_candidate(_actor, candidate) and not _has_mention_access(db, _actor, candidate_id):
         raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
 
     candidate.status = normalize_status(candidate.status)

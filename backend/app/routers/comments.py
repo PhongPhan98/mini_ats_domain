@@ -30,6 +30,18 @@ def _can_access_candidate(user, candidate: Candidate) -> bool:
     return ((owner_id is not None and int(owner_id) == int(user.id)) or (owner_email == user.email.lower()) or (int(user.id) in collab_ids) or (user.email.lower() in collab_emails) or (user.email.lower() in invited_emails))
 
 
+def _has_mention_access(db: Session, user, candidate_id: int) -> bool:
+    me_email = (getattr(user, "email", "") or "").lower()
+    me_local = me_email.split("@")[0] if me_email else ""
+    me_name = (getattr(user, "full_name", "") or "").lower()
+    comments = list(db.execute(select(CandidateComment).where(CandidateComment.candidate_id == candidate_id)).scalars().all())
+    for c in comments:
+        mentions = [str(x).lower() for x in (c.mentions or [])]
+        if any(m in {me_email, me_local, me_name} for m in mentions):
+            return True
+    return False
+
+
 def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
     parsed_json = dict(candidate.parsed_json or {})
     timeline = list(parsed_json.get("timeline", []))
@@ -49,11 +61,13 @@ def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
 def list_comments(
     candidate_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+    user=Depends(get_current_user),
 ):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(user, candidate) and not _has_mention_access(db, user, candidate_id):
+        raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
 
     stmt = (
         select(CandidateComment)
@@ -73,6 +87,8 @@ def create_comment(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(user, candidate) and not _has_mention_access(db, user, candidate_id):
+        raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
 
     body = (payload.body or "").strip()
     if not body:
