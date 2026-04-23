@@ -123,11 +123,11 @@ export const text = {
     avg_readiness: "Avg readiness",
   },
   vi: {
-    nav_dashboard: "Bảng điều khiển",
-    nav_pipeline: "Quy trình",
-    nav_automation: "Tự động hoá",
-    nav_upload: "Tải CV",
-    nav_jobs: "Việc làm & Ghép ứng viên",
+    nav_dashboard: "Tổng quan",
+    nav_pipeline: "Pipeline",
+    nav_automation: "Tự động",
+    nav_upload: "Nhập CV",
+    nav_jobs: "Việc làm",
 
     dashboard_title: "Bảng điều khiển tuyển dụng",
     report_candidates_csv: "CSV ứng viên",

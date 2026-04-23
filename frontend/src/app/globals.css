@@ -639,3 +639,24 @@ label {
 
 .modal-full { width: min(1200px, 98vw); height: 92vh; }
 .explain-box { white-space: pre-line; line-height: 1.5; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--card) 80%, var(--bg-elev)); border: 1px solid var(--border); }
+
+
+.nav-bar { gap: 10px; }
+.nav-links {
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+.nav-links::-webkit-scrollbar { height: 6px; }
+.nav-links::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--border) 70%, var(--muted)); border-radius: 999px; }
+.nav-link {
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.nav-actions { flex-shrink: 0; }
+@media (max-width: 920px) {
+  .nav-bar { align-items: flex-start; }
+  .nav-actions { width: 100%; justify-content: flex-end; }
+}
