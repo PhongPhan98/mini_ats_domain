@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import NavBar from "../components/NavBar";
+import AuthGate from "../components/AuthGate";
 import ToastHost from "../components/ToastHost";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -10,7 +11,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <div className="container page-enter">
           <NavBar />
           <ToastHost />
-          {children}
+          <AuthGate>{children}</AuthGate>
         </div>
       </body>
     </html>
