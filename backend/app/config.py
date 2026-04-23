@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     google_client_secret: str = Field(default="", alias="GOOGLE_CLIENT_SECRET")
     google_redirect_uri: str = Field(default="http://localhost:8000/api/auth/google/callback", alias="GOOGLE_REDIRECT_URI")
     google_allowed_domain: str = Field(default="", alias="GOOGLE_ALLOWED_DOMAIN")
+    auth_allow_dev_headers: bool = Field(default=False, alias="AUTH_ALLOW_DEV_HEADERS")
+    auth_bootstrap_admin_email: str = Field(default="", alias="AUTH_BOOTSTRAP_ADMIN_EMAIL")
 
 
 settings = Settings()

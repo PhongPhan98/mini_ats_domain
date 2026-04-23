@@ -36,18 +36,21 @@ def get_current_user(
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid auth session")
 
-    # backward-compatible fallback for dev headers
-    email = (x_user_email or "demo@mini-ats.local").strip().lower()
-    role = (x_user_role or "admin").strip().lower()
-    if role not in ALLOWED_ROLES:
-        raise HTTPException(status_code=403, detail=f"Invalid role '{role}'")
+    # optional fallback for local development only
+    if settings.auth_allow_dev_headers:
+        email = (x_user_email or "demo@mini-ats.local").strip().lower()
+        role = (x_user_role or "admin").strip().lower()
+        if role not in ALLOWED_ROLES:
+            raise HTTPException(status_code=403, detail=f"Invalid role '{role}'")
 
-    user = _get_user_by_email(db, email, fallback_role=role)
-    if user.role != role:
-        user.role = role
-        db.commit()
-        db.refresh(user)
-    return user
+        user = _get_user_by_email(db, email, fallback_role=role)
+        if user.role != role:
+            user.role = role
+            db.commit()
+            db.refresh(user)
+        return user
+
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 
 def require_roles(*roles: str):

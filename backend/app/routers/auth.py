@@ -105,7 +105,9 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
 
     user = db.query(User).filter(User.email == email).first()
     if not user:
-        user = User(email=email, full_name=name, role="recruiter")
+        bootstrap_admin = (settings.auth_bootstrap_admin_email or "").strip().lower()
+        role = "admin" if bootstrap_admin and email == bootstrap_admin else "recruiter"
+        user = User(email=email, full_name=name, role=role)
         db.add(user)
         db.commit()
         db.refresh(user)
