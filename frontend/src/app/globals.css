@@ -684,3 +684,10 @@ label {
 .candidate-table select { min-height: 34px; }
 
 .timeline-scroll { max-height: 360px; overflow-y: auto; padding-right: 4px; }
+
+
+.job-list { display: grid; gap: 10px; }
+.job-item { display: flex; justify-content: space-between; gap: 12px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+.job-title { font-weight: 600; }
+.match-list { display: grid; gap: 10px; }
+.match-item { border: 1px solid var(--border); border-radius: 10px; padding: 10px; }

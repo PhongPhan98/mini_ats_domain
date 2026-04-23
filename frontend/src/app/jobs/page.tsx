@@ -158,56 +158,41 @@ export default function JobsPage() {
 
       <div className="card">
         <h3>{showTrash ? "Job Trash" : t("job_list")}</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>{t("job_title")}</th>
-              <th>{t("created")}</th>
-              <th>{t("actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map((job) => (
-              <tr key={job.id}>
-                <td>{job.title}</td>
-                <td>{job.created_at ? new Date(job.created_at).toLocaleString() : "-"}</td>
-                <td>
-                  <div className="toolbar-actions">
-                    {!showTrash && editingId !== job.id && (
-                      <>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={thresholdByJob[job.id] ?? 50}
-                          onChange={(e) => setThresholdByJob((prev) => ({ ...prev, [job.id]: Number(e.target.value || 0) }))}
-                          style={{ width: 90 }}
-                        />
-                        <button className="btn-outline" onClick={() => saveThreshold(job.id)}>Save %</button>
-                        <button className="btn-outline" onClick={() => runMatch(job.id)}>
-                          {loadingMatchId === job.id ? t("running") : `${t("run_matching")} (≥${thresholdByJob[job.id] ?? 50}%)`}
-                        </button>
-                      </>
-                    )}
-                    {!showTrash && editingId !== job.id && (
-                      <button className="btn-outline" onClick={() => startEdit(job)}>Edit</button>
-                    )}
-                    {!showTrash ? (
-                      <button className="btn-outline" onClick={() => softDelete(job.id)}>Delete</button>
-                    ) : (
-                      <button className="btn-outline" onClick={() => restore(job.id)}>Restore</button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!jobs.length && (
-              <tr>
-                <td colSpan={3}><small>{showTrash ? "Trash is empty." : t("no_jobs")}</small></td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div className="job-list" style={{ marginTop: 10 }}>
+          {jobs.map((job) => (
+            <div key={job.id} className="job-item">
+              <div>
+                <div className="job-title">{job.title}</div>
+                <small>{job.created_at ? new Date(job.created_at).toLocaleString() : "-"}</small>
+              </div>
+              <div className="toolbar-actions">
+                {!showTrash && editingId !== job.id && (
+                  <>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={thresholdByJob[job.id] ?? 50}
+                      onChange={(e) => setThresholdByJob((prev) => ({ ...prev, [job.id]: Number(e.target.value || 0) }))}
+                      style={{ width: 82 }}
+                    />
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => saveThreshold(job.id)}>Save %</button>
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => runMatch(job.id)}>
+                      {loadingMatchId === job.id ? t("running") : `${t("run_matching")} (≥${thresholdByJob[job.id] ?? 50}%)`}
+                    </button>
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => startEdit(job)}>Edit</button>
+                  </>
+                )}
+                {!showTrash ? (
+                  <button className="btn-outline" style={{ width: "auto" }} onClick={() => softDelete(job.id)}>Delete</button>
+                ) : (
+                  <button className="btn-outline" style={{ width: "auto" }} onClick={() => restore(job.id)}>Restore</button>
+                )}
+              </div>
+            </div>
+          ))}
+          {!jobs.length && <small>{showTrash ? "Trash is empty." : t("no_jobs")}</small>}
+        </div>
       </div>
 
 
@@ -246,37 +231,30 @@ export default function JobsPage() {
 
       {match && (
         <div className="card">
-          <h3>{t("match_results")}: {match.job_title}</h3>
-          <small>Only candidates with matching score above selected threshold are shown.</small>
-          <table>
-            <thead>
-              <tr>
-                <th>{t("candidate")}</th>
-                <th>{t("score")}</th>
-                <th>{t("explanation")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {match.results.map((r) => (
-                <tr key={r.candidate_id}>
-                  <td>
-                    <div className="toolbar-actions">
-                      <span>{r.candidate_name || `#${r.candidate_id}`}</span>
-                      <Link className="chip" href={`/candidates/${r.candidate_id}`}>View</Link>
-                      <button className="btn-outline" style={{ width: "auto" }} onClick={() => shortlistFromMatch(r.candidate_id)}>Shortlist</button>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="chip">{r.match_score}</span>
-                  </td>
-                  <td><div className="explain-box">{formatExplanation(r.explanation)}</div></td>
-                </tr>
-              ))}
-              {!match.results.length && (
-                <tr><td colSpan={3}><small>No candidates above 50% match.</small></td></tr>
-              )}
-            </tbody>
-          </table>
+          <div className="toolbar">
+            <div>
+              <h3 style={{ margin: 0 }}>{t("match_results")}: {match.job_title}</h3>
+              <small>Only candidates above selected threshold are shown.</small>
+            </div>
+          </div>
+          <div className="match-list" style={{ marginTop: 10 }}>
+            {match.results.map((r) => (
+              <div key={r.candidate_id} className="match-item">
+                <div className="toolbar" style={{ marginBottom: 8 }}>
+                  <div className="toolbar-actions" style={{ gap: 8 }}>
+                    <strong>{r.candidate_name || `#${r.candidate_id}`}</strong>
+                    <span className="chip">{r.match_score}%</span>
+                  </div>
+                  <div className="toolbar-actions">
+                    <Link className="chip" href={`/candidates/${r.candidate_id}`}>View</Link>
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => shortlistFromMatch(r.candidate_id)}>Shortlist</button>
+                  </div>
+                </div>
+                <div className="explain-box">{formatExplanation(r.explanation)}</div>
+              </div>
+            ))}
+            {!match.results.length && <small>No candidates above selected threshold.</small>}
+          </div>
         </div>
       )}
     </div>
