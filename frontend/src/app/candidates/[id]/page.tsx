@@ -86,6 +86,26 @@ function timelineOf(candidate: Candidate): TimelineEvent[] {
   return (candidate.parsed_json?.timeline || []).slice().reverse();
 }
 
+function formatTimelineTitle(lang: string, evType: string) {
+  const vi = lang === "vi";
+  const t = String(evType || "").toLowerCase();
+  if (t === "created") return vi ? "Khởi tạo" : "Created";
+  if (t === "status") return vi ? "Trạng thái" : "Status";
+  if (t === "automation") return vi ? "Tự động hoá" : "Automation";
+  if (t === "comment") return vi ? "Bình luận" : "Comment";
+  if (t === "mention") return vi ? "Nhắc thẻ" : "Mention";
+  if (t === "share") return vi ? "Chia sẻ" : "Sharing";
+  if (t === "note") return vi ? "Ghi chú" : "Note";
+  return vi ? "Sự kiện" : "Event";
+}
+
+function formatTimelineTime(lang: string, ts?: string) {
+  if (!ts) return "-";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts;
+  return d.toLocaleString(lang === "vi" ? "vi-VN" : "en-US");
+}
+
 function formatTimelineEvent(lang: string, ev: TimelineEvent) {
   const vi = lang === "vi";
   const type = String(ev.type || "").toLowerCase();
@@ -93,14 +113,28 @@ function formatTimelineEvent(lang: string, ev: TimelineEvent) {
 
   if (type === "created") return vi ? "Tạo hồ sơ ứng viên" : "Candidate profile created";
   if (type === "status") {
-    return vi ? `Chuyển trạng thái: ${val}` : `Status moved to ${val}`;
+    return vi ? `Chuyển trạng thái sang: ${val}` : `Status changed to: ${val}`;
   }
   if (type === "automation") {
     const stage = val.split(":").pop() || val;
-    return vi ? `Tự động hoá đã gửi thông báo cho vòng ${stage}` : `Automation triggered notification for stage ${stage}`;
+    return vi ? `Tự động hoá đã gửi thông báo cho vòng ${stage}` : `Automation sent notification for stage ${stage}`;
   }
   if (type === "comment") return vi ? `Bình luận: ${val}` : `Comment: ${val}`;
   if (type === "mention") return vi ? `Đã nhắc thẻ: ${val}` : `Mentioned: ${val}`;
+  if (type === "note") {
+    if (val.startsWith("auto_action:notify_on_stage_change:")) {
+      const stage = val.split(":").pop() || val;
+      return vi ? `Tự động gửi thông báo khi ứng viên vào vòng ${stage}` : `Auto notification sent when candidate entered ${stage} stage`;
+    }
+    if (val.startsWith("status_changed:")) {
+      const st = val.split(":").pop() || val;
+      return vi ? `Cập nhật trạng thái: ${st}` : `Status updated: ${st}`;
+    }
+    if (val === "candidate_soft_deleted") return vi ? "Ứng viên được chuyển vào Thùng rác" : "Candidate moved to Trash";
+    if (val === "candidate_restored") return vi ? "Ứng viên được khôi phục" : "Candidate restored";
+    return vi ? `Ghi chú: ${val}` : `Note: ${val}`;
+  }
+
   if (type === "share") {
     if (val.startsWith("shared_with:")) return vi ? `Đã chia sẻ cho ${val.replace("shared_with:", "")}` : `Shared with ${val.replace("shared_with:", "")}`;
     if (val.startsWith("unshared_with:")) return vi ? `Đã huỷ chia sẻ với ${val.replace("unshared_with:", "")}` : `Unshared with ${val.replace("unshared_with:", "")}`;
@@ -133,7 +167,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [schedNotes, setSchedNotes] = useState("");
   const [shareEmail, setShareEmail] = useState("");
   const [selectedFileUrl, setSelectedFileUrl] = useState("");
-  const { t } = useAppLanguage();
+  const { t, lang } = useAppLanguage();
 
   const loadComments = async (id: string) => {
     const data = await apiGet<CandidateComment[]>(`/api/candidates/${id}/comments`);
@@ -587,9 +621,9 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               <div className="timeline-item" key={`${event.timestamp}-${idx}`}>
                 <div className="timeline-dot" />
                 <div>
-                  <div className="timeline-title">{formatStatus(event.type)}</div>
+                  <div className="timeline-title">{formatTimelineTitle(lang, event.type)}</div>
                   <div>{formatTimelineEvent(lang, event)}</div>
-                  <small>{event.timestamp}</small>
+                  <small>{formatTimelineTime(lang, event.timestamp)}</small>
                 </div>
               </div>
             ))}
