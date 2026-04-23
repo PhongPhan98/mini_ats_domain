@@ -6,11 +6,17 @@ import { apiGet } from "../../lib/api";
 
 export default function NotificationsPage() {
   const [mentions, setMentions] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
-      const data = await apiGet<{ mentions: any[] }>("/api/candidates/notifications/mentions");
-      setMentions(data.mentions || []);
+      const [m, r] = await Promise.all([
+        apiGet<{ mentions: any[] }>("/api/candidates/notifications/mentions"),
+        apiGet<{ requests: any[] }>("/api/candidates/ownership/requests?scope=sent"),
+      ]);
+      setMentions(m.mentions || []);
+      setRequests((r.requests || []).filter((x) => x.status !== "pending"));
+      localStorage.setItem("miniats_notif_seen_at", new Date().toISOString());
     })();
   }, []);
 
@@ -36,7 +42,25 @@ export default function NotificationsPage() {
               </div>
             </div>
           ))}
-          {!mentions.length && <small>No notifications yet.</small>}
+          {!mentions.length && <small>No mention notifications yet.</small>}
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>Ownership Request Updates</h3>
+        <div className="timeline">
+          {requests.map((r) => (
+            <div key={r.id} className="timeline-item">
+              <div className="timeline-dot" />
+              <div>
+                <div className="timeline-title">Candidate #{r.candidate_id} — {r.status}</div>
+                <div>Your request to transfer ownership is <strong>{r.status}</strong>.</div>
+                <small>{r.updated_at || r.created_at}</small>
+                <div style={{ marginTop: 6 }}><Link className="chip" href={`/candidates/${r.candidate_id}`}>Open Candidate</Link></div>
+              </div>
+            </div>
+          ))}
+          {!requests.length && <small>No ownership updates yet.</small>}
         </div>
       </div>
     </div>

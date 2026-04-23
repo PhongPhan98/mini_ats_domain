@@ -682,3 +682,5 @@ label {
 .candidate-table td:nth-child(2), .candidate-table td:nth-child(3), .candidate-table td:nth-child(4) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .candidate-actions .toolbar-actions { justify-content: flex-end; }
 .candidate-table select { min-height: 34px; }
+
+.timeline-scroll { max-height: 360px; overflow-y: auto; padding-right: 4px; }

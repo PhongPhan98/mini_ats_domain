@@ -33,7 +33,7 @@ export default function AuthStatus() {
 
   return (
     <div className="toolbar-actions">
-      <span className="chip">{me.email} ({me.role})</span>
+      <span className="chip">{(me.full_name || me.email.split("@")[0])} ({me.role})</span>
       <button className="btn-outline nav-toggle" onClick={logout}>Logout</button>
     </div>
   );

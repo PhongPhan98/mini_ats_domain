@@ -74,6 +74,15 @@ async def parse_cv_preview(
 
 
 
+def _can_manage_candidate(user, candidate: Candidate) -> bool:
+    if getattr(user, "role", "") != "recruiter":
+        return True
+    parsed = candidate.parsed_json or {}
+    owner_id = parsed.get("owner_user_id")
+    owner_email = (parsed.get("owner_email") or "").lower()
+    return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())
+
+
 def _can_access_candidate(user, candidate: Candidate) -> bool:
     # recruiter can only access candidates they own or are shared with.
     if getattr(user, "role", "") != "recruiter":
@@ -266,7 +275,7 @@ def update_candidate(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(_actor, candidate):
+    if not _can_manage_candidate(_actor, candidate):
         raise HTTPException(status_code=403, detail="Not allowed to update this candidate")
 
     update_data = payload.model_dump(exclude_unset=True)
@@ -320,7 +329,7 @@ def delete_candidate_file(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(_actor, candidate):
+    if not _can_manage_candidate(_actor, candidate):
         raise HTTPException(status_code=403, detail="Not allowed to update this candidate")
 
     file = db.get(CandidateFile, file_id)
@@ -344,7 +353,7 @@ def soft_delete_candidate(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(_actor, candidate):
+    if not _can_manage_candidate(_actor, candidate):
         raise HTTPException(status_code=403, detail="Not allowed to delete this candidate")
 
     parsed = dict(candidate.parsed_json or {})
@@ -366,7 +375,7 @@ def restore_candidate(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(_actor, candidate):
+    if not _can_manage_candidate(_actor, candidate):
         raise HTTPException(status_code=403, detail="Not allowed to restore this candidate")
 
     parsed = dict(candidate.parsed_json or {})
@@ -389,7 +398,7 @@ def share_candidate(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(actor, candidate):
+    if not _can_manage_candidate(actor, candidate):
         raise HTTPException(status_code=403, detail="Not allowed to share this candidate")
 
     email = str(payload.get("email", "")).strip().lower()
@@ -424,7 +433,7 @@ def unshare_candidate(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(actor, candidate):
+    if not _can_manage_candidate(actor, candidate):
         raise HTTPException(status_code=403, detail="Not allowed to unshare this candidate")
 
     email = str(payload.get("email", "")).strip().lower()
@@ -446,3 +455,111 @@ def unshare_candidate(
     _append_timeline_event(candidate, "share", f"unshared_with:{email}")
     db.commit()
     return {"ok": True, "collaborator_emails": parsed["collaborator_emails"]}
+
+
+@router.post("/{candidate_id}/ownership/request")
+def request_candidate_ownership(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
+
+    parsed = dict(candidate.parsed_json or {})
+    owner_email = str(parsed.get("owner_email") or "")
+    if owner_email.lower() == actor.email.lower():
+        raise HTTPException(status_code=400, detail="You already own this candidate")
+
+    requests = list(parsed.get("ownership_requests", []))
+    rid = str(__import__("uuid").uuid4())
+    now = __import__("datetime").datetime.utcnow().isoformat()
+    req = {
+        "id": rid,
+        "candidate_id": candidate_id,
+        "from_user_id": actor.id,
+        "from_email": actor.email,
+        "to_email": owner_email,
+        "status": "pending",
+        "created_at": now,
+        "updated_at": now,
+    }
+    requests.append(req)
+    parsed["ownership_requests"] = requests
+    candidate.parsed_json = parsed
+    _append_timeline_event(candidate, "share", f"ownership_request:{actor.email}")
+    db.commit()
+    return {"ok": True, "request": req}
+
+
+@router.get("/ownership/requests")
+def list_ownership_requests(
+    scope: str = Query(default="inbox"),
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidates = list(db.execute(select(Candidate)).scalars().all())
+    out = []
+    for c in candidates:
+        parsed = c.parsed_json or {}
+        for r in parsed.get("ownership_requests", []):
+            if scope == "sent" and str(r.get("from_email", "")).lower() != actor.email.lower():
+                continue
+            if scope != "sent" and str(r.get("to_email", "")).lower() != actor.email.lower():
+                continue
+            out.append({**r, "candidate_name": c.name})
+    out.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"requests": out}
+
+
+@router.post("/{candidate_id}/ownership/requests/{request_id}/decision")
+def decide_ownership_request(
+    candidate_id: int,
+    request_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    decision = str(payload.get("decision", "")).lower()
+    if decision not in {"approve", "reject"}:
+        raise HTTPException(status_code=400, detail="decision must be approve|reject")
+
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    parsed = dict(candidate.parsed_json or {})
+    if str(parsed.get("owner_email", "")).lower() != actor.email.lower() and actor.role != "admin":
+        raise HTTPException(status_code=403, detail="Only owner/admin can decide")
+
+    requests = list(parsed.get("ownership_requests", []))
+    target = None
+    for r in requests:
+        if str(r.get("id")) == request_id:
+            target = r
+            break
+    if not target:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    target["status"] = "approved" if decision == "approve" else "rejected"
+    target["updated_at"] = __import__("datetime").datetime.utcnow().isoformat()
+
+    if decision == "approve":
+        parsed["owner_user_id"] = target.get("from_user_id")
+        parsed["owner_email"] = target.get("from_email")
+        # keep old owner as collaborator for continuity
+        collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
+        collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
+        collab_emails.add(actor.email.lower())
+        collab_ids.add(int(actor.id))
+        parsed["collaborator_emails"] = sorted(collab_emails)
+        parsed["collaborator_user_ids"] = sorted(collab_ids)
+
+    parsed["ownership_requests"] = requests
+    candidate.parsed_json = parsed
+    _append_timeline_event(candidate, "share", f"ownership_{decision}:{target.get('from_email')}")
+    db.commit()
+    return {"ok": True, "request": target}

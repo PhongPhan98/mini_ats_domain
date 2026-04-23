@@ -209,6 +209,10 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   }, [params]);
 
   const canSave = useMemo(() => !!form && !saving, [form, saving]);
+  const meEmail = (typeof window !== "undefined" ? (window.localStorage.getItem("miniats_me_email") || "") : "").toLowerCase();
+  const ownerEmail = String((candidate?.parsed_json as any)?.owner_email || "").toLowerCase();
+  const isOwner = !ownerEmail || !meEmail ? true : ownerEmail === meEmail;
+  const pendingOwnershipRequests = (((candidate?.parsed_json as any)?.ownership_requests || []) as any[]).filter((r) => r.status === "pending" && String(r.to_email || "").toLowerCase() === ownerEmail);
   const updateField = (key: keyof CandidateForm, value: string) =>
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
 
@@ -294,6 +298,14 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     notify(t("update_success"), "success");
   };
 
+  const onOwnershipDecision = async (requestId: string, decision: "approve" | "reject") => {
+    if (!candidateId) return;
+    await apiPost(`/api/candidates/${candidateId}/ownership/requests/${requestId}/decision`, { decision });
+    const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
+    setCandidate(updated);
+    notify(decision === "approve" ? "Request approved" : "Request rejected", "success");
+  };
+
   const onScheduleInterview = async () => {
     if (!candidateId || !schedInterviewer || !schedAt) { notify(t("missing_required_fields"), "error"); return; }
     await apiPost(`/api/candidates/${candidateId}/schedules`, {
@@ -352,6 +364,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           <span className={`status-badge status-${candidate.status || "applied"}`}>
             {formatStatus(candidate.status || "applied")}
           </span>
+          {!isOwner ? <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/ownership/request`, {}); notify("Ownership request sent", "success"); const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`); setCandidate(updated); }} disabled={(((candidate?.parsed_json as any)?.ownership_requests || []) as any[]).some((r) => String(r.from_email||"").toLowerCase()===meEmail && r.status==="pending")}>Request ownership</button> : null}
         </div>
       </div>
 
@@ -368,7 +381,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                   <a href={f.file_url} target="_blank">{f.original_filename}</a>
                   <div className="toolbar-actions">
                     <button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedFileUrl(f.file_url)}>View</button>
-                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => onDeleteFile(f.id)}>Delete</button>
+                    {isOwner ? <button className="btn-outline" style={{ width: "auto" }} onClick={() => onDeleteFile(f.id)}>Delete</button> : null}
                   </div>
                 </div>
               ))}
@@ -441,7 +454,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           <textarea rows={3} value={form.note} onChange={(e) => updateField("note", e.target.value)} />
         </div>
         <div style={{ marginTop: 16 }}>
-          <button onClick={onSave} disabled={!canSave}>
+          <button onClick={onSave} disabled={!canSave || !isOwner}>
             {saving ? t("saving") : t("save_changes")}
           </button>
         </div>
@@ -478,7 +491,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             <label>{t("notes")}</label>
             <textarea rows={2} value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} />
           </div>
-          <button style={{ marginTop: 8 }} onClick={onScheduleInterview}>
+          <button style={{ marginTop: 8 }} onClick={onScheduleInterview} disabled={!isOwner}>
             {t("schedule_interview")}
           </button>
           <div className="timeline" style={{ marginTop: 12 }}>
@@ -541,7 +554,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               <textarea rows={3} value={scoreSummary} onChange={(e) => setScoreSummary(e.target.value)} />
             </div>
           </div>
-          <button style={{ marginTop: 10 }} onClick={onAddScorecard}>
+          <button style={{ marginTop: 10 }} onClick={onAddScorecard} disabled={!isOwner}>
             {t("submit_scorecard")}
           </button>
 
@@ -596,7 +609,28 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        <div className="card">
+        {isOwner ? <div className="card">
+          <h3>Ownership Requests Inbox</h3>
+          <small>Approve or reject transfer requests from other HR members.</small>
+          <div className="timeline" style={{ marginTop: 10 }}>
+            {pendingOwnershipRequests.map((r: any) => (
+              <div key={r.id} className="timeline-item">
+                <div className="timeline-dot" />
+                <div>
+                  <div><strong>{r.from_email}</strong> requested ownership</div>
+                  <small>{r.created_at}</small>
+                  <div className="toolbar-actions" style={{ marginTop: 6 }}>
+                    <button style={{ width: "auto" }} onClick={() => onOwnershipDecision(r.id, "approve")}>Approve</button>
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => onOwnershipDecision(r.id, "reject")}>Reject</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!pendingOwnershipRequests.length && <small>No pending requests.</small>}
+          </div>
+        </div> : null}
+
+        {isOwner ? <div className="card">
           <h3>Team Collaboration Sharing</h3>
           <small>Share this candidate with other HR members by email.</small>
           <div className="toolbar-actions" style={{ marginTop: 8 }}>
@@ -612,11 +646,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             ))}
             {!((candidate.parsed_json as any)?.collaborator_emails || []).length && <small>No collaborators yet.</small>}
           </div>
-        </div>
+        </div> : null}
 
         <div className="card">
           <h3>{t("candidate_timeline")}</h3>
-          <div className="timeline">
+          <div className="timeline timeline-scroll">
             {timelineOf(candidate).map((event, idx) => (
               <div className="timeline-item" key={`${event.timestamp}-${idx}`}>
                 <div className="timeline-dot" />

@@ -31,8 +31,14 @@ export default function NavBar() {
     if (!me) return;
     (async () => {
       try {
-        const data = await apiGet<{ mentions: any[] }>("/api/candidates/notifications/mentions");
-        setMentionCount((data.mentions || []).length);
+        const [m, rq] = await Promise.all([
+          apiGet<{ mentions: any[] }>("/api/candidates/notifications/mentions"),
+          apiGet<{ requests: any[] }>("/api/candidates/ownership/requests?scope=inbox"),
+        ]);
+        const all = [...(m.mentions || []), ...(rq.requests || [])].map((x: any) => x.created_at || x.updated_at || "");
+        const seen = localStorage.getItem("miniats_notif_seen_at") || "";
+        const unread = all.filter((ts: string) => ts && ts > seen).length;
+        setMentionCount(unread);
       } catch {
         setMentionCount(0);
       }
@@ -56,7 +62,7 @@ export default function NavBar() {
         <LanguageToggle />
         <CompactModeToggle />
         <ThemeToggle />
-        {mentionCount > 0 ? <Link className="chip" href="/notifications">@ {mentionCount}</Link> : <Link className="chip" href="/notifications">@</Link>}
+        {me ? (mentionCount > 0 ? <Link className="chip" href="/notifications">@ {mentionCount}</Link> : null) : null}
         <AuthStatus />
       </div>
     </nav>

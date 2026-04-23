@@ -14,6 +14,17 @@ router = APIRouter(prefix="/api/candidates", tags=["comments"])
 MENTION_RE = re.compile(r"@([a-zA-Z0-9._-]+)")
 
 
+def _can_access_candidate(user, candidate: Candidate) -> bool:
+    if getattr(user, "role", "") != "recruiter":
+        return True
+    parsed = candidate.parsed_json or {}
+    owner_id = parsed.get("owner_user_id")
+    owner_email = (parsed.get("owner_email") or "").lower()
+    collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
+    collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
+    return ((owner_id is not None and int(owner_id) == int(user.id)) or (owner_email == user.email.lower()) or (int(user.id) in collab_ids) or (user.email.lower() in collab_emails))
+
+
 def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
     parsed_json = dict(candidate.parsed_json or {})
     timeline = list(parsed_json.get("timeline", []))
