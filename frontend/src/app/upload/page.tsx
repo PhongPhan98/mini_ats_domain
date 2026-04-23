@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { parseCandidatePreview, uploadCandidateReviewed } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
 import { notify } from "../../lib/toast";
@@ -71,6 +71,19 @@ export default function UploadPage() {
   const { t } = useAppLanguage();
 
   const current = drafts[idx];
+  const [cvPreviewUrl, setCvPreviewUrl] = useState("");
+
+  useEffect(() => {
+    if (!current?.file) {
+      setCvPreviewUrl("");
+      return;
+    }
+    const nextUrl = URL.createObjectURL(current.file);
+    setCvPreviewUrl(nextUrl);
+    return () => {
+      URL.revokeObjectURL(nextUrl);
+    };
+  }, [current?.file]);
 
   const score = useMemo(() => {
     if (!current?.data) return 0;
@@ -220,7 +233,7 @@ export default function UploadPage() {
               <div style={{ marginTop: 10 }}>
                 <iframe
                   title={current.filename}
-                  src={URL.createObjectURL(current.file)}
+                  src={cvPreviewUrl}
                   style={{ width: "100%", height: 700, border: "1px solid var(--border)", borderRadius: 10 }}
                 />
               </div>

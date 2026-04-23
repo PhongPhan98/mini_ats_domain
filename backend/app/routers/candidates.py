@@ -68,7 +68,20 @@ async def parse_cv_preview(
         raise HTTPException(status_code=400, detail="Empty file")
 
     parsed = _parse_or_fallback(file.filename, content)
+    parsed["owner_user_id"] = _actor.id
+    parsed["owner_email"] = _actor.email
     return {"filename": file.filename, "parsed": parsed}
+
+
+
+def _can_access_candidate(user, candidate: Candidate) -> bool:
+    # recruiter can only access candidates they uploaded/own
+    if getattr(user, "role", "") != "recruiter":
+        return True
+    parsed = candidate.parsed_json or {}
+    owner_id = parsed.get("owner_user_id")
+    owner_email = (parsed.get("owner_email") or "").lower()
+    return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())
 
 def _is_candidate_deleted(candidate: Candidate) -> bool:
     parsed = candidate.parsed_json or {}
@@ -155,7 +168,7 @@ def list_candidates(
     status: str | None = Query(default=None),
     include_deleted: bool = Query(default=False),
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
     conditions: list[Any] = []
 
@@ -192,6 +205,8 @@ def list_candidates(
     else:
         result = [c for c in result if _is_candidate_deleted(c)]
 
+    result = [c for c in result if _can_access_candidate(_actor, c)]
+
     changed = False
     for c in result:
         normalized = normalize_status(c.status)
@@ -217,12 +232,14 @@ def get_skill_catalog():
 def get_candidate(
     candidate_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
     stmt = select(Candidate).options(selectinload(Candidate.files)).where(Candidate.id == candidate_id)
     candidate = db.execute(stmt).scalar_one_or_none()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(_actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
 
     candidate.status = normalize_status(candidate.status)
     db.commit()
@@ -239,6 +256,8 @@ def update_candidate(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(_actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to update this candidate")
 
     update_data = payload.model_dump(exclude_unset=True)
 
@@ -291,6 +310,8 @@ def delete_candidate_file(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(_actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to update this candidate")
 
     file = db.get(CandidateFile, file_id)
     if not file or file.candidate_id != candidate_id:
@@ -313,6 +334,8 @@ def soft_delete_candidate(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(_actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to delete this candidate")
 
     parsed = dict(candidate.parsed_json or {})
     parsed["deleted"] = True
@@ -333,6 +356,8 @@ def restore_candidate(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(_actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to restore this candidate")
 
     parsed = dict(candidate.parsed_json or {})
     parsed["deleted"] = False
