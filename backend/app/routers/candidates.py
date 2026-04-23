@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Candidate, CandidateFile
+from app.models import Candidate, CandidateFile, User
 from app.rbac import require_roles
 from app.schemas import CandidateOut, CandidateUpdate
 from app.services.automation import run_stage_change_automations
@@ -404,23 +404,34 @@ def share_candidate(
     email = str(payload.get("email", "")).strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="email is required")
-
-    user = db.query(__import__("app.models", fromlist=["User"]).User).filter_by(email=email).first()
+    if email == actor.email.lower():
+        raise HTTPException(status_code=400, detail="Cannot share to yourself")
 
     parsed = dict(candidate.parsed_json or {})
-    collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
-    collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
+    invitations = list(parsed.get("share_invitations", []))
+    if any(str(i.get("to_email", "")).lower() == email and i.get("status") == "pending" for i in invitations):
+        raise HTTPException(status_code=400, detail="Pending invitation already exists")
 
-    collab_emails.add(email)
-    if user:
-        collab_ids.add(int(user.id))
-
-    parsed["collaborator_emails"] = sorted(collab_emails)
-    parsed["collaborator_user_ids"] = sorted(collab_ids)
+    invite_id = str(__import__("uuid").uuid4())
+    now = datetime.utcnow().isoformat()
+    reason = str(payload.get("reason", "")).strip()[:500]
+    invitations.append({
+        "id": invite_id,
+        "candidate_id": candidate.id,
+        "candidate_name": candidate.name,
+        "from_user_id": actor.id,
+        "from_email": actor.email.lower(),
+        "to_email": email,
+        "reason": reason,
+        "status": "pending",
+        "created_at": now,
+        "updated_at": now,
+    })
+    parsed["share_invitations"] = invitations
     candidate.parsed_json = parsed
-    _append_timeline_event(candidate, "share", f"shared_with:{email}")
+    _append_timeline_event(candidate, "share", f"share_invited:{email}")
     db.commit()
-    return {"ok": True, "collaborator_emails": parsed["collaborator_emails"]}
+    return {"ok": True, "invite_id": invite_id}
 
 
 @router.post("/{candidate_id}/unshare")
@@ -456,6 +467,103 @@ def unshare_candidate(
     db.commit()
     return {"ok": True, "collaborator_emails": parsed["collaborator_emails"]}
 
+
+
+
+@router.get("/share/invitations")
+def list_share_invitations(
+    scope: str = Query(default="inbox"),
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidates = list(db.execute(select(Candidate)).scalars().all())
+    out = []
+    for c in candidates:
+        parsed = c.parsed_json or {}
+        for inv in parsed.get("share_invitations", []):
+            if scope == "sent" and str(inv.get("from_email", "")).lower() != actor.email.lower():
+                continue
+            if scope != "sent" and str(inv.get("to_email", "")).lower() != actor.email.lower():
+                continue
+            out.append({**inv, "candidate_id": c.id, "candidate_name": c.name})
+    out.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"invitations": out}
+
+
+@router.post("/{candidate_id}/share/invitations/{invite_id}/decision")
+def decide_share_invitation(
+    candidate_id: int,
+    invite_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    decision = str(payload.get("decision", "")).lower()
+    if decision not in {"approve", "reject"}:
+        raise HTTPException(status_code=400, detail="decision must be approve|reject")
+
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    parsed = dict(candidate.parsed_json or {})
+    invitations = list(parsed.get("share_invitations", []))
+    target = None
+    for inv in invitations:
+        if str(inv.get("id")) == invite_id:
+            target = inv
+            break
+    if not target:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    if str(target.get("to_email", "")).lower() != actor.email.lower() and actor.role != "admin":
+        raise HTTPException(status_code=403, detail="Not allowed to decide this invitation")
+    if target.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Invitation already resolved")
+
+    now = datetime.utcnow().isoformat()
+    target["status"] = "approved" if decision == "approve" else "rejected"
+    target["updated_at"] = now
+
+    if decision == "approve":
+        clone_parsed = dict(candidate.parsed_json or {})
+        clone_parsed["owner_user_id"] = actor.id
+        clone_parsed["owner_email"] = actor.email.lower()
+        clone_parsed["deleted"] = False
+        clone_parsed.pop("deleted_at", None)
+        clone_parsed["source_candidate_id"] = candidate.id
+        clone_parsed.pop("collaborator_emails", None)
+        clone_parsed.pop("collaborator_user_ids", None)
+        clone_parsed.pop("share_invitations", None)
+        clone_parsed.pop("ownership_requests", None)
+
+        clone = Candidate(
+            name=candidate.name,
+            email=candidate.email,
+            phone=candidate.phone,
+            status=normalize_status(candidate.status),
+            skills=list(candidate.skills or []),
+            years_of_experience=candidate.years_of_experience,
+            education=list(candidate.education or []),
+            previous_companies=list(candidate.previous_companies or []),
+            summary=candidate.summary,
+            parsed_json=clone_parsed,
+        )
+        db.add(clone)
+        db.flush()
+
+        source_files = db.execute(select(CandidateFile).where(CandidateFile.candidate_id == candidate.id)).scalars().all()
+        for f in source_files:
+            db.add(CandidateFile(candidate_id=clone.id, file_url=f.file_url, original_filename=f.original_filename))
+
+        _append_timeline_event(clone, "created", f"cloned_from:{candidate.id}")
+        _append_timeline_event(candidate, "share", f"share_approved_by:{actor.email.lower()}")
+    else:
+        _append_timeline_event(candidate, "share", f"share_rejected_by:{actor.email.lower()}")
+
+    parsed["share_invitations"] = invitations
+    candidate.parsed_json = parsed
+    db.commit()
+    return {"ok": True, "invitation": target}
 
 @router.post("/{candidate_id}/ownership/request")
 def request_candidate_ownership(

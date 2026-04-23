@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { apiGet } from "../../lib/api";
+import { apiGet, apiPost } from "../../lib/api";
 
 type NotificationTab = "all" | "mentions" | "ownership";
 
@@ -10,6 +10,7 @@ export default function NotificationsPage() {
   const [mentions, setMentions] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [tab, setTab] = useState<NotificationTab>("all");
+  const [invitations, setInvitations] = useState<any[]>([]);
 
   const markAllRead = () => {
     localStorage.setItem("miniats_notif_seen_at", new Date().toISOString());
@@ -18,19 +19,22 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     (async () => {
-      const [m, r] = await Promise.all([
+      const [m, r, inv] = await Promise.all([
         apiGet<{ mentions: any[] }>("/api/candidates/notifications/mentions"),
         apiGet<{ requests: any[] }>("/api/candidates/ownership/requests?scope=sent"),
+        apiGet<{ invitations: any[] }>("/api/candidates/share/invitations?scope=inbox"),
       ]);
       setMentions(m.mentions || []);
       setRequests((r.requests || []).filter((x) => x.status !== "pending"));
+      setInvitations(inv.invitations || []);
       markAllRead();
     })();
   }, []);
 
   const mentionItems = useMemo(() => mentions || [], [mentions]);
   const requestItems = useMemo(() => requests || [], [requests]);
-  const allCount = mentionItems.length + requestItems.length;
+  const inviteItems = useMemo(() => invitations || [], [invitations]);
+  const allCount = mentionItems.length + requestItems.length + inviteItems.length;
 
   return (
     <div className="grid page-enter">
@@ -68,6 +72,31 @@ export default function NotificationsPage() {
               </div>
             ))}
             {!mentionItems.length && <small>No mention notifications yet.</small>}
+          </div>
+        </div>
+      )}
+
+
+      {(tab === "all") && (
+        <div className="card">
+          <h3>Share Invitations (Inbox)</h3>
+          <div className="timeline">
+            {inviteItems.map((inv) => (
+              <div key={inv.id} className="timeline-item">
+                <div className="timeline-dot" />
+                <div>
+                  <div className="timeline-title">{inv.from_email} shared candidate #{inv.candidate_id}</div>
+                  {inv.reason ? <div>{inv.reason}</div> : null}
+                  <small>{inv.created_at}</small>
+                  <div className="toolbar-actions" style={{ marginTop: 6 }}>
+                    <button style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${inv.candidate_id}/share/invitations/${inv.id}/decision`, { decision: "approve" }); const next = inviteItems.filter((x) => x.id !== inv.id); setInvitations(next); }}>Approve & Clone</button>
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${inv.candidate_id}/share/invitations/${inv.id}/decision`, { decision: "reject" }); const next = inviteItems.filter((x) => x.id !== inv.id); setInvitations(next); }}>Reject</button>
+                    <Link className="chip" href={`/candidates/${inv.candidate_id}`}>Open Candidate</Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!inviteItems.length && <small>No share invitations.</small>}
           </div>
         </div>
       )}

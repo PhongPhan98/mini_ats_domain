@@ -166,6 +166,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [schedLink, setSchedLink] = useState("");
   const [schedNotes, setSchedNotes] = useState("");
   const [shareEmail, setShareEmail] = useState("");
+  const [shareReason, setShareReason] = useState("");
   const [ownershipReason, setOwnershipReason] = useState("");
   const [selectedFileUrl, setSelectedFileUrl] = useState("");
   const { t, lang } = useAppLanguage();
@@ -286,6 +287,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     if (!candidateId || !shareEmail.trim()) { notify(t("missing_required_fields"), "error"); return; }
     await apiPost(`/api/candidates/${candidateId}/share`, { email: shareEmail.trim() });
     setShareEmail("");
+      setShareReason("");
     const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
     setCandidate(updated);
     notify(t("update_success"), "success");
@@ -633,10 +635,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
         {isOwner ? <div className="card">
           <h3>Team Collaboration Sharing</h3>
-          <small>Share this candidate with other HR members by email.</small>
+          <small>Send sharing invitation to another HR. They can approve to create their own cloned candidate record.</small>
           <div className="toolbar-actions" style={{ marginTop: 8 }}>
-            <input style={{ maxWidth: 320 }} value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} placeholder="hr@company.com" />
-            <button style={{ width: "auto" }} onClick={onShareCandidate}>Share</button>
+            <input style={{ maxWidth: 260 }} value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} placeholder="hr@company.com" />
+            <input style={{ maxWidth: 320 }} value={shareReason} onChange={(e) => setShareReason(e.target.value)} placeholder="Reason (optional)" />
+            <button style={{ width: "auto" }} onClick={onShareCandidate}>Send invite</button>
           </div>
           <div className="chip-wrap" style={{ marginTop: 10 }}>
             {((candidate.parsed_json as any)?.collaborator_emails || []).map((em: string) => (
@@ -645,7 +648,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 <button className="btn-outline" style={{ width: "auto", marginLeft: 8, padding: "2px 6px" }} onClick={() => onUnshareCandidate(em)}>x</button>
               </span>
             ))}
-            {!((candidate.parsed_json as any)?.collaborator_emails || []).length && <small>No collaborators yet.</small>}
+            {!((candidate.parsed_json as any)?.collaborator_emails || []).length && <small>No direct collaborators yet (invite-based clone flow enabled).</small>}
           </div>
         </div> : null}
 
