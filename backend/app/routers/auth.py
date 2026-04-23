@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import User
+from app.services import user_access
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -112,6 +113,9 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
 
+    if user_access.is_disabled(user.id, user.email):
+        raise HTTPException(status_code=403, detail="User is disabled")
+
     token = _issue_token(user)
     resp = RedirectResponse(url="http://localhost:3000")
     _set_auth_cookie(resp, token)
@@ -132,6 +136,8 @@ def me(request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == int(payload.get("sub", 0))).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if user_access.is_disabled(user.id, user.email):
+        raise HTTPException(status_code=403, detail="User is disabled")
 
     return {
         "id": user.id,

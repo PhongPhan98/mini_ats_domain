@@ -23,6 +23,7 @@ export default function NavBar() {
         <Link className={isActive("/automation") ? "nav-link nav-link-active" : "nav-link"} href="/automation">{t("nav_automation")}</Link>
         <Link className={isActive("/upload") ? "nav-link nav-link-active" : "nav-link"} href="/upload">{t("nav_upload")}</Link>
         <Link className={isActive("/jobs") ? "nav-link nav-link-active" : "nav-link"} href="/jobs">{t("nav_jobs")}</Link>
+        <Link className={isActive("/users") ? "nav-link nav-link-active" : "nav-link"} href="/users">Users</Link>
       </div>}
       <div className="nav-actions">
         <LanguageToggle />
