@@ -32,6 +32,29 @@ def _save_job_settings(data: dict[str, dict]):
     _SETTINGS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+
+
+def _job_owner_meta(job_id: int) -> dict:
+    return _load_job_settings().get(str(job_id), {})
+
+
+def _set_job_owner(job_id: int, user_id: int, email: str):
+    settings = _load_job_settings()
+    cur = settings.get(str(job_id), {})
+    cur["owner_user_id"] = int(user_id)
+    cur["owner_email"] = str(email).lower()
+    settings[str(job_id)] = cur
+    _save_job_settings(settings)
+
+
+def _can_access_job(user, job_id: int) -> bool:
+    if getattr(user, "role", "") != "recruiter":
+        return True
+    meta = _job_owner_meta(job_id)
+    owner_id = meta.get("owner_user_id")
+    owner_email = str(meta.get("owner_email") or "").lower()
+    return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())
+
 def _job_threshold(job_id: int) -> int:
     cfg = _load_job_settings().get(str(job_id), {})
     v = cfg.get("threshold", 50)
@@ -78,7 +101,7 @@ def _to_candidate_payload(c: Candidate) -> dict:
 def create_job(
     payload: JobCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     job = Job(title=payload.title, requirements=payload.requirements)
     db.add(job)
@@ -92,13 +115,17 @@ def create_job(
 def list_jobs(
     include_deleted: bool = Query(default=False),
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
     jobs = list(db.execute(select(Job).order_by(Job.created_at.desc())).scalars().all())
     deleted = _load_deleted_ids()
     if include_deleted:
-        return [j for j in jobs if j.id in deleted]
-    return [j for j in jobs if j.id not in deleted]
+        jobs = [j for j in jobs if j.id in deleted]
+    else:
+        jobs = [j for j in jobs if j.id not in deleted]
+
+    jobs = [j for j in jobs if _can_access_job(_actor, j.id)]
+    return jobs
 
 
 @router.post("/{job_id}/match", response_model=MatchResponse)
@@ -112,6 +139,8 @@ def match_candidates(
     job = db.get(Job, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if not _can_access_job(_actor, job.id):
+        raise HTTPException(status_code=403, detail="Not allowed to access this job")
 
     candidates = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted")]
     min_threshold = max(0, min(100, int(threshold))) if threshold is not None else _job_threshold(job_id)
@@ -148,10 +177,13 @@ def update_job(
     job = db.get(Job, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if not _can_access_job(_actor, job.id):
+        raise HTTPException(status_code=403, detail="Not allowed to update this job")
     job.title = payload.title
     job.requirements = payload.requirements
     db.commit()
     db.refresh(job)
+    _set_job_owner(job.id, _actor.id, _actor.email)
     return job
 
 
@@ -164,6 +196,8 @@ def soft_delete_job(
     job = db.get(Job, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if not _can_access_job(_actor, job.id):
+        raise HTTPException(status_code=403, detail="Not allowed to delete this job")
     deleted = _load_deleted_ids()
     deleted.add(job_id)
     _save_deleted_ids(deleted)
@@ -180,6 +214,8 @@ def restore_job(
     job = db.get(Job, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if not _can_access_job(_actor, job.id):
+        raise HTTPException(status_code=403, detail="Not allowed to restore this job")
     deleted = _load_deleted_ids()
     if job_id in deleted:
         deleted.remove(job_id)
@@ -192,11 +228,13 @@ def restore_job(
 def get_job_settings(
     job_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     job = db.get(Job, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if not _can_access_job(_actor, job.id):
+        raise HTTPException(status_code=403, detail="Not allowed to access this job")
     threshold = _job_threshold(job_id)
     return {"job_id": job_id, "threshold": threshold}
 
@@ -206,11 +244,13 @@ def update_job_settings(
     job_id: int,
     payload: dict,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     job = db.get(Job, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if not _can_access_job(_actor, job.id):
+        raise HTTPException(status_code=403, detail="Not allowed to update this job")
 
     threshold = int(payload.get("threshold", 50))
     threshold = max(0, min(100, threshold))
