@@ -214,6 +214,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const meEmail = (typeof window !== "undefined" ? (window.localStorage.getItem("miniats_me_email") || "") : "").toLowerCase();
   const ownerEmail = String((candidate?.parsed_json as any)?.owner_email || "").toLowerCase();
   const isOwner = !ownerEmail || !meEmail ? true : ownerEmail === meEmail;
+  const isViewOnly = !isOwner;
   const pendingOwnershipRequests = (((candidate?.parsed_json as any)?.ownership_requests || []) as any[]).filter((r) => r.status === "pending" && String(r.to_email || "").toLowerCase() === ownerEmail);
   const updateField = (key: keyof CandidateForm, value: string) =>
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -371,7 +372,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
-      <div className="card">
+{!isViewOnly ? <div className="card">
         <div className="toolbar">
           <h3 style={{ margin: 0 }}>Original CV Files</h3>
           <small>{candidate.files?.length || 0} file(s)</small>
@@ -399,26 +400,26 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             )}
           </div>
         </div>
-      </div>
+      </div> : null}
 
       <div className="card">
         <h3>{t("profile_information")}</h3>
         <div className="grid grid-2">
           <div>
             <label>{t("name")}</label>
-            <input value={form.name} onChange={(e) => updateField("name", e.target.value)} />
+            <input value={form.name} onChange={(e) => updateField("name", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
           </div>
           <div>
             <label>{t("email")}</label>
-            <input value={form.email} onChange={(e) => updateField("email", e.target.value)} />
+            <input value={form.email} onChange={(e) => updateField("email", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
           </div>
           <div>
             <label>{t("phone")}</label>
-            <input value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
+            <input value={form.phone} onChange={(e) => updateField("phone", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
           </div>
           <div>
             <label>{t("stage_label")}</label>
-            <select value={form.status} onChange={(e) => updateField("status", e.target.value)}>
+            <select value={form.status} onChange={(e) => updateField("status", e.target.value)} disabled={isViewOnly}>
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {formatStatus(s)}
@@ -433,38 +434,39 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               min={0}
               value={form.years_of_experience}
               onChange={(e) => updateField("years_of_experience", e.target.value)}
-            />
+             readOnly={isViewOnly} disabled={isViewOnly} />
           </div>
         </div>
         <div style={{ marginTop: 12 }}>
           <label>{t("skills_csv")}</label>
-          <input value={form.skills_text} onChange={(e) => updateField("skills_text", e.target.value)} />
+          <input value={form.skills_text} onChange={(e) => updateField("skills_text", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
         </div>
         <div style={{ marginTop: 12 }}>
           <label>{t("education")}</label>
-          <textarea rows={4} value={form.education_text} onChange={(e) => updateField("education_text", e.target.value)} />
+          <textarea rows={4} value={form.education_text} onChange={(e) => updateField("education_text", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
         </div>
         <div style={{ marginTop: 12 }}>
           <label>{t("previous_companies")}</label>
-          <textarea rows={4} value={form.previous_companies_text} onChange={(e) => updateField("previous_companies_text", e.target.value)} />
+          <textarea rows={4} value={form.previous_companies_text} onChange={(e) => updateField("previous_companies_text", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
         </div>
         <div style={{ marginTop: 12 }}>
           <label>{t("summary")}</label>
-          <textarea rows={6} value={form.summary} onChange={(e) => updateField("summary", e.target.value)} />
+          <textarea rows={6} value={form.summary} onChange={(e) => updateField("summary", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
         </div>
         <div style={{ marginTop: 12 }}>
           <label>{t("add_note_update")}</label>
-          <textarea rows={3} value={form.note} onChange={(e) => updateField("note", e.target.value)} />
+          <textarea rows={3} value={form.note} onChange={(e) => updateField("note", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
         </div>
-        <div style={{ marginTop: 16 }}>
+        {!isViewOnly ? <div style={{ marginTop: 16 }}>
           <button onClick={onSave} disabled={!canSave || !isOwner}>
             {saving ? t("saving") : t("save_changes")}
           </button>
-        </div>
+        </div> : null}
         {message && <p style={{ color: "green" }}>{message}</p>}
         {error && <p style={{ color: "red" }}>{error}</p>}
       </div>
 
+{!isViewOnly && (
       <div className="grid grid-2">
         <div className="card">
           <h3>{t("interview_scheduling")}</h3>
@@ -506,14 +508,6 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                     <strong>{new Date(s.scheduled_at).toLocaleString()}</strong> {t("with_label")} {s.interviewer_email}
                   </div>
                   <small>{s.duration_minutes} {t("mins_label")}</small>
-                  {s.meeting_link ? (
-                    <>
-                      <br />
-                      <a href={s.meeting_link} target="_blank">
-                        {s.meeting_link}
-                      </a>
-                    </>
-                  ) : null}
                 </div>
               </div>
             ))}
@@ -570,7 +564,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                     Stage: <strong>{s.interview_stage}</strong> | Overall: <strong>{s.overall_score ?? "-"}</strong>
                   </div>
                   <small>
-                    Tech {s.criteria_scores?.technical ?? "-"}, Comm {s.criteria_scores?.communication ?? "-"}, Problem{" "}
+                    Tech {s.criteria_scores?.technical ?? "-"}, Comm {s.criteria_scores?.communication ?? "-"}, Problem {" "}
                     {s.criteria_scores?.problem_solving ?? "-"}
                   </small>
                 </div>
@@ -580,6 +574,30 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
       </div>
+      )}
+
+      {isViewOnly && (
+        <div className="card">
+          <h3>{t("interview_scorecards")}</h3>
+          <div className="timeline" style={{ marginTop: 12 }}>
+            {scorecards.map((s) => (
+              <div className="timeline-item" key={s.id}>
+                <div className="timeline-dot" />
+                <div>
+                  <div>
+                    Stage: <strong>{s.interview_stage}</strong> | Overall: <strong>{s.overall_score ?? "-"}</strong>
+                  </div>
+                  <small>
+                    Tech {s.criteria_scores?.technical ?? "-"}, Comm {s.criteria_scores?.communication ?? "-"}, Problem {" "}
+                    {s.criteria_scores?.problem_solving ?? "-"}
+                  </small>
+                </div>
+              </div>
+            ))}
+            {!scorecards.length && <small>{t("no_scorecards")}</small>}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-2">
         <div className="card">
@@ -601,10 +619,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               <div className="timeline-item" key={c.id}>
                 <div className="timeline-dot" />
                 <div>
-                  <div>{c.body}</div>
+                  <div><strong>{c.author_name || `User #${c.author_user_id}`}</strong></div>
+                  <div style={{ marginTop: 4 }}>{c.body}</div>
                   {!!c.mentions?.length && <small>{t("mentions_label")}: {c.mentions.map((m) => `@${m}`).join(", ")}</small>}
                   <br />
-                  <small>{c.created_at}</small>
+                  <small>{new Date(c.created_at).toLocaleString()}</small>
                 </div>
               </div>
             ))}
@@ -612,7 +631,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {isOwner ? <div className="card">
+        {!isViewOnly && isOwner ? <div className="card">
           <h3>Ownership Requests Inbox</h3>
           <small>Approve or reject transfer requests from other HR members.</small>
           <div className="timeline" style={{ marginTop: 10 }}>
@@ -633,7 +652,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div> : null}
 
-        {isOwner ? <div className="card">
+        {!isViewOnly && isOwner ? <div className="card">
           <h3>Team Collaboration Sharing</h3>
           <small>Send sharing invitation to another HR. They can approve to create their own cloned candidate record.</small>
           <div className="toolbar-actions" style={{ marginTop: 8 }}>
@@ -652,7 +671,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div> : null}
 
-        <div className="card">
+        {!isViewOnly ? <div className="card">
           <h3>{t("candidate_timeline")}</h3>
           <div className="timeline timeline-scroll">
             {timelineOf(candidate).map((event, idx) => (
@@ -667,7 +686,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             ))}
             {!timelineOf(candidate).length && <small>{t("no_timeline")}</small>}
           </div>
-        </div>
+        </div> : null}
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ class CandidateCommentOut(BaseModel):
     id: int
     candidate_id: int
     author_user_id: int
+    author_name: str | None = None
     body: str
     mentions: list[str] = Field(default_factory=list)
     created_at: datetime

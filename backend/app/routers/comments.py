@@ -74,7 +74,20 @@ def list_comments(
         .where(CandidateComment.candidate_id == candidate_id)
         .order_by(CandidateComment.created_at.desc())
     )
-    return list(db.execute(stmt).scalars().all())
+    comments = list(db.execute(stmt).scalars().all())
+    users = {u.id: (u.full_name or u.email.split("@")[0]) for u in db.execute(select(User)).scalars().all()}
+    return [
+        {
+            "id": x.id,
+            "candidate_id": x.candidate_id,
+            "author_user_id": x.author_user_id,
+            "author_name": users.get(x.author_user_id),
+            "body": x.body,
+            "mentions": x.mentions or [],
+            "created_at": x.created_at,
+        }
+        for x in comments
+    ]
 
 
 @router.post("/{candidate_id}/comments", response_model=CandidateCommentOut)
@@ -119,7 +132,16 @@ def create_comment(
 
     db.commit()
     db.refresh(comment)
-    return comment
+    author_name = user.full_name or user.email.split("@")[0]
+    return {
+        "id": comment.id,
+        "candidate_id": comment.candidate_id,
+        "author_user_id": comment.author_user_id,
+        "author_name": author_name,
+        "body": comment.body,
+        "mentions": comment.mentions or [],
+        "created_at": comment.created_at,
+    }
 
 
 @router.get("/notifications/mentions")
