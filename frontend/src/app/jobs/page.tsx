@@ -115,6 +115,11 @@ export default function JobsPage() {
     notify("Moved to Trash", "success");
   };
 
+  const shortlistFromMatch = async (candidateId: number) => {
+    await apiPatch(`/api/candidates/${candidateId}`, { status: "screening" });
+    notify("Candidate moved to screening", "success");
+  };
+
   const restore = async (id: number) => {
     await apiPost(`/api/jobs/${id}/restore`, {});
     await loadJobs();
@@ -258,6 +263,7 @@ export default function JobsPage() {
                     <div className="toolbar-actions">
                       <span>{r.candidate_name || `#${r.candidate_id}`}</span>
                       <Link className="chip" href={`/candidates/${r.candidate_id}`}>View</Link>
+                      <button className="btn-outline" style={{ width: "auto" }} onClick={() => shortlistFromMatch(r.candidate_id)}>Shortlist</button>
                     </div>
                   </td>
                   <td>

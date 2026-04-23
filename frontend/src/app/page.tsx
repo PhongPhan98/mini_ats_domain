@@ -182,6 +182,21 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <div className="card">
+        <div className="toolbar">
+          <div>
+            <strong>Quick Actions</strong>
+            <br />
+            <small>Speed up daily HR flow.</small>
+          </div>
+          <div className="toolbar-actions">
+            <Link className="chip" href="/upload">+ Upload CVs</Link>
+            <Link className="chip" href="/jobs">Run Matching</Link>
+            <Link className="chip" href="/pipeline">Open Pipeline</Link>
+          </div>
+        </div>
+      </div>
+
       <small>Report range preset selected: {reportRange.replaceAll("_", " ")} (export filtering hook prepared for next iteration).</small>
 
       <div className="grid grid-4">
