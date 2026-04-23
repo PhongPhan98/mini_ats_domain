@@ -7,6 +7,7 @@ from app.models import Candidate, Job
 from app.rbac import require_roles
 from app.schemas import JobCreate, JobOut, MatchItem, MatchResponse
 from app.services.rule_based import match_candidate_rule_based
+from app.services.audit import log_event
 from pathlib import Path
 import json
 
@@ -83,6 +84,7 @@ def create_job(
     db.add(job)
     db.commit()
     db.refresh(job)
+    log_event(_actor.email, "job.update", f"job:{job.id}", {"title": job.title})
     return job
 
 
@@ -105,7 +107,7 @@ def match_candidates(
     threshold: int | None = Query(default=None),
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     job = db.get(Job, job_id)
     if not job:
@@ -141,7 +143,7 @@ def update_job(
     job_id: int,
     payload: JobCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     job = db.get(Job, job_id)
     if not job:
@@ -157,7 +159,7 @@ def update_job(
 def soft_delete_job(
     job_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     job = db.get(Job, job_id)
     if not job:
@@ -165,6 +167,7 @@ def soft_delete_job(
     deleted = _load_deleted_ids()
     deleted.add(job_id)
     _save_deleted_ids(deleted)
+    log_event(_actor.email, "job.soft_delete", f"job:{job_id}", {})
     return {"ok": True}
 
 
@@ -181,6 +184,7 @@ def restore_job(
     if job_id in deleted:
         deleted.remove(job_id)
         _save_deleted_ids(deleted)
+    log_event(_actor.email, "job.restore", f"job:{job_id}", {})
     return {"ok": True}
 
 

@@ -7,6 +7,7 @@ from app.models import User
 from app.rbac import get_current_user, require_roles
 from app.schemas import UserOut
 from app.services import user_access
+from app.services.audit import log_event
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -29,7 +30,7 @@ def update_user_role(
     user_id: int,
     payload: dict,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin")),
+    _admin=Depends(require_roles("admin")),
 ):
     user = db.get(User, user_id)
     if not user:
@@ -44,6 +45,7 @@ def update_user_role(
     user.role = role
     db.commit()
     db.refresh(user)
+    log_event(_admin.email, "user.role.update", f"user:{user.id}", {"role": role})
     return user
 
 
@@ -52,7 +54,7 @@ def disable_user(
     user_id: int,
     payload: dict,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin")),
+    _admin=Depends(require_roles("admin")),
 ):
     user = db.get(User, user_id)
     if not user:
@@ -61,12 +63,13 @@ def disable_user(
 
     disabled = bool(payload.get("disabled", True))
     user_access.set_disabled(user.id, user.email, disabled)
+    log_event(_admin.email, "user.access.toggle", f"user:{user.id}", {"disabled": disabled})
     return {"ok": True, "user_id": user.id, "disabled": disabled}
 
 
 @router.get("/access/disabled")
 def list_disabled(
-    _=Depends(require_roles("admin")),
+    _admin=Depends(require_roles("admin")),
 ):
     ids = sorted(list(user_access.list_disabled_ids()))
     return {"disabled_user_ids": ids}

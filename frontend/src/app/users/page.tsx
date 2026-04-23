@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPatch } from "../../lib/api";
 import { notify } from "../../lib/toast";
+import { useMe } from "../../lib/me";
 
 type User = { id: number; email: string; full_name: string; role: string; created_at: string };
 
 const ROLES = ["admin", "recruiter", "interviewer", "hiring_manager"];
 
 export default function UsersPage() {
+  const { me, loading } = useMe();
   const [users, setUsers] = useState<User[]>([]);
   const [disabled, setDisabled] = useState<number[]>([]);
 
@@ -35,6 +37,9 @@ export default function UsersPage() {
     await load();
   };
 
+  if (loading) return <div className="card">Loading...</div>;
+  if (me?.role !== "admin") return <div className="card"><h3>No permission</h3><small>Only admin can manage users.</small></div>;
+
   return (
     <div className="grid page-enter">
       <div className="card">
@@ -56,7 +61,10 @@ export default function UsersPage() {
           <tbody>
             {users.map((u) => {
               const isDisabled = disabled.includes(u.id);
-              return (
+              if (loading) return <div className="card">Loading...</div>;
+  if (me?.role !== "admin") return <div className="card"><h3>No permission</h3><small>Only admin can manage users.</small></div>;
+
+  return (
                 <tr key={u.id}>
                   <td>{u.email}</td>
                   <td>{u.full_name}</td>

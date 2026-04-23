@@ -15,6 +15,7 @@ from app.services.automation import run_stage_change_automations
 from app.services.parser import CVTextParser
 from app.services.rule_based import SKILL_ALIASES, parse_candidate_from_cv
 from app.services.storage import LocalStorageService
+from app.services.audit import log_event
 
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 storage = LocalStorageService()
@@ -56,7 +57,7 @@ def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
 @router.post("/parse")
 async def parse_cv_preview(
     file: UploadFile = File(...),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     ext = Path(file.filename).suffix.lower()
     if ext not in {".pdf", ".docx"}:
@@ -94,7 +95,7 @@ async def upload_cv(
     file: UploadFile = File(...),
     edited_json: str | None = Form(default=None),
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     ext = Path(file.filename).suffix.lower()
     if ext not in {".pdf", ".docx"}:
@@ -233,7 +234,7 @@ def update_candidate(
     candidate_id: int,
     payload: CandidateUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
@@ -299,6 +300,7 @@ def delete_candidate_file(
     db.delete(file)
     _append_timeline_event(candidate, "note", f"deleted_cv_file:{file.original_filename}")
     db.commit()
+    log_event(_actor.email, "candidate.file.delete", f"candidate:{candidate_id}", {"file_id": file_id, "filename": file.original_filename})
     return {"ok": True}
 
 
@@ -318,6 +320,7 @@ def soft_delete_candidate(
     candidate.parsed_json = parsed
     _append_timeline_event(candidate, "note", "candidate_soft_deleted")
     db.commit()
+    log_event(_actor.email, "candidate.soft_delete", f"candidate:{candidate_id}", {})
     return {"ok": True}
 
 
@@ -337,4 +340,5 @@ def restore_candidate(
     candidate.parsed_json = parsed
     _append_timeline_event(candidate, "note", "candidate_restored")
     db.commit()
+    log_event(_actor.email, "candidate.restore", f"candidate:{candidate_id}", {})
     return {"ok": True}
