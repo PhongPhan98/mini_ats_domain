@@ -644,19 +644,30 @@ label {
 .nav-bar { gap: 10px; }
 .nav-links {
   align-items: center;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  overflow-x: visible;
   scrollbar-width: thin;
   padding-bottom: 2px;
+  row-gap: 6px;
 }
 .nav-links::-webkit-scrollbar { height: 6px; }
 .nav-links::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--border) 70%, var(--muted)); border-radius: 999px; }
 .nav-link {
   white-space: nowrap;
   line-height: 1.2;
+  font-size: 14px;
+  padding: 7px 10px;
 }
 .nav-actions { flex-shrink: 0; }
 @media (max-width: 920px) {
   .nav-bar { align-items: flex-start; }
   .nav-actions { width: 100%; justify-content: flex-end; }
+}
+
+@media (max-width: 680px) {
+  .nav-links {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .nav-link { font-size: 13px; padding: 6px 9px; }
 }
