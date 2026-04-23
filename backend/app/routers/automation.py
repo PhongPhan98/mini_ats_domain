@@ -14,12 +14,12 @@ def get_rules(_=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
 
 
 @router.put("/rules")
-def put_rules(payload: dict[str, Any], _=Depends(require_roles("admin", "hiring_manager"))):
+def put_rules(payload: dict[str, Any], _=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
     return save_rules(payload)
 
 
 @router.post("/rules")
-def post_rules(payload: dict[str, Any], _=Depends(require_roles("admin", "hiring_manager"))):
+def post_rules(payload: dict[str, Any], _=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
     return save_rules(payload)
 
 
