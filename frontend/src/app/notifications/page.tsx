@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../lib/api";
 
 type NotificationTab = "all" | "mentions" | "ownership";
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [mentions, setMentions] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [tab, setTab] = useState<NotificationTab>("all");
@@ -89,7 +91,7 @@ export default function NotificationsPage() {
                   {inv.reason ? <div>{inv.reason}</div> : null}
                   <small>{inv.created_at}</small>
                   <div className="toolbar-actions" style={{ marginTop: 6 }}>
-                    <button style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${inv.candidate_id}/share/invitations/${inv.id}/decision`, { decision: "approve" }); const next = inviteItems.filter((x) => x.id !== inv.id); setInvitations(next); }}>Approve & Clone</button>
+                    <button style={{ width: "auto" }} onClick={async () => { const rs = await apiPost<{ clone_candidate_id?: number }>(`/api/candidates/${inv.candidate_id}/share/invitations/${inv.id}/decision`, { decision: "approve" }); const next = inviteItems.filter((x) => x.id !== inv.id); setInvitations(next); if (rs.clone_candidate_id) router.push(`/candidates/${rs.clone_candidate_id}`); }}>Approve & Clone</button>
                     <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${inv.candidate_id}/share/invitations/${inv.id}/decision`, { decision: "reject" }); const next = inviteItems.filter((x) => x.id !== inv.id); setInvitations(next); }}>Reject</button>
                     <Link className="chip" href={`/candidates/${inv.candidate_id}`}>Open Candidate</Link>
                   </div>

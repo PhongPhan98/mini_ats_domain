@@ -524,6 +524,7 @@ def decide_share_invitation(
     target["status"] = "approved" if decision == "approve" else "rejected"
     target["updated_at"] = now
 
+    clone_candidate_id = None
     if decision == "approve":
         clone_parsed = dict(candidate.parsed_json or {})
         clone_parsed["owner_user_id"] = actor.id
@@ -550,6 +551,7 @@ def decide_share_invitation(
         )
         db.add(clone)
         db.flush()
+        clone_candidate_id = clone.id
 
         source_files = db.execute(select(CandidateFile).where(CandidateFile.candidate_id == candidate.id)).scalars().all()
         for f in source_files:
@@ -563,7 +565,7 @@ def decide_share_invitation(
     parsed["share_invitations"] = invitations
     candidate.parsed_json = parsed
     db.commit()
-    return {"ok": True, "invitation": target}
+    return {"ok": True, "invitation": target, "clone_candidate_id": clone_candidate_id}
 
 @router.post("/{candidate_id}/ownership/request")
 def request_candidate_ownership(
