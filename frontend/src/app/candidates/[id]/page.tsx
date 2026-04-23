@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
+import { useMe } from "../../../lib/me";
 import { notify } from "../../../lib/toast";
 import type { Candidate, CandidateStatus, TimelineEvent } from "../../../components/types";
 
@@ -24,6 +25,7 @@ type CandidateComment = {
   id: number;
   candidate_id: number;
   author_user_id: number;
+  author_name?: string;
   body: string;
   mentions: string[];
   created_at: string;
