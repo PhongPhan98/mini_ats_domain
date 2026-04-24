@@ -107,7 +107,8 @@ def create_job(
     db.add(job)
     db.commit()
     db.refresh(job)
-    log_event(_actor.email, "job.update", f"job:{job.id}", {"title": job.title})
+    _set_job_owner(job.id, _actor.id, _actor.email)
+    log_event(_actor.email, "job.create", f"job:{job.id}", {"title": job.title})
     return job
 
 
@@ -256,6 +257,10 @@ def update_job_settings(
     threshold = max(0, min(100, threshold))
 
     settings = _load_job_settings()
-    settings[str(job_id)] = {"threshold": threshold}
+    cur = settings.get(str(job_id), {})
+    cur["threshold"] = threshold
+    cur.setdefault("owner_user_id", _job_owner_meta(job_id).get("owner_user_id"))
+    cur.setdefault("owner_email", _job_owner_meta(job_id).get("owner_email"))
+    settings[str(job_id)] = cur
     _save_job_settings(settings)
     return {"job_id": job_id, "threshold": threshold}
