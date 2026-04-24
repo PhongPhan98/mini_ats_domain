@@ -58,6 +58,7 @@ export default function NavBar() {
         <Link className={isActive("/jobs") ? "nav-link nav-link-active" : "nav-link"} href="/jobs"><NavLabel full={t("nav_jobs")} short="Jobs" /></Link>
         {me?.role === "admin" && <Link className={isActive("/users") ? "nav-link nav-link-active" : "nav-link"} href="/users"><NavLabel full="Users" short="User" /></Link>}
         {me?.role === "admin" && <Link className={isActive("/audit") ? "nav-link nav-link-active" : "nav-link"} href="/audit"><NavLabel full="Audit" short="Log" /></Link>}
+        {me?.role === "admin" && <Link className={isActive("/permissions") ? "nav-link nav-link-active" : "nav-link"} href="/permissions"><NavLabel full="Permissions" short="Perm" /></Link>}
       </div>}
       <div className="nav-actions">
         <LanguageToggle />
