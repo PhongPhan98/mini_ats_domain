@@ -279,9 +279,7 @@ MATCHING_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 
 ## OCR dependencies (Phase 1 parsing enhancements)
 Python packages are in `requirements.txt`.
-System tools needed for OCR:
-- `tesseract-ocr`
-- `poppler-utils`
+System tools for OCR are optional and only needed if you explicitly enable OCR fallback.
 
 ---
 
@@ -514,3 +512,14 @@ erDiagram
     datetime created_at
   }
 ```
+
+
+## 4.7 Lightweight dependency profile
+
+Default install is now kept lean.
+
+Not installed by default:
+- OCR-heavy stack (`pdf2image`, `pytesseract`, Pillow + OS packages)
+- embedding-heavy stack (`sentence-transformers`)
+
+The code remains adaptive: if optional libs are missing, ATS falls back to lightweight parsing/matching paths.
