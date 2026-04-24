@@ -691,3 +691,7 @@ label {
 .job-title { font-weight: 600; }
 .match-list { display: grid; gap: 10px; }
 .match-item { border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+
+.processing-overlay { display:flex; align-items:center; gap:10px; }
+.spinner { width:18px; height:18px; border:2px solid var(--border); border-top-color:#3b82f6; border-radius:9999px; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

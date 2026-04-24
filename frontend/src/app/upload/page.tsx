@@ -214,6 +214,8 @@ export default function UploadPage() {
         {error && <p style={{ color: "#ef4444" }}>{error}</p>}
       </div>
 
+      {loading ? <div className="card processing-overlay"><div className="spinner" /> <strong>Processing CV with AI...</strong><small>This can take a few seconds.</small></div> : null}
+
       {!!drafts.length && current && (
         <div className="card split-review">
           <div className="toolbar">

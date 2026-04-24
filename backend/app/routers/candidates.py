@@ -135,6 +135,8 @@ def _parse_or_fallback(filename: str, content: bytes, mime_type: str = "applicat
 
     if "ai_parse_status" not in parsed:
         parsed["ai_parse_status"] = "rule_only"
+    if "ai_provider" not in parsed:
+        parsed["ai_provider"] = settings.llm_provider
 
     if len((text or "").strip()) < 160:
         parsed["parse_warning"] = "Very little extractable text detected. CV may be scanned/image-based; AI can only parse extracted text in current mode, so please review fields manually."
