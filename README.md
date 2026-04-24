@@ -336,3 +336,95 @@ Planned next:
 
 ## 7) License & Notes
 Internal project for product development. Adapt architecture and security hardening before public production deployment.
+
+
+## 8) Architecture Diagram
+
+```mermaid
+graph TD
+  U[Recruiter / HR User] --> FE[Next.js Frontend]
+  FE --> API[FastAPI Backend]
+  API --> DB[(PostgreSQL)]
+  API --> FS[(Local File Storage: uploads/)]
+
+  API --> PARSER[Parser Service
+PDF/DOCX + OCR fallback]
+  API --> MATCH[Rule-based Matching
++ Title Fuzzy + Optional Embedding]
+  API --> AUTH[Google OAuth + JWT Cookie]
+  API --> AUDIT[Audit Log Service]
+```
+
+## 9) Sequence Diagrams
+
+### 9.1 CV Upload -> Parse -> Import
+
+```mermaid
+sequenceDiagram
+  participant HR as Recruiter
+  participant FE as Frontend
+  participant BE as Backend
+  participant PS as Parser Service
+  participant DB as PostgreSQL
+
+  HR->>FE: Upload CV(s)
+  FE->>BE: POST /api/candidates/parse
+  BE->>PS: Extract text (pypdf/docx)
+  alt weak PDF text
+    PS->>PS: fallback pdfplumber
+    PS->>PS: fallback OCR (pdf2image+pytesseract)
+  end
+  PS-->>BE: Parsed fields + confidence
+  BE-->>FE: Preview JSON
+  HR->>FE: Review/edit + Import
+  FE->>BE: POST /api/candidates/upload
+  BE->>DB: Insert candidate + metadata
+  BE-->>FE: Candidate created
+```
+
+### 9.2 Share Invitation -> Approve -> Clone Ownership
+
+```mermaid
+sequenceDiagram
+  participant A as HR A (Owner)
+  participant B as HR B
+  participant FE as Frontend
+  participant BE as Backend
+  participant DB as PostgreSQL
+
+  A->>FE: Send share invite to HR B
+  FE->>BE: POST /api/candidates/{id}/share
+  BE->>DB: Save pending invitation
+
+  B->>FE: Open notifications
+  FE->>BE: GET /api/candidates/share/invitations?scope=inbox
+  BE-->>FE: Pending invitation list
+
+  B->>FE: Approve & Clone
+  FE->>BE: POST /api/candidates/{id}/share/invitations/{invite_id}/decision
+  BE->>DB: Clone candidate + files (owner=HR B)
+  BE-->>FE: clone_candidate_id
+  FE-->>B: Redirect to cloned candidate page
+```
+
+### 9.3 Job Matching Run
+
+```mermaid
+sequenceDiagram
+  participant HR as Recruiter
+  participant FE as Frontend
+  participant BE as Backend
+  participant RM as Rule Match Engine
+  participant DB as PostgreSQL
+
+  HR->>FE: Run matching for Job X
+  FE->>BE: POST /api/jobs/{job_id}/match?threshold=...
+  BE->>DB: Load job + visible candidates
+  BE->>RM: Score each candidate
+  RM->>RM: skills + exp + title fuzzy + keyword
+  opt embeddings enabled
+    RM->>RM: semantic similarity (sentence-transformers)
+  end
+  RM-->>BE: score + explanation
+  BE-->>FE: ranked candidates above threshold
+```
