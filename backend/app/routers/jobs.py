@@ -79,6 +79,16 @@ def _save_deleted_ids(ids: set[int]):
     _TRASH_PATH.write_text(json.dumps(sorted(list(ids))), encoding="utf-8")
 
 
+
+
+def _can_manage_candidate_for_job(user, candidate: Candidate) -> bool:
+    if getattr(user, "role", "") != "recruiter":
+        return True
+    parsed = candidate.parsed_json or {}
+    owner_id = parsed.get("owner_user_id")
+    owner_email = str(parsed.get("owner_email") or "").lower()
+    return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())
+
 def _to_candidate_payload(c: Candidate) -> dict:
     parsed = c.parsed_json or {}
     return {
@@ -143,7 +153,7 @@ def match_candidates(
     if not _can_access_job(_actor, job.id):
         raise HTTPException(status_code=403, detail="Not allowed to access this job")
 
-    candidates = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted")]
+    candidates = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted") and _can_manage_candidate_for_job(_actor, c)]
     min_threshold = max(0, min(100, int(threshold))) if threshold is not None else _job_threshold(job_id)
     results = []
     for c in candidates:

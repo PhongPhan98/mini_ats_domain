@@ -42,15 +42,33 @@ def _ensure_files():
         EVENTS_FILE.write_text("", encoding="utf-8")
 
 
-def load_rules() -> dict[str, Any]:
-    _ensure_files()
-    return json.loads(RULES_FILE.read_text(encoding="utf-8"))
+def _normalize_rules_store(data: dict[str, Any]) -> dict[str, Any]:
+    # backward compatibility: old format {"rules": [...]}
+    if "rules" in data and "rules_by_user" not in data:
+        return {"rules_by_user": {"*": data.get("rules", [])}}
+    if "rules_by_user" not in data:
+        data["rules_by_user"] = {}
+    return data
 
 
-def save_rules(payload: dict[str, Any]) -> dict[str, Any]:
+def load_rules(owner_key: str | None = None) -> dict[str, Any]:
     _ensure_files()
-    RULES_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return payload
+    raw = json.loads(RULES_FILE.read_text(encoding="utf-8"))
+    store = _normalize_rules_store(raw if isinstance(raw, dict) else {})
+    if owner_key is None:
+        return store
+    key = (owner_key or "").strip().lower() or "*"
+    return {"rules": list(store.get("rules_by_user", {}).get(key, []))}
+
+
+def save_rules(payload: dict[str, Any], owner_key: str | None = None) -> dict[str, Any]:
+    _ensure_files()
+    raw = json.loads(RULES_FILE.read_text(encoding="utf-8"))
+    store = _normalize_rules_store(raw if isinstance(raw, dict) else {})
+    key = (owner_key or "").strip().lower() or "*"
+    store.setdefault("rules_by_user", {})[key] = list(payload.get("rules", []))
+    RULES_FILE.write_text(json.dumps(store, indent=2), encoding="utf-8")
+    return {"rules": store["rules_by_user"][key]}
 
 
 def append_event(event: dict[str, Any]):
@@ -117,8 +135,8 @@ def _call_webhook(url: str, payload: dict[str, Any]) -> tuple[bool, str]:
         return False, f"webhook_error:{e}"
 
 
-def run_stage_change_automations(*, candidate_id: int, candidate_name: str, stage: str, email: str | None):
-    rules = load_rules().get("rules", [])
+def run_stage_change_automations(*, candidate_id: int, candidate_name: str, stage: str, email: str | None, owner_key: str | None = None):
+    rules = load_rules(owner_key).get("rules", [])
     outputs: list[dict[str, Any]] = []
 
     base_payload = {

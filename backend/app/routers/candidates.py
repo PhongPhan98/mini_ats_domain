@@ -315,6 +315,7 @@ def update_candidate(
                 candidate_name=candidate.name or f"Candidate #{candidate.id}",
                 stage=normalized_status,
                 email=candidate.email,
+                owner_key=str((candidate.parsed_json or {}).get("owner_email") or _actor.email),
             )
         update_data["status"] = normalized_status
 

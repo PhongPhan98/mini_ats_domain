@@ -9,18 +9,21 @@ router = APIRouter(prefix="/api/automation", tags=["automation"])
 
 
 @router.get("/rules")
-def get_rules(_=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
-    return load_rules()
+def get_rules(actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    key = actor.email if getattr(actor, "role", "") == "recruiter" else "*"
+    return load_rules(key)
 
 
 @router.put("/rules")
-def put_rules(payload: dict[str, Any], _=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
-    return save_rules(payload)
+def put_rules(payload: dict[str, Any], actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    key = actor.email if getattr(actor, "role", "") == "recruiter" else "*"
+    return save_rules(payload, key)
 
 
 @router.post("/rules")
-def post_rules(payload: dict[str, Any], _=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
-    return save_rules(payload)
+def post_rules(payload: dict[str, Any], actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    key = actor.email if getattr(actor, "role", "") == "recruiter" else "*"
+    return save_rules(payload, key)
 
 
 @router.get("/events")
