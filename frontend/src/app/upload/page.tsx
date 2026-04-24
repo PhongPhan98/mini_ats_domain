@@ -73,6 +73,8 @@ export default function UploadPage() {
   const current = drafts[idx];
   const parseWarning = String(current?.data?.parse_warning || "");
   const scannedSuspected = Boolean(current?.data?.scanned_suspected);
+  const aiStatus = String(current?.data?.ai_parse_status || "rule_only");
+  const aiProvider = String(current?.data?.ai_provider || "local");
   const [cvPreviewUrl, setCvPreviewUrl] = useState("");
 
   useEffect(() => {
@@ -249,6 +251,11 @@ export default function UploadPage() {
             <div className="card" style={{ marginBottom: 0 }}>
               <h3 style={{ marginTop: 0 }}>HR Review Form</h3>
               <small className="low-hint">Red fields are low-confidence and still empty.</small>
+              <div className="chip-wrap" style={{ marginTop: 8 }}>
+                <span className="chip">AI Provider: {aiProvider}</span>
+                <span className="chip">AI Status: {aiStatus}</span>
+              </div>
+
 
 
               {(parseWarning || scannedSuspected) ? (

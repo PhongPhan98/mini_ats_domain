@@ -87,6 +87,7 @@ def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
         if ai_data.get("_ai_timeout"):
             parsed["parse_warning"] = "AI parsing timed out. Continued with local parser." 
             parsed["ai_parse_status"] = "timeout_fallback_rule"
+            parsed["ai_provider"] = settings.llm_provider
         else:
             merge_keys = [
                 "name", "email", "phone", "skills", "years_of_experience", "education",
@@ -98,7 +99,11 @@ def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
                 if v not in (None, "", [], {}):
                     parsed[k] = v
             parsed["ai_parse_status"] = "used"
+            parsed["ai_provider"] = settings.llm_provider
             parsed["source"] = "ai_plus_rule"
+
+    if "ai_parse_status" not in parsed:
+        parsed["ai_parse_status"] = "rule_only"
 
     if len((text or "").strip()) < 160:
         parsed["parse_warning"] = "Very little extractable text detected. CV may be scanned/image-based; please review fields manually."
