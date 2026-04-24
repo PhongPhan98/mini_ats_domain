@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-2.0-flash-lite", alias="GEMINI_MODEL")
 
+    openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+    openrouter_model: str = Field(default="meta-llama/llama-3.1-8b-instruct", alias="OPENROUTER_MODEL")
+
+    groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
+    groq_model: str = Field(default="llama-3.1-8b-instant", alias="GROQ_MODEL")
+
+    ollama_base_url: str = Field(default="http://localhost:11434/v1", alias="OLLAMA_BASE_URL")
+    ollama_model: str = Field(default="qwen2.5:7b", alias="OLLAMA_MODEL")
+
     storage_mode: str = Field(default="local", alias="STORAGE_MODE")
     upload_dir: str = Field(default="./uploads", alias="UPLOAD_DIR")
     public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")

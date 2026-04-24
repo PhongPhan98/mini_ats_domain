@@ -9,12 +9,12 @@ from app.prompts import CV_PARSING_PROMPT, MATCHING_PROMPT
 
 class LLMService:
     @staticmethod
-    def _openai_parse_cv(cv_text: str) -> dict:
-        if not settings.openai_api_key:
-            raise RuntimeError("OPENAI_API_KEY is empty. Set it or switch LLM_PROVIDER=gemini.")
-        client = OpenAI(api_key=settings.openai_api_key)
+    def _openai_compatible_parse_cv(*, api_key: str, model: str, base_url: str | None, cv_text: str, provider_name: str) -> dict:
+        if not api_key:
+            raise RuntimeError(f"{provider_name} api key is empty.")
+        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
         response = client.chat.completions.create(
-            model=settings.openai_model,
+            model=model,
             temperature=0,
             response_format={"type": "json_object"},
             messages=[
@@ -24,6 +24,36 @@ class LLMService:
         )
         content = response.choices[0].message.content or "{}"
         return json.loads(content)
+
+    @staticmethod
+    def _openai_compatible_match_candidate(*, api_key: str, model: str, base_url: str | None, job_title: str, requirements: str, candidate: dict, provider_name: str) -> dict:
+        if not api_key:
+            raise RuntimeError(f"{provider_name} api key is empty.")
+        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+        prompt = f"Job Title: {job_title}\nRequirements:\n{requirements}\n\nCandidate:\n{json.dumps(candidate, ensure_ascii=False)}"
+        response = client.chat.completions.create(
+            model=model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": MATCHING_PROMPT},
+                {"role": "user", "content": prompt[:12000]},
+            ],
+        )
+        content = response.choices[0].message.content or "{}"
+        data = json.loads(content)
+        score = int(max(0, min(100, data.get("match_score", 0))))
+        return {"match_score": score, "explanation": data.get("explanation", "No explanation provided.")}
+
+    @staticmethod
+    def _openai_parse_cv(cv_text: str) -> dict:
+        return LLMService._openai_compatible_parse_cv(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            base_url=None,
+            cv_text=cv_text,
+            provider_name="openai",
+        )
 
     @staticmethod
     def _openai_match_candidate(job_title: str, requirements: str, candidate: dict) -> dict:
@@ -85,10 +115,82 @@ class LLMService:
         }
 
     @staticmethod
+    def _openrouter_parse_cv(cv_text: str) -> dict:
+        return LLMService._openai_compatible_parse_cv(
+            api_key=settings.openrouter_api_key,
+            model=settings.openrouter_model,
+            base_url="https://openrouter.ai/api/v1",
+            cv_text=cv_text,
+            provider_name="openrouter",
+        )
+
+    @staticmethod
+    def _openrouter_match_candidate(job_title: str, requirements: str, candidate: dict) -> dict:
+        return LLMService._openai_compatible_match_candidate(
+            api_key=settings.openrouter_api_key,
+            model=settings.openrouter_model,
+            base_url="https://openrouter.ai/api/v1",
+            job_title=job_title,
+            requirements=requirements,
+            candidate=candidate,
+            provider_name="openrouter",
+        )
+
+    @staticmethod
+    def _groq_parse_cv(cv_text: str) -> dict:
+        return LLMService._openai_compatible_parse_cv(
+            api_key=settings.groq_api_key,
+            model=settings.groq_model,
+            base_url="https://api.groq.com/openai/v1",
+            cv_text=cv_text,
+            provider_name="groq",
+        )
+
+    @staticmethod
+    def _groq_match_candidate(job_title: str, requirements: str, candidate: dict) -> dict:
+        return LLMService._openai_compatible_match_candidate(
+            api_key=settings.groq_api_key,
+            model=settings.groq_model,
+            base_url="https://api.groq.com/openai/v1",
+            job_title=job_title,
+            requirements=requirements,
+            candidate=candidate,
+            provider_name="groq",
+        )
+
+    @staticmethod
+    def _ollama_parse_cv(cv_text: str) -> dict:
+        return LLMService._openai_compatible_parse_cv(
+            api_key="ollama",
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            cv_text=cv_text,
+            provider_name="ollama",
+        )
+
+    @staticmethod
+    def _ollama_match_candidate(job_title: str, requirements: str, candidate: dict) -> dict:
+        return LLMService._openai_compatible_match_candidate(
+            api_key="ollama",
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            job_title=job_title,
+            requirements=requirements,
+            candidate=candidate,
+            provider_name="ollama",
+        )
+
+    @staticmethod
     def parse_cv(cv_text: str) -> dict:
         provider = settings.llm_provider.strip().lower()
         if provider == "gemini":
             return LLMService._gemini_parse_cv(cv_text)
+        if provider == "openrouter":
+            return LLMService._openrouter_parse_cv(cv_text)
+        if provider == "groq":
+            return LLMService._groq_parse_cv(cv_text)
+        if provider == "ollama":
+            return LLMService._ollama_parse_cv(cv_text)
         return LLMService._openai_parse_cv(cv_text)
 
     @staticmethod
@@ -96,6 +198,12 @@ class LLMService:
         provider = settings.llm_provider.strip().lower()
         if provider == "gemini":
             return LLMService._gemini_match_candidate(job_title, requirements, candidate)
+        if provider == "openrouter":
+            return LLMService._openrouter_match_candidate(job_title, requirements, candidate)
+        if provider == "groq":
+            return LLMService._groq_match_candidate(job_title, requirements, candidate)
+        if provider == "ollama":
+            return LLMService._ollama_match_candidate(job_title, requirements, candidate)
         return LLMService._openai_match_candidate(job_title, requirements, candidate)
 
 
