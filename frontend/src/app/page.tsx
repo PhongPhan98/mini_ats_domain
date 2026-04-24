@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost, apiUrl } from "../lib/api";
 import { useAppLanguage } from "../lib/language";
+import { useMe } from "../lib/me";
 import type { Analytics, Candidate, CandidateStatus } from "../components/types";
 
 type SearchParams = {
