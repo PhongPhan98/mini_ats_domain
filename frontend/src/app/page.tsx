@@ -65,6 +65,7 @@ export default function DashboardPage() {
   const [showTrash, setShowTrash] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
   const { t } = useAppLanguage();
+  const { me } = useMe();
   const pageSize = 10;
 
   const loadData = async (nextFilters: SearchParams) => {
@@ -83,6 +84,14 @@ export default function DashboardPage() {
     setFilters(initial);
     loadData(initial);
   }, [showTrash]);
+
+  const canManageCandidate = (c: Candidate) => {
+    const ownerEmail = String((c.parsed_json as any)?.owner_email || "").toLowerCase();
+    const ownerUserId = Number((c.parsed_json as any)?.owner_user_id || 0);
+    const meEmail = String(me?.email || "").toLowerCase();
+    const meId = Number(me?.id || 0);
+    return (!!ownerEmail && !!meEmail && ownerEmail === meEmail) || (!!ownerUserId && !!meId && ownerUserId === meId);
+  };
 
   const sortedCandidates = useMemo(() => {
     const arr = [...candidates];
@@ -334,9 +343,11 @@ export default function DashboardPage() {
                   <div className="toolbar-actions">
                     <Link href={`/candidates/${c.id}`} className="chip">Edit</Link>
                     {showTrash ? (
-                      <button className="btn-outline" style={{ width: "auto" }} onClick={() => restoreCandidate(c.id)}>Restore</button>
-                    ) : (
+                      <button className="btn-outline" style={{ width: "auto" }} onClick={() => restoreCandidate(c.id)} disabled={!canManageCandidate(c)}>Restore</button>
+                    ) : canManageCandidate(c) ? (
                       <button className="btn-outline" style={{ width: "auto" }} onClick={() => deleteCandidate(c.id)}>Delete</button>
+                    ) : (
+                      <span className="chip">View only</span>
                     )}
                   </div>
                 </td>
