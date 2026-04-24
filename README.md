@@ -428,3 +428,89 @@ sequenceDiagram
   RM-->>BE: score + explanation
   BE-->>FE: ranked candidates above threshold
 ```
+
+
+## 10) ER Diagram (Core Database)
+
+```mermaid
+erDiagram
+  users ||--o{ candidate_comments : writes
+  users ||--o{ interview_scorecards : submits
+  users ||--o{ interview_schedules : organizes
+
+  candidates ||--o{ candidate_files : has
+  candidates ||--o{ candidate_comments : has
+  candidates ||--o{ interview_scorecards : has
+  candidates ||--o{ interview_schedules : has
+
+  users {
+    int id PK
+    string email
+    string full_name
+    string role
+    datetime created_at
+  }
+
+  candidates {
+    int id PK
+    string name
+    string email
+    string phone
+    string status
+    int years_of_experience
+    text summary
+    jsonb education
+    jsonb previous_companies
+    jsonb skills
+    jsonb parsed_json
+    datetime created_at
+  }
+
+  candidate_files {
+    int id PK
+    int candidate_id FK
+    string file_url
+    string original_filename
+    datetime uploaded_at
+  }
+
+  candidate_comments {
+    int id PK
+    int candidate_id FK
+    int author_user_id FK
+    text body
+    jsonb mentions
+    datetime created_at
+  }
+
+  interview_scorecards {
+    int id PK
+    int candidate_id FK
+    int interviewer_user_id FK
+    string interview_stage
+    jsonb criteria_scores
+    int overall_score
+    string recommendation
+    text summary
+    datetime created_at
+  }
+
+  interview_schedules {
+    int id PK
+    int candidate_id FK
+    int organizer_user_id FK
+    string interviewer_email
+    datetime scheduled_at
+    int duration_minutes
+    string meeting_link
+    text notes
+    datetime created_at
+  }
+
+  jobs {
+    int id PK
+    string title
+    text requirements
+    datetime created_at
+  }
+```
