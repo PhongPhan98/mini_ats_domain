@@ -180,6 +180,37 @@ class LLMService:
             provider_name="ollama",
         )
 
+
+
+    @staticmethod
+    def _gemini_parse_cv_from_file(file_name: str, content: bytes, mime_type: str) -> dict:
+        if not settings.gemini_api_key:
+            raise RuntimeError("GEMINI_API_KEY is empty. Set it or switch LLM_PROVIDER.")
+        genai.configure(api_key=settings.gemini_api_key)
+        model = genai.GenerativeModel(settings.gemini_model)
+        prompt = (
+            CV_PARSING_PROMPT
+            + "\n\nReturn ONLY valid JSON object. No markdown, no extra text."
+            + "\nInput file may be scanned/image-based. Extract best-effort structured candidate info."
+        )
+        response = model.generate_content([
+            {"text": prompt},
+            {"inline_data": {"mime_type": mime_type, "data": content}},
+        ])
+        text = (response.text or "{}").strip()
+        if text.startswith("```"):
+            text = text.strip("`")
+            if text.lower().startswith("json"):
+                text = text[4:].strip()
+        return json.loads(text)
+
+    @staticmethod
+    def parse_cv_from_file(file_name: str, content: bytes, mime_type: str) -> dict:
+        provider = settings.llm_provider.strip().lower()
+        if provider == "gemini":
+            return LLMService._gemini_parse_cv_from_file(file_name, content, mime_type)
+        raise RuntimeError("File-vision parse currently supported for gemini provider only")
+
     @staticmethod
     def parse_cv(cv_text: str) -> dict:
         provider = settings.llm_provider.strip().lower()

@@ -41,6 +41,28 @@ def normalize_status(value: str | None) -> str:
 
 
 
+
+
+def _parse_ai_file_with_timeout(filename: str, content: bytes, mime_type: str) -> dict[str, Any] | None:
+    if not settings.parse_use_ai:
+        return None
+    timeout_s = max(2, int(settings.parse_ai_timeout_seconds or 10))
+
+    def _run():
+        return LLMService.parse_cv_from_file(filename, content, mime_type)
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(_run)
+            data = future.result(timeout=timeout_s)
+        if isinstance(data, dict):
+            return data
+    except FuturesTimeoutError:
+        return {"_ai_timeout": True}
+    except Exception:
+        return None
+    return None
+
 def _parse_ai_with_timeout(text: str) -> dict[str, Any] | None:
     if not settings.parse_use_ai:
         return None
@@ -61,9 +83,16 @@ def _parse_ai_with_timeout(text: str) -> dict[str, Any] | None:
         return None
     return None
 
-def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
+def _parse_or_fallback(filename: str, content: bytes, mime_type: str = "application/octet-stream") -> dict[str, Any]:
     text = CVTextParser.parse(filename, content)
     if not text:
+        ai_file = _parse_ai_file_with_timeout(filename, content, mime_type)
+        if isinstance(ai_file, dict) and not ai_file.get("_ai_timeout"):
+            ai_file["ai_provider"] = settings.llm_provider
+            ai_file["ai_parse_status"] = "used_file_vision"
+            ai_file.setdefault("source", "ai_file_vision")
+            return ai_file
+
         fallback_name = Path(filename).stem.replace("_", " ").replace("-", " ").strip() or "Unknown Candidate"
         return {
             "name": fallback_name,
@@ -126,7 +155,7 @@ async def parse_cv_preview(
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
 
-    parsed = _parse_or_fallback(file.filename, content)
+    parsed = _parse_or_fallback(file.filename, content, file.content_type or "application/octet-stream")
     parsed["owner_user_id"] = _actor.id
     parsed["owner_email"] = _actor.email
     return {"filename": file.filename, "parsed": parsed}
@@ -213,7 +242,7 @@ async def upload_cv(
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
 
-    parsed = _parse_or_fallback(file.filename, content)
+    parsed = _parse_or_fallback(file.filename, content, file.content_type or "application/octet-stream")
     parsed["owner_user_id"] = _actor.id
     parsed["owner_email"] = _actor.email
 
