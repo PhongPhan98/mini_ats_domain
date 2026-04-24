@@ -1,6 +1,7 @@
 import json
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -431,6 +432,58 @@ def parse_candidate_from_cv(text: str) -> dict[str, Any]:
     return result
 
 
+
+
+TITLE_ALIASES: dict[str, list[str]] = {
+    "software engineer": ["software engineer", "software developer", "swe", "developer"],
+    "backend engineer": ["backend engineer", "backend developer", "server-side engineer", "back-end engineer"],
+    "frontend engineer": ["frontend engineer", "front-end engineer", "frontend developer", "front-end developer", "fe developer"],
+    "fullstack engineer": ["fullstack engineer", "full-stack engineer", "fullstack developer", "full-stack developer"],
+    "data engineer": ["data engineer", "etl engineer", "big data engineer"],
+    "data analyst": ["data analyst", "bi analyst", "business intelligence analyst"],
+    "data scientist": ["data scientist", "ml scientist", "machine learning scientist"],
+    "devops engineer": ["devops engineer", "sre", "site reliability engineer", "platform engineer"],
+    "qa engineer": ["qa engineer", "test engineer", "quality assurance engineer", "software tester"],
+    "product manager": ["product manager", "pm", "product owner"],
+    "project manager": ["project manager", "delivery manager"],
+    "ui/ux designer": ["ui designer", "ux designer", "ui ux designer", "product designer"],
+    "mobile developer": ["mobile developer", "android developer", "ios developer", "flutter developer", "react native developer"],
+}
+
+
+def _normalize_job_title(raw: str | None) -> str:
+    t = _match_normalize(raw or "")
+    if not t:
+        return ""
+    for canonical, aliases in TITLE_ALIASES.items():
+        probes = [_match_normalize(canonical), *[_match_normalize(a) for a in aliases]]
+        if t in probes:
+            return canonical
+        if any(p in t for p in probes):
+            return canonical
+    return t
+
+
+def _fuzzy_ratio(a: str, b: str) -> float:
+    if not a or not b:
+        return 0.0
+    try:
+        from rapidfuzz import fuzz  # optional
+        return float(fuzz.token_set_ratio(a, b)) / 100.0
+    except Exception:
+        return SequenceMatcher(None, a, b).ratio()
+
+
+def _title_similarity(job_title: str, candidate: dict[str, Any]) -> float:
+    jt = _normalize_job_title(job_title)
+    ct = _normalize_job_title(candidate.get("current_title") or candidate.get("title") or "")
+    if not ct:
+        # try infer from summary first line keywords
+        ct = _normalize_job_title((candidate.get("summary") or "")[:120])
+    if not jt or not ct:
+        return 0.0
+    return max(0.0, min(1.0, _fuzzy_ratio(jt, ct)))
+
 def _tokenize(text: str) -> set[str]:
     norm = _match_normalize(text)
     return set(re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]{1,}", norm))
@@ -455,6 +508,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
         skill_score = 0.5
 
     req_years = _required_years(requirements)
+    title_score = _title_similarity(job_title, candidate)
     cand_years = candidate.get("years_of_experience") or 0
     if req_years is None:
         exp_score = 0.6 if cand_years else 0.35
@@ -474,7 +528,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
     kw_overlap = len(req_tokens.intersection(cand_tokens))
     kw_score = kw_overlap / max(1, min(100, len(req_tokens)))
 
-    final_score = int(round((skill_score * 0.62 + exp_score * 0.25 + kw_score * 0.13) * 100))
+    final_score = int(round((skill_score * 0.45 + exp_score * 0.20 + title_score * 0.20 + kw_score * 0.15) * 100))
     final_score = max(0, min(100, final_score))
 
     matched_skills = sorted(overlap)
@@ -485,6 +539,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
             f"Điểm phù hợp tổng thể: {final_score}%.",
             f"Mức độ phù hợp kỹ năng: khớp {len(matched_skills)}/{len(required_skills) if required_skills else 0} kỹ năng bắt buộc ({', '.join(matched_skills[:8]) if matched_skills else 'không có kỹ năng bắt buộc cụ thể'}).",
             f"Đánh giá kinh nghiệm: ứng viên có {cand_years} năm" + (f", yêu cầu là {req_years} năm." if req_years is not None else ", chưa có mức tối thiểu cố định.") + f" Điểm thành phần kinh nghiệm: {round(exp_score * 100)}%.",
+            f"Mức độ phù hợp chức danh: {round(title_score * 100)}% (job title so với current title).",
             f"Mức độ liên quan ngữ cảnh: trùng {kw_overlap} từ khóa, điểm thành phần từ khóa: {round(kw_score * 100)}%.",
             f"Khoảng trống chính: {', '.join(missing_skills[:8]) if missing_skills else 'không có khoảng trống kỹ năng bắt buộc đáng kể'}.",
         ]
@@ -493,6 +548,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
             f"Overall match score: {final_score}%.",
             f"Skills fit: matched {len(matched_skills)}/{len(required_skills) if required_skills else 0} required skills ({', '.join(matched_skills[:8]) if matched_skills else 'none explicitly required'}).",
             f"Experience check: candidate has {cand_years} year(s)" + (f", requirement is {req_years} year(s)." if req_years is not None else ", no strict minimum set.") + f" Experience component score: {round(exp_score * 100)}%.",
+            f"Title similarity: {round(title_score * 100)}% (job title vs candidate title).",
             f"Context relevance: keyword overlap {kw_overlap} term(s), keyword component score: {round(kw_score * 100)}%.",
             f"Main gaps: {', '.join(missing_skills[:8]) if missing_skills else 'no major required-skill gaps detected'}.",
         ]
@@ -507,4 +563,5 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
         "skill_score_pct": round(skill_score * 100, 2),
         "experience_score_pct": round(exp_score * 100, 2),
         "keyword_score_pct": round(kw_score * 100, 2),
+        "title_score_pct": round(title_score * 100, 2),
     }
