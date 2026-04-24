@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from app.config import settings
+
 DEFAULT_SKILL_ALIASES: dict[str, list[str]] = {
     "python": ["python"],
     "java": ["java"],
@@ -494,6 +496,65 @@ def _required_years(requirements: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+
+
+_EMBED_MODEL = None
+
+
+def _get_embed_model():
+    global _EMBED_MODEL
+    if _EMBED_MODEL is not None:
+        return _EMBED_MODEL
+    model_name = getattr(settings, "matching_embedding_model", "") or "sentence-transformers/all-MiniLM-L6-v2"
+    try:
+        from sentence_transformers import SentenceTransformer
+        _EMBED_MODEL = SentenceTransformer(model_name)
+    except Exception:
+        _EMBED_MODEL = False
+    return _EMBED_MODEL
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    if na == 0 or nb == 0:
+        return 0.0
+    return max(0.0, min(1.0, dot / (na * nb)))
+
+
+def _semantic_similarity(job_title: str, requirements: str, candidate: dict[str, Any]) -> float:
+    enabled = bool(getattr(settings, "matching_enable_embeddings", False))
+    if not enabled:
+        return 0.0
+
+    model = _get_embed_model()
+    if not model:
+        return 0.0
+
+    job_text = "\n".join([job_title or "", requirements or ""]).strip()
+    cand_text = " ".join(
+        [
+            candidate.get("current_title") or "",
+            candidate.get("summary") or "",
+            " ".join(candidate.get("skills") or []),
+            " ".join(candidate.get("previous_companies") or []),
+            " ".join(candidate.get("education") or []),
+        ]
+    ).strip()
+    if not job_text or not cand_text:
+        return 0.0
+
+    try:
+        emb = model.encode([job_text, cand_text], normalize_embeddings=False)
+        v1 = list(map(float, emb[0]))
+        v2 = list(map(float, emb[1]))
+        return _cosine(v1, v2)
+    except Exception:
+        return 0.0
+
 def match_candidate_rule_based(job_title: str, requirements: str, candidate: dict[str, Any], lang: str = "en") -> dict[str, Any]:
     req_text = f"{job_title}\n{requirements}"
 
@@ -509,6 +570,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
 
     req_years = _required_years(requirements)
     title_score = _title_similarity(job_title, candidate)
+    semantic_score = _semantic_similarity(job_title, requirements, candidate)
     cand_years = candidate.get("years_of_experience") or 0
     if req_years is None:
         exp_score = 0.6 if cand_years else 0.35
@@ -528,7 +590,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
     kw_overlap = len(req_tokens.intersection(cand_tokens))
     kw_score = kw_overlap / max(1, min(100, len(req_tokens)))
 
-    final_score = int(round((skill_score * 0.45 + exp_score * 0.20 + title_score * 0.20 + kw_score * 0.15) * 100))
+    final_score = int(round((skill_score * 0.40 + exp_score * 0.18 + title_score * 0.17 + kw_score * 0.10 + semantic_score * 0.15) * 100))
     final_score = max(0, min(100, final_score))
 
     matched_skills = sorted(overlap)
@@ -540,6 +602,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
             f"Mức độ phù hợp kỹ năng: khớp {len(matched_skills)}/{len(required_skills) if required_skills else 0} kỹ năng bắt buộc ({', '.join(matched_skills[:8]) if matched_skills else 'không có kỹ năng bắt buộc cụ thể'}).",
             f"Đánh giá kinh nghiệm: ứng viên có {cand_years} năm" + (f", yêu cầu là {req_years} năm." if req_years is not None else ", chưa có mức tối thiểu cố định.") + f" Điểm thành phần kinh nghiệm: {round(exp_score * 100)}%.",
             f"Mức độ phù hợp chức danh: {round(title_score * 100)}% (job title so với current title).",
+            f"Mức độ liên quan chức danh/ngữ nghĩa: {round(semantic_score * 100)}% (embedding).",
             f"Mức độ liên quan ngữ cảnh: trùng {kw_overlap} từ khóa, điểm thành phần từ khóa: {round(kw_score * 100)}%.",
             f"Khoảng trống chính: {', '.join(missing_skills[:8]) if missing_skills else 'không có khoảng trống kỹ năng bắt buộc đáng kể'}.",
         ]
@@ -549,6 +612,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
             f"Skills fit: matched {len(matched_skills)}/{len(required_skills) if required_skills else 0} required skills ({', '.join(matched_skills[:8]) if matched_skills else 'none explicitly required'}).",
             f"Experience check: candidate has {cand_years} year(s)" + (f", requirement is {req_years} year(s)." if req_years is not None else ", no strict minimum set.") + f" Experience component score: {round(exp_score * 100)}%.",
             f"Title similarity: {round(title_score * 100)}% (job title vs candidate title).",
+            f"Semantic relevance: {round(semantic_score * 100)}% (embedding similarity).",
             f"Context relevance: keyword overlap {kw_overlap} term(s), keyword component score: {round(kw_score * 100)}%.",
             f"Main gaps: {', '.join(missing_skills[:8]) if missing_skills else 'no major required-skill gaps detected'}.",
         ]
@@ -564,4 +628,5 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
         "experience_score_pct": round(exp_score * 100, 2),
         "keyword_score_pct": round(kw_score * 100, 2),
         "title_score_pct": round(title_score * 100, 2),
+        "semantic_score_pct": round(semantic_score * 100, 2),
     }

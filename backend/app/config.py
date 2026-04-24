@@ -46,5 +46,8 @@ class Settings(BaseSettings):
     auth_allow_dev_headers: bool = Field(default=False, alias="AUTH_ALLOW_DEV_HEADERS")
     auth_bootstrap_admin_email: str = Field(default="", alias="AUTH_BOOTSTRAP_ADMIN_EMAIL")
 
+    matching_enable_embeddings: bool = Field(default=False, alias="MATCHING_ENABLE_EMBEDDINGS")
+    matching_embedding_model: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", alias="MATCHING_EMBEDDING_MODEL")
+
 
 settings = Settings()
