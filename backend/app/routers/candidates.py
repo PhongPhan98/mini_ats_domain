@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import and_, func, or_, select
@@ -16,6 +17,8 @@ from app.services.parser import CVTextParser
 from app.services.rule_based import SKILL_ALIASES, parse_candidate_from_cv
 from app.services.storage import LocalStorageService
 from app.services.audit import log_event
+from app.services.llm import LLMService
+from app.config import settings
 
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 storage = LocalStorageService()
@@ -36,6 +39,28 @@ def normalize_status(value: str | None) -> str:
 
 
 
+
+
+def _parse_ai_with_timeout(text: str) -> dict[str, Any] | None:
+    if not settings.parse_use_ai:
+        return None
+    timeout_s = max(2, int(settings.parse_ai_timeout_seconds or 10))
+
+    def _run():
+        return LLMService.parse_cv(text)
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(_run)
+            data = future.result(timeout=timeout_s)
+        if isinstance(data, dict):
+            return data
+    except FuturesTimeoutError:
+        return {"_ai_timeout": True}
+    except Exception:
+        return None
+    return None
+
 def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
     text = CVTextParser.parse(filename, content)
     if not text:
@@ -53,7 +78,28 @@ def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
             "source": "fallback",
         }
 
-    parsed = parse_candidate_from_cv(text)
+    parsed_rule = parse_candidate_from_cv(text)
+
+    # Try AI parsing with timeout, then fallback to rule-based if AI is slow/unavailable.
+    ai_data = _parse_ai_with_timeout(text)
+    parsed = dict(parsed_rule)
+    if isinstance(ai_data, dict):
+        if ai_data.get("_ai_timeout"):
+            parsed["parse_warning"] = "AI parsing timed out. Continued with local parser." 
+            parsed["ai_parse_status"] = "timeout_fallback_rule"
+        else:
+            merge_keys = [
+                "name", "email", "phone", "skills", "years_of_experience", "education",
+                "previous_companies", "summary", "linkedin_url", "github_url", "location",
+                "current_title", "certifications", "languages", "projects"
+            ]
+            for k in merge_keys:
+                v = ai_data.get(k)
+                if v not in (None, "", [], {}):
+                    parsed[k] = v
+            parsed["ai_parse_status"] = "used"
+            parsed["source"] = "ai_plus_rule"
+
     if len((text or "").strip()) < 160:
         parsed["parse_warning"] = "Very little extractable text detected. CV may be scanned/image-based; please review fields manually."
         parsed["scanned_suspected"] = True
