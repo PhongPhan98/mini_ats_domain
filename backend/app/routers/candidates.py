@@ -76,6 +76,8 @@ def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
             "confidence": {},
             "confidence_score": 0,
             "source": "fallback",
+            "ai_provider": settings.llm_provider,
+            "ai_parse_status": "no_text_fallback_rule",
         }
 
     parsed_rule = parse_candidate_from_cv(text)
@@ -106,7 +108,7 @@ def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
         parsed["ai_parse_status"] = "rule_only"
 
     if len((text or "").strip()) < 160:
-        parsed["parse_warning"] = "Very little extractable text detected. CV may be scanned/image-based; please review fields manually."
+        parsed["parse_warning"] = "Very little extractable text detected. CV may be scanned/image-based; AI can only parse extracted text in current mode, so please review fields manually."
         parsed["scanned_suspected"] = True
     return parsed
 
