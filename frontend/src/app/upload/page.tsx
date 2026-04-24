@@ -71,6 +71,8 @@ export default function UploadPage() {
   const { t } = useAppLanguage();
 
   const current = drafts[idx];
+  const parseWarning = String(current?.data?.parse_warning || "");
+  const scannedSuspected = Boolean(current?.data?.scanned_suspected);
   const [cvPreviewUrl, setCvPreviewUrl] = useState("");
 
   useEffect(() => {
@@ -247,6 +249,19 @@ export default function UploadPage() {
             <div className="card" style={{ marginBottom: 0 }}>
               <h3 style={{ marginTop: 0 }}>HR Review Form</h3>
               <small className="low-hint">Red fields are low-confidence and still empty.</small>
+
+
+              {(parseWarning || scannedSuspected) ? (
+                <div className="card" style={{ marginTop: 10, borderColor: "#f59e0b", background: "rgba(245,158,11,0.08)" }}>
+                  <strong>Parsing warning</strong>
+                  <div style={{ marginTop: 4 }}>
+                    {parseWarning || "This CV looks scanned/image-based. Lightweight mode may not extract full text."}
+                  </div>
+                  <small style={{ display: "block", marginTop: 6 }}>
+                    Recommended: upload DOCX/text-based PDF, or continue with manual HR review fields below.
+                  </small>
+                </div>
+              ) : null}
 
               <div className="chip-wrap" style={{ marginTop: 8 }}>
                 <span className={`chip ${confidenceClass(current.data?.confidence?.name)}`}>name: {current.data?.confidence?.name || "low"}</span>

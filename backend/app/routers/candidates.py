@@ -46,12 +46,18 @@ def _parse_or_fallback(filename: str, content: bytes) -> dict[str, Any]:
             "skills": [],
             "education": [],
             "previous_companies": [],
-            "parse_warning": "Could not extract text from CV file",
+            "parse_warning": "Could not extract text from CV file. This file may be scanned/image-based. Please upload a text-based PDF or DOCX, or fill fields manually.",
+            "scanned_suspected": True,
             "confidence": {},
             "confidence_score": 0,
             "source": "fallback",
         }
-    return parse_candidate_from_cv(text)
+
+    parsed = parse_candidate_from_cv(text)
+    if len((text or "").strip()) < 160:
+        parsed["parse_warning"] = "Very little extractable text detected. CV may be scanned/image-based; please review fields manually."
+        parsed["scanned_suspected"] = True
+    return parsed
 
 
 @router.post("/parse")
