@@ -13,3 +13,8 @@ node_modules/
 
 # Runtime
 uploads/
+
+# runtime data artifacts
+backend/app/data/*.json
+backend/app/data/*.jsonl
+!backend/app/data/skills_vn_en.json

@@ -42,3 +42,14 @@ app.include_router(automation.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/system/ai-status")
+def ai_status():
+    return {
+        "llm_provider": settings.llm_provider,
+        "parse_use_ai": settings.parse_use_ai,
+        "parse_ai_timeout_seconds": settings.parse_ai_timeout_seconds,
+        "matching_enable_embeddings": settings.matching_enable_embeddings,
+        "matching_embedding_model": settings.matching_embedding_model,
+    }
