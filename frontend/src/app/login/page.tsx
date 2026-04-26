@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { apiUrl } from "../../lib/api";
 
 export default function LoginPage() {
+  const [redirecting, setRedirecting] = useState(false);
+
   const login = () => {
+    setRedirecting(true);
     window.location.href = apiUrl("/api/auth/google/login");
   };
 
@@ -13,10 +17,11 @@ export default function LoginPage() {
         <div className="login-badge">Mini ATS</div>
         <h1>Welcome back 👋</h1>
         <p className="muted">Sign in with your Google account to continue to candidate pipeline, jobs and collaboration.</p>
+        <small className="login-subline">Use your approved work account for best access experience.</small>
 
-        <button className="login-google-btn" onClick={login}>
-          <span>🔐</span>
-          <span>Continue with Google</span>
+        <button className="login-google-btn" onClick={login} disabled={redirecting}>
+          <span>{redirecting ? "⏳" : "🔐"}</span>
+          <span>{redirecting ? "Redirecting to Google..." : "Continue with Google"}</span>
         </button>
 
         <div className="login-hints">
