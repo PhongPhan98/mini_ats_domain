@@ -29,6 +29,8 @@ export default function LoginPage() {
           <div className="chip">Secure cookie session</div>
           <div className="chip">Role-based access</div>
           <div className="chip">Personal data isolation</div>
+        </div>
+
         <div className="login-help">Need help signing in? Check Google account access or contact admin.</div>
       </div>
     </div>
