@@ -43,24 +43,49 @@ def normalize_status(value: str | None) -> str:
 
 
 
+
+
+def _ai_provider_chain() -> list[str]:
+    primary = (settings.llm_provider or "").strip().lower() or "openrouter"
+    ordered = [primary]
+    for p in ["openrouter", "gemini", "groq", "ollama", "openai"]:
+        if p not in ordered:
+            ordered.append(p)
+
+    def enabled(p: str) -> bool:
+        if p == "openrouter":
+            return bool(settings.openrouter_api_key)
+        if p == "gemini":
+            return bool(settings.gemini_api_key)
+        if p == "groq":
+            return bool(settings.groq_api_key)
+        if p == "ollama":
+            return bool(settings.ollama_base_url)
+        if p == "openai":
+            return bool(settings.openai_api_key)
+        return False
+
+    return [p for p in ordered if enabled(p)]
+
 def _parse_ai_file_with_timeout(filename: str, content: bytes, mime_type: str) -> dict[str, Any] | None:
     if not settings.parse_use_ai:
         return None
     timeout_s = max(2, int(settings.parse_ai_timeout_seconds or 10))
 
-    def _run():
-        return LLMService.parse_cv_from_file(filename, content, mime_type)
-
-    try:
-        with ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(_run)
-            data = future.result(timeout=timeout_s)
-        if isinstance(data, dict):
-            return data
-    except FuturesTimeoutError:
-        return {"_ai_timeout": True}
-    except Exception:
-        return None
+    for provider in _ai_provider_chain():
+        def _run():
+            return LLMService.parse_cv_file_for_provider(provider, filename, content, mime_type)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as ex:
+                future = ex.submit(_run)
+                data = future.result(timeout=timeout_s)
+            if isinstance(data, dict):
+                data["ai_provider"] = provider
+                return data
+        except FuturesTimeoutError:
+            continue
+        except Exception:
+            continue
     return None
 
 def _parse_ai_with_timeout(text: str) -> dict[str, Any] | None:
@@ -68,19 +93,20 @@ def _parse_ai_with_timeout(text: str) -> dict[str, Any] | None:
         return None
     timeout_s = max(2, int(settings.parse_ai_timeout_seconds or 10))
 
-    def _run():
-        return LLMService.parse_cv(text)
-
-    try:
-        with ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(_run)
-            data = future.result(timeout=timeout_s)
-        if isinstance(data, dict):
-            return data
-    except FuturesTimeoutError:
-        return {"_ai_timeout": True}
-    except Exception:
-        return None
+    for provider in _ai_provider_chain():
+        def _run():
+            return LLMService.parse_cv_for_provider(provider, text)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as ex:
+                future = ex.submit(_run)
+                data = future.result(timeout=timeout_s)
+            if isinstance(data, dict):
+                data["ai_provider"] = provider
+                return data
+        except FuturesTimeoutError:
+            continue
+        except Exception:
+            continue
     return None
 
 def _parse_or_fallback(filename: str, content: bytes, mime_type: str = "application/octet-stream") -> dict[str, Any]:

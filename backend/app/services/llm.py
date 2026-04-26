@@ -207,22 +207,32 @@ class LLMService:
     @staticmethod
     def parse_cv_from_file(file_name: str, content: bytes, mime_type: str) -> dict:
         provider = settings.llm_provider.strip().lower()
-        if provider == "gemini":
+        return LLMService.parse_cv_file_for_provider(provider, file_name, content, mime_type)
+
+    @staticmethod
+    def parse_cv_for_provider(provider: str, cv_text: str) -> dict:
+        p = (provider or "").strip().lower()
+        if p == "gemini":
+            return LLMService._gemini_parse_cv(cv_text)
+        if p == "openrouter":
+            return LLMService._openrouter_parse_cv(cv_text)
+        if p == "groq":
+            return LLMService._groq_parse_cv(cv_text)
+        if p == "ollama":
+            return LLMService._ollama_parse_cv(cv_text)
+        return LLMService._openai_parse_cv(cv_text)
+
+    @staticmethod
+    def parse_cv_file_for_provider(provider: str, file_name: str, content: bytes, mime_type: str) -> dict:
+        p = (provider or "").strip().lower()
+        if p == "gemini":
             return LLMService._gemini_parse_cv_from_file(file_name, content, mime_type)
-        raise RuntimeError("File-vision parse currently supported for gemini provider only")
+        raise RuntimeError(f"File-vision parse not supported for provider: {provider}")
 
     @staticmethod
     def parse_cv(cv_text: str) -> dict:
         provider = settings.llm_provider.strip().lower()
-        if provider == "gemini":
-            return LLMService._gemini_parse_cv(cv_text)
-        if provider == "openrouter":
-            return LLMService._openrouter_parse_cv(cv_text)
-        if provider == "groq":
-            return LLMService._groq_parse_cv(cv_text)
-        if provider == "ollama":
-            return LLMService._ollama_parse_cv(cv_text)
-        return LLMService._openai_parse_cv(cv_text)
+        return LLMService.parse_cv_for_provider(provider, cv_text)
 
     @staticmethod
     def match_candidate(job_title: str, requirements: str, candidate: dict) -> dict:
