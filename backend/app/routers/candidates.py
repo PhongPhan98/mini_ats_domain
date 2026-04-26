@@ -713,7 +713,7 @@ def request_candidate_ownership(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(actor, candidate):
+    if not _can_access_candidate(actor, candidate) and not _has_mention_access(db, actor, candidate_id):
         raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
 
     parsed = dict(candidate.parsed_json or {})
