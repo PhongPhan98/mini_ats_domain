@@ -65,11 +65,13 @@ export default function DashboardPage() {
   const [reportRange, setReportRange] = useState("last_30_days");
   const [showTrash, setShowTrash] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
+  const [loadingPage, setLoadingPage] = useState(true);
   const { t } = useAppLanguage();
   const { me } = useMe();
   const pageSize = 10;
 
   const loadData = async (nextFilters: SearchParams) => {
+    setLoadingPage(true);
     const [candidateData, analyticsData] = await Promise.all([
       apiGet<Candidate[]>(`${buildCandidateQuery(nextFilters)}${buildCandidateQuery(nextFilters).includes("?") ? "&" : "?"}include_deleted=${showTrash ? "true" : "false"}`),
       apiGet<Analytics>("/api/analytics/summary"),
@@ -78,6 +80,7 @@ export default function DashboardPage() {
     setAnalytics(analyticsData);
     setSelectedIds([]);
     setPage(1);
+    setLoadingPage(false);
   };
 
   useEffect(() => {
@@ -217,6 +220,19 @@ export default function DashboardPage() {
       </div>
 
       {showInsights && <>
+
+      {loadingPage ? (
+        <div className="card">
+          <div className="skeleton" style={{ height: 20, width: 220, marginBottom: 10 }} />
+          <div className="grid grid-4">
+            <div className="skeleton" style={{ height: 90 }} />
+            <div className="skeleton" style={{ height: 90 }} />
+            <div className="skeleton" style={{ height: 90 }} />
+            <div className="skeleton" style={{ height: 90 }} />
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-4">
         <div className="card stat-card"><h3>Total</h3><h1>{analytics.total_candidates}</h1></div>
         <div className="card stat-card"><h3>Hired</h3><h1>{analytics.hired_count}</h1></div>
@@ -301,7 +317,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="card">
-        <div className="toolbar">
+        <div className="toolbar sticky-toolbar">
           <h3>{showTrash ? "Deleted Candidates" : "Candidates"} ({sortedCandidates.length})</h3>
           <div className="toolbar-actions">
             <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>{showTrash ? "Back to Active" : "Trash"}</button>
@@ -327,6 +343,9 @@ export default function DashboardPage() {
             </tr>
           </thead>
           <tbody>
+{!pagedCandidates.length ? (
+              <tr><td colSpan={8}><div className="empty-state"><strong>No candidates found</strong><small>Try changing filters, importing CVs, or switching Active/Trash.</small></div></td></tr>
+            ) : null}
             {pagedCandidates.map((c) => (
               <tr key={c.id}>
                 <td><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>
