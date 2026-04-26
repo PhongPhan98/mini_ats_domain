@@ -735,3 +735,44 @@ label {
 .comment-item { background: rgba(148,163,184,.08); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
 .comment-item .timeline-dot { margin-top: 10px; }
 html { scroll-behavior: smooth; }
+
+
+/* Header readability + beautify override */
+.nav-bar {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  background: color-mix(in srgb, var(--card) 94%, var(--bg-elev));
+  border: 1px solid color-mix(in srgb, var(--border) 70%, #94a3b8);
+  box-shadow: 0 10px 24px rgba(15,23,42,.14);
+}
+.nav-link {
+  color: var(--text);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  border-color: color-mix(in srgb, var(--border) 85%, transparent);
+}
+.nav-link:hover {
+  background: color-mix(in srgb, var(--chip-bg) 65%, var(--card));
+  border-color: color-mix(in srgb, #60a5fa 45%, var(--border));
+}
+.nav-link-active {
+  background: linear-gradient(180deg, color-mix(in srgb, #3b82f6 24%, var(--card)), color-mix(in srgb, #2563eb 18%, var(--card)));
+  color: color-mix(in srgb, #1d4ed8 88%, var(--text));
+  border-color: color-mix(in srgb, #2563eb 46%, var(--border));
+  text-shadow: 0 1px 0 rgba(255,255,255,.2);
+}
+:root[data-theme="dark"] .nav-link-active {
+  color: #e0ecff;
+  background: linear-gradient(180deg, rgba(59,130,246,.35), rgba(37,99,235,.24));
+  border-color: rgba(96,165,250,.52);
+  text-shadow: none;
+}
+.nav-actions .chip {
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+}
+@media (max-width: 900px) {
+  .nav-bar { top: 0; border-radius: 10px; }
+  .nav-links { gap: 8px; }
+  .nav-link { padding: 7px 9px; }
+}
