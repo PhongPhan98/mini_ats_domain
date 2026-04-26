@@ -406,7 +406,17 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div> : null}
 
-      <div className="card">
+      <div className="card section-nav-card">
+        <div className="toolbar-actions">
+          <a className="chip" href="#sec-profile">Profile</a>
+          <a className="chip" href="#sec-interview">Interview</a>
+          <a className="chip" href="#sec-comments">Comments</a>
+          <a className="chip" href="#sec-collab">Collab</a>
+          <a className="chip" href="#sec-timeline">Timeline</a>
+        </div>
+      </div>
+
+      <div id="sec-profile" className="card">
         <h3>{t("profile_information")}</h3>
         <div className="grid grid-2">
           <div>
@@ -471,7 +481,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
 {!isViewOnly && (
-      <div className="grid grid-2">
+      <div id="sec-interview" className="grid grid-2">
         <div className="card">
           <h3>{t("interview_scheduling")}</h3>
           <div className="grid grid-2">
@@ -581,7 +591,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       {isViewOnly && (
-        <div className="card">
+        <div id="sec-interview" className="card">
           <h3>{t("interview_scorecards")}</h3>
           <div className="timeline" style={{ marginTop: 12 }}>
             {scorecards.map((s) => (
@@ -603,7 +613,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <div className="grid grid-2">
+      <div id="sec-comments" className="grid grid-2">
         <div className="card">
           <h3>{t("comments_mentions")}</h3>
           <small>{t("mention_hint")}</small>
@@ -620,7 +630,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="timeline" style={{ marginTop: 12 }}>
             {comments.map((c) => (
-              <div className="timeline-item" key={c.id}>
+              <div className="timeline-item comment-item" key={c.id}>
                 <div className="timeline-dot" />
                 <div>
                   <div><strong>{c.author_name || `User #${c.author_user_id}`}</strong></div>
@@ -635,7 +645,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {!isViewOnly && isOwner ? <div className="card">
+        {!isViewOnly && isOwner ? <div id="sec-collab" className="card">
           <h3>Ownership Requests Inbox</h3>
           <small>Approve or reject transfer requests from other HR members.</small>
           <div className="timeline" style={{ marginTop: 10 }}>
@@ -656,7 +666,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div> : null}
 
-        {!isViewOnly && isOwner ? <div className="card">
+        {!isViewOnly && isOwner ? <div id="sec-collab-share" className="card">
           <h3>Team Collaboration Sharing</h3>
           <small>Send sharing invitation to another HR. They can approve to create their own cloned candidate record.</small>
           <div className="toolbar-actions" style={{ marginTop: 8 }}>
@@ -675,7 +685,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div> : null}
 
-        {!isViewOnly ? <div className="card">
+        {!isViewOnly ? <div id="sec-timeline" className="card">
           <h3>{t("candidate_timeline")}</h3>
           <div className="timeline timeline-scroll">
             {timelineOf(candidate).map((event, idx) => (
