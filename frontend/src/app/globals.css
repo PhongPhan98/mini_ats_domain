@@ -712,3 +712,10 @@ label {
 .status-hired { background: rgba(16,185,129,.14); }
 .status-rejected { background: rgba(239,68,68,.14); }
 .notif-dot { display:inline-block; width:8px; height:8px; border-radius:999px; background:#22c55e; margin-right:6px; }
+
+
+.match-score.score-high { background: rgba(16,185,129,.18); border-color: rgba(16,185,129,.4); }
+.match-score.score-mid { background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.4); }
+.match-score.score-low { background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.4); }
+.explain-box.collapsed { max-height: 90px; overflow: hidden; }
+.explain-box.expanded { max-height: 420px; overflow: auto; }

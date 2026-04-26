@@ -22,6 +22,7 @@ export default function JobsPage() {
   const [editReq, setEditReq] = useState("");
   const [thresholdByJob, setThresholdByJob] = useState<Record<number, number>>({});
   const [modalFullscreen, setModalFullscreen] = useState(false);
+  const [expandedExplain, setExpandedExplain] = useState<Record<number, boolean>>({});
   const { t, lang } = useAppLanguage();
 
   const loadJobs = async () => {
@@ -114,6 +115,8 @@ export default function JobsPage() {
     await loadJobs();
     notify("Moved to Trash", "success");
   };
+
+  const scoreBand = (v: number) => (v >= 80 ? "score-high" : v >= 60 ? "score-mid" : "score-low");
 
   const shortlistFromMatch = async (candidateId: number) => {
     await apiPatch(`/api/candidates/${candidateId}`, { status: "screening" });
@@ -243,17 +246,18 @@ export default function JobsPage() {
                 <div className="toolbar" style={{ marginBottom: 8 }}>
                   <div className="toolbar-actions" style={{ gap: 8 }}>
                     <strong>{r.candidate_name || `#${r.candidate_id}`}</strong>
-                    <span className="chip">{r.match_score}%</span>
+                    <span className={`chip match-score ${scoreBand(r.match_score)}`}>{r.match_score}%</span>
                   </div>
                   <div className="toolbar-actions">
                     <Link className="chip" href={`/candidates/${r.candidate_id}`}>View</Link>
                     <button className="btn-outline" style={{ width: "auto" }} onClick={() => shortlistFromMatch(r.candidate_id)}>Shortlist</button>
                   </div>
                 </div>
-                <div className="explain-box">{formatExplanation(r.explanation)}</div>
+                <div className={`explain-box ${expandedExplain[r.candidate_id] ? "expanded" : "collapsed"}`}>{formatExplanation(r.explanation)}</div>
+                <button className="btn-outline" style={{ width: "auto", marginTop: 8 }} onClick={() => setExpandedExplain((prev) => ({ ...prev, [r.candidate_id]: !prev[r.candidate_id] }))}>{expandedExplain[r.candidate_id] ? "Show less" : "Show more"}</button>
               </div>
             ))}
-            {!match.results.length && <small>No candidates above selected threshold.</small>}
+            {!match.results.length && <div className="empty-state"><strong>No candidates above selected threshold</strong><small>Try lowering threshold or adjusting job requirements.</small></div>}
           </div>
         </div>
       )}
