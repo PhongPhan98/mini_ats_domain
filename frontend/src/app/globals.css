@@ -788,3 +788,6 @@ html { scroll-behavior: smooth; }
 
 .login-subline { color: var(--muted); display:block; margin-bottom: 14px; }
 .login-google-btn:disabled { opacity: .8; cursor: wait; transform: none; }
+
+.login-logo { width:56px; height:56px; border-radius:16px; margin: 0 auto 8px; display:grid; place-items:center; font-size:28px; background: linear-gradient(180deg, color-mix(in srgb, #3b82f6 24%, var(--card)), color-mix(in srgb, #2563eb 14%, var(--card))); border:1px solid color-mix(in srgb, #60a5fa 45%, var(--border)); }
+.login-help { margin-top: 12px; color: var(--muted); font-size: 12px; }

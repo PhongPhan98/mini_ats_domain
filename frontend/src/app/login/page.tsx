@@ -14,6 +14,7 @@ export default function LoginPage() {
   return (
     <div className="login-wrap page-enter">
       <div className="card login-card">
+        <div className="login-logo">🧑‍💼</div>
         <div className="login-badge">Mini ATS</div>
         <h1>Welcome back 👋</h1>
         <p className="muted">Sign in with your Google account to continue to candidate pipeline, jobs and collaboration.</p>
@@ -28,7 +29,7 @@ export default function LoginPage() {
           <div className="chip">Secure cookie session</div>
           <div className="chip">Role-based access</div>
           <div className="chip">Personal data isolation</div>
-        </div>
+        <div className="login-help">Need help signing in? Check Google account access or contact admin.</div>
       </div>
     </div>
   );
