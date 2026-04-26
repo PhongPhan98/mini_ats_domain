@@ -66,6 +66,7 @@ export default function DashboardPage() {
   const [showTrash, setShowTrash] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
   const [loadingPage, setLoadingPage] = useState(true);
+  const [compactMode, setCompactMode] = useState(false);
   const { t } = useAppLanguage();
   const { me } = useMe();
   const pageSize = 10;
@@ -329,7 +330,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <table className="candidate-table">
+        <table className={`candidate-table ${compactMode ? "candidate-table-compact" : ""}`}>
           <thead>
             <tr>
               <th></th>
@@ -353,9 +354,12 @@ export default function DashboardPage() {
                 <td>{c.email || "-"}</td>
                 <td>{c.phone || "-"}</td>
                 <td>
-                  <select value={c.status || "applied"} onChange={(e) => updateOneStatus(c.id, e.target.value as CandidateStatus)}>
-                    {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
-                  </select>
+                  <div className="toolbar-actions" style={{ justifyContent: "flex-start", gap: 6 }}>
+                    <span className={`status-chip status-${c.status || "applied"}`}>{formatStatus(c.status || "applied")}</span>
+                    <select value={c.status || "applied"} onChange={(e) => updateOneStatus(c.id, e.target.value as CandidateStatus)}>
+                      {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
+                    </select>
+                  </div>
                 </td>
                 <td>{c.years_of_experience ?? "-"}</td>
                 <td>{c.created_at ? new Date(c.created_at).toLocaleDateString() : "-"}</td>

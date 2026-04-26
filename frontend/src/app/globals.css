@@ -701,3 +701,14 @@ label {
 .skeleton { border-radius: 8px; background: linear-gradient(90deg, rgba(148,163,184,0.15), rgba(148,163,184,0.28), rgba(148,163,184,0.15)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .empty-state { display:grid; gap:6px; padding:14px; }
+
+
+.candidate-table-compact th, .candidate-table-compact td { padding-top: 6px; padding-bottom: 6px; }
+.status-chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+.status-applied { background: rgba(59,130,246,.14); }
+.status-screening { background: rgba(14,165,233,.14); }
+.status-interview { background: rgba(245,158,11,.14); }
+.status-offer { background: rgba(168,85,247,.14); }
+.status-hired { background: rgba(16,185,129,.14); }
+.status-rejected { background: rgba(239,68,68,.14); }
+.notif-dot { display:inline-block; width:8px; height:8px; border-radius:999px; background:#22c55e; margin-right:6px; }

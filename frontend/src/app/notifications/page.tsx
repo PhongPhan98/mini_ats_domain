@@ -7,6 +7,19 @@ import { apiGet, apiPost } from "../../lib/api";
 
 type NotificationTab = "all" | "mentions" | "ownership";
 
+const timeAgo = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso).getTime();
+  const diff = Math.max(0, Date.now() - d);
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const dd = Math.floor(h / 24);
+  return `${dd}d ago`;
+};
+
 export default function NotificationsPage() {
   const router = useRouter();
   const [mentions, setMentions] = useState<any[]>([]);
@@ -36,6 +49,8 @@ export default function NotificationsPage() {
   const mentionItems = useMemo(() => mentions || [], [mentions]);
   const requestItems = useMemo(() => requests || [], [requests]);
   const inviteItems = useMemo(() => invitations || [], [invitations]);
+  const seenAt = typeof window !== "undefined" ? (localStorage.getItem("miniats_notif_seen_at") || "") : "";
+  const isUnread = (ts?: string) => !!ts && (!seenAt || ts > seenAt);
   const allCount = mentionItems.length + requestItems.length + inviteItems.length;
 
   return (
@@ -64,9 +79,9 @@ export default function NotificationsPage() {
               <div key={m.comment_id} className="timeline-item">
                 <div className="timeline-dot" />
                 <div>
-                  <div className="timeline-title">Mentioned in candidate #{m.candidate_id}</div>
+                  <div className="timeline-title">{isUnread(m.created_at) ? <span className="notif-dot" /> : null} Mentioned in candidate #{m.candidate_id}</div>
                   <div>{m.body}</div>
-                  <small>{m.created_at}</small>
+                  <small>{timeAgo(m.created_at)} · {new Date(m.created_at).toLocaleString()}</small>
                   <div style={{ marginTop: 6 }}>
                     <Link className="chip" href={`/candidates/${m.candidate_id}`}>Open Candidate</Link>
                   </div>
@@ -87,9 +102,9 @@ export default function NotificationsPage() {
               <div key={inv.id} className="timeline-item">
                 <div className="timeline-dot" />
                 <div>
-                  <div className="timeline-title">{inv.from_email} shared candidate #{inv.candidate_id}</div>
+                  <div className="timeline-title">{isUnread(inv.created_at) ? <span className="notif-dot" /> : null} {inv.from_email} shared candidate #{inv.candidate_id}</div>
                   {inv.reason ? <div>{inv.reason}</div> : null}
-                  <small>{inv.created_at}</small>
+                  <small>{timeAgo(inv.created_at)} · {new Date(inv.created_at).toLocaleString()}</small>
                   <div className="toolbar-actions" style={{ marginTop: 6 }}>
                     <button style={{ width: "auto" }} onClick={async () => { const rs = await apiPost<{ clone_candidate_id?: number }>(`/api/candidates/${inv.candidate_id}/share/invitations/${inv.id}/decision`, { decision: "approve" }); const next = inviteItems.filter((x) => x.id !== inv.id); setInvitations(next); if (rs.clone_candidate_id) router.push(`/candidates/${rs.clone_candidate_id}`); }}>Approve & Clone</button>
                     <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${inv.candidate_id}/share/invitations/${inv.id}/decision`, { decision: "reject" }); const next = inviteItems.filter((x) => x.id !== inv.id); setInvitations(next); }}>Reject</button>
@@ -111,9 +126,9 @@ export default function NotificationsPage() {
               <div key={r.id} className="timeline-item">
                 <div className="timeline-dot" />
                 <div>
-                  <div className="timeline-title">Candidate #{r.candidate_id} — {r.status}</div>
+                  <div className="timeline-title">{isUnread(r.updated_at || r.created_at) ? <span className="notif-dot" /> : null} Candidate #{r.candidate_id} — {r.status}</div>
                   <div>Your request to transfer ownership is <strong>{r.status}</strong>.</div>
-                  <small>{r.updated_at || r.created_at}</small>
+                  <small>{timeAgo(r.updated_at || r.created_at)} · {new Date(r.updated_at || r.created_at).toLocaleString()}</small>
                   <div style={{ marginTop: 6 }}><Link className="chip" href={`/candidates/${r.candidate_id}#req-${r.id}`}>Open Candidate</Link></div>
                 </div>
               </div>
