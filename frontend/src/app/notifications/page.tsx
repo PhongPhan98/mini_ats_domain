@@ -65,9 +65,9 @@ export default function NotificationsPage() {
         </div>
 
         <div className="toolbar-actions" style={{ marginTop: 10 }}>
-          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setTab("all")}>All ({allCount})</button>
-          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setTab("mentions")}>Mentions ({mentionItems.length})</button>
-          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setTab("ownership")}>Ownership ({requestItems.length})</button>
+          <button className={tab === "all" ? "btn-outline tab-active" : "btn-outline"} style={{ width: "auto" }} onClick={() => setTab("all")}>All ({allCount})</button>
+          <button className={tab === "mentions" ? "btn-outline tab-active" : "btn-outline"} style={{ width: "auto" }} onClick={() => setTab("mentions")}>Mentions ({mentionItems.length})</button>
+          <button className={tab === "ownership" ? "btn-outline tab-active" : "btn-outline"} style={{ width: "auto" }} onClick={() => setTab("ownership")}>Ownership ({requestItems.length})</button>
         </div>
       </div>
 

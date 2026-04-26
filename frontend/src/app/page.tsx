@@ -381,7 +381,7 @@ export default function DashboardPage() {
         </table>
 
         <div className="toolbar" style={{ marginTop: 12 }}>
-          <small>Page {page} / {totalPages}</small>
+          <small>Page {page} / {totalPages} · Total {sortedCandidates.length} candidates</small>
           <div className="toolbar-actions">
             <button className="btn-outline" disabled={!canPrev} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
             <button className="btn-outline" disabled={!canNext} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>

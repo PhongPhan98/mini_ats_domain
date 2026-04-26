@@ -234,11 +234,12 @@ export default function JobsPage() {
 
       {match && (
         <div className="card">
-          <div className="toolbar">
+          <div className="toolbar sticky-toolbar">
             <div>
               <h3 style={{ margin: 0 }}>{t("match_results")}: {match.job_title}</h3>
               <small>Only candidates above selected threshold are shown.</small>
             </div>
+            <button className="btn-outline" style={{ width: "auto" }} onClick={() => setMatch(null)}>Close</button>
           </div>
           <div className="match-list" style={{ marginTop: 10 }}>
             {match.results.map((r) => (
