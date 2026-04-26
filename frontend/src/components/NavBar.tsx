@@ -64,7 +64,6 @@ export default function NavBar() {
         <LanguageToggle />
         <CompactModeToggle />
         <ThemeToggle />
-        {me ? (mentionCount > 0 ? <Link className="chip" href="/notifications">@ {mentionCount}</Link> : null) : null}
         <AuthStatus />
       </div>
     </nav>
