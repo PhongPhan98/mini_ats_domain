@@ -697,7 +697,7 @@ label {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 
-.sticky-toolbar { position: sticky; top: 8px; z-index: 5; background: var(--card-bg, rgba(15,23,42,.9)); padding: 8px; border-radius: 10px; }
+.sticky-toolbar { position: sticky; top: 8px; z-index: 5; background: color-mix(in srgb, var(--card) 94%, var(--bg-elev)); color: var(--text); padding: 8px; border-radius: 10px; border: 1px solid var(--border); }
 .skeleton { border-radius: 8px; background: linear-gradient(90deg, rgba(148,163,184,0.15), rgba(148,163,184,0.28), rgba(148,163,184,0.15)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .empty-state { display:grid; gap:6px; padding:14px; }
