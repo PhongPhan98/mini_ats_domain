@@ -36,11 +36,11 @@ export default function NotificationsPage() {
     (async () => {
       const [m, r, inv] = await Promise.all([
         apiGet<{ mentions: any[] }>("/api/candidates/notifications/mentions"),
-        apiGet<{ requests: any[] }>("/api/candidates/ownership/requests?scope=sent"),
+        apiGet<{ requests: any[] }>("/api/candidates/ownership/requests?scope=inbox"),
         apiGet<{ invitations: any[] }>("/api/candidates/share/invitations?scope=inbox"),
       ]);
       setMentions(m.mentions || []);
-      setRequests((r.requests || []).filter((x) => x.status !== "pending"));
+      setRequests(r.requests || []);
       setInvitations(inv.invitations || []);
       markAllRead();
     })();
@@ -120,20 +120,20 @@ export default function NotificationsPage() {
 
       {(tab === "all" || tab === "ownership") && (
         <div className="card">
-          <h3>Ownership Request Updates</h3>
+          <h3>Ownership Requests</h3>
           <div className="timeline">
             {requestItems.map((r) => (
               <div key={r.id} className="timeline-item">
                 <div className="timeline-dot" />
                 <div>
                   <div className="timeline-title">{isUnread(r.updated_at || r.created_at) ? <span className="notif-dot" /> : null} Candidate #{r.candidate_id} — {r.status}</div>
-                  <div>Your request to transfer ownership is <strong>{r.status}</strong>.</div>
+                  <div>Ownership request is <strong>{r.status}</strong>.</div>
                   <small>{timeAgo(r.updated_at || r.created_at)} · {new Date(r.updated_at || r.created_at).toLocaleString()}</small>
-                  <div style={{ marginTop: 6 }}><Link className="chip" href={`/candidates/${r.candidate_id}#req-${r.id}`}>Open Candidate</Link></div>
+                  <div style={{ marginTop: 6 }}><Link className="chip" href={`/candidates/${r.candidate_id}#req-${r.id}`}>{r.status === "pending" ? "Review Request" : "Open Candidate"}</Link></div>
                 </div>
               </div>
             ))}
-            {!requestItems.length && <small>No ownership updates yet.</small>}
+            {!requestItems.length && <small>No ownership requests yet.</small>}
           </div>
         </div>
       )}
