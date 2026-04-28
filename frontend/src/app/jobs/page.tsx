@@ -219,7 +219,16 @@ export default function JobsPage() {
               </div>
             </div>
           ))}
-          {!jobs.length && <small>{showTrash ? "Trash is empty." : t("no_jobs")}</small>}
+          {!jobs.length && <div className="empty-state"><strong>{showTrash ? "Trash is empty." : "No jobs yet"}</strong><small>{showTrash ? "No deleted jobs to restore." : "Start by creating your first job, then run AI matching to shortlist candidates."}</small>{!showTrash ? <button style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>Create first job</button> : null}</div>}
+        </div>
+      </div>
+
+      <div className="card sticky-quick-actions">
+        <h3 style={{ marginTop: 0 }}>Quick Actions</h3>
+        <div className="grid" style={{ gap: 8 }}>
+          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>+ Create Job</button>
+          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash(false)}>View Active Jobs</button>
+          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash(true)}>Open Job Trash</button>
         </div>
       </div>
 
@@ -276,6 +285,7 @@ export default function JobsPage() {
                   <div className="toolbar-actions" style={{ gap: 8 }}>
                     <strong>{r.candidate_name || `#${r.candidate_id}`}</strong>
                     <span className={`chip match-score ${scoreBand(r.match_score)}`}>{r.match_score}%</span>
+                    <div className="score-bar"><span style={{ width: `${Math.max(2, Math.min(100, r.match_score))}%` }} /></div>
                     <span className={`chip ${String(r.explanation || "").startsWith("[AI]") ? "ai-on" : "ai-off"}`}>{String(r.explanation || "").startsWith("[AI]") ? "AI" : "Rule"}</span>
                   </div>
                   <div className="toolbar-actions">

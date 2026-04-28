@@ -1146,3 +1146,8 @@ textarea {
 .job-item .toolbar-actions button { white-space: nowrap; }
 .match-item .chip { font-weight: 700; }
 .match-item .explain-box { line-height: 1.35; }
+
+
+.score-bar { width: 80px; height: 7px; border-radius: 999px; background: rgba(148,163,184,.25); overflow: hidden; }
+.score-bar span { display:block; height:100%; background: linear-gradient(90deg, #22c55e, #60a5fa); }
+.sticky-quick-actions { position: sticky; top: 80px; z-index: 5; }
