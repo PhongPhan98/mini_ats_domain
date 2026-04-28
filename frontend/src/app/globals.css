@@ -791,3 +791,25 @@ html { scroll-behavior: smooth; }
 
 .login-logo { width:56px; height:56px; border-radius:16px; margin: 0 auto 8px; display:grid; place-items:center; font-size:28px; background: linear-gradient(180deg, color-mix(in srgb, #3b82f6 24%, var(--card)), color-mix(in srgb, #2563eb 14%, var(--card))); border:1px solid color-mix(in srgb, #60a5fa 45%, var(--border)); }
 .login-help { margin-top: 12px; color: var(--muted); font-size: 12px; }
+
+
+/* Compact thin controls */
+button, .btn-outline {
+  padding: 7px 10px;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  border-width: 1px;
+}
+.chip {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-width: 1px;
+}
+.nav-link {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+input, select, textarea {
+  font-size: 13px;
+}
