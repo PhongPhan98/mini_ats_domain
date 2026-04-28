@@ -166,7 +166,7 @@ def match_candidates(
                 m_ai = LLMService.match_candidate(job.title, job.requirements, payload)
                 m = {
                     "match_score": int(m_ai.get("match_score", 0)),
-                    "explanation": m_ai.get("explanation") or "AI matching",
+                    "explanation": "[AI] " + (m_ai.get("explanation") or "AI matching"),
                 }
             except Exception:
                 m = None

@@ -24,6 +24,7 @@ export default function JobsPage() {
   const [modalFullscreen, setModalFullscreen] = useState(false);
   const [expandedExplain, setExpandedExplain] = useState<Record<number, boolean>>({});
   const [useAiMatch, setUseAiMatch] = useState(false);
+  const [matchingBusy, setMatchingBusy] = useState(false);
   const [showCreateJob, setShowCreateJob] = useState(false);
   const { t, lang } = useAppLanguage();
 
@@ -141,6 +142,7 @@ export default function JobsPage() {
           </div>
           <div className="toolbar-actions">
             <label className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><input type="checkbox" checked={useAiMatch} onChange={(e) => setUseAiMatch(e.target.checked)} /> Use AI match</label>
+            <span className={`chip ${useAiMatch ? "ai-on" : "ai-off"}`}>{useAiMatch ? "AI mode ON" : "Rule mode"}</span>
             <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>{showTrash ? "Back to Active" : "Trash"}</button>
           </div>
         </div>
@@ -240,12 +242,15 @@ export default function JobsPage() {
         </div>
       )}
 
+      {matchingBusy ? <div className="card match-processing"><div className="spinner" /><div><strong>Matching in progress...</strong><small>Calculating best candidates for this job.</small></div></div> : null}
+
       {match && (
         <div className="card">
           <div className="toolbar sticky-toolbar">
             <div>
               <h3 style={{ margin: 0 }}>{t("match_results")}: {match.job_title}</h3>
               <small>Only candidates above selected threshold are shown.</small>
+              <div className="chip-wrap" style={{ marginTop: 6 }}><span className={`chip ${useAiMatch ? "ai-on" : "ai-off"}`}>{useAiMatch ? "Expected: AI + fallback" : "Expected: Rule-based"}</span></div>
             </div>
             <button className="btn-outline" style={{ width: "auto" }} onClick={() => setMatch(null)}>Close</button>
           </div>
@@ -256,6 +261,7 @@ export default function JobsPage() {
                   <div className="toolbar-actions" style={{ gap: 8 }}>
                     <strong>{r.candidate_name || `#${r.candidate_id}`}</strong>
                     <span className={`chip match-score ${scoreBand(r.match_score)}`}>{r.match_score}%</span>
+                    <span className={`chip ${String(r.explanation || "").startsWith("[AI]") ? "ai-on" : "ai-off"}`}>{String(r.explanation || "").startsWith("[AI]") ? "AI" : "Rule"}</span>
                   </div>
                   <div className="toolbar-actions">
                     <Link className="chip" href={`/candidates/${r.candidate_id}`}>View</Link>
