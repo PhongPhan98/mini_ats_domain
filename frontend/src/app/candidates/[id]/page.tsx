@@ -474,13 +474,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div>
         <div style={{ marginTop: 12 }}>
           <label>Experience details</label>
-          <textarea rows={4} value={String(((candidate.parsed_json as any)?.experience_details || []).join("
-"))} readOnly disabled />
+          <textarea rows={4} value={String(((candidate.parsed_json as any)?.experience_details || []).join("\n"))} readOnly disabled />
         </div>
         <div style={{ marginTop: 12 }}>
           <label>Achievements</label>
-          <textarea rows={4} value={String(((candidate.parsed_json as any)?.achievements || []).join("
-"))} readOnly disabled />
+          <textarea rows={4} value={String(((candidate.parsed_json as any)?.achievements || []).join("\n"))} readOnly disabled />
         </div>
         <div style={{ marginTop: 12 }}>
           <label>{t("add_note_update")}</label>
