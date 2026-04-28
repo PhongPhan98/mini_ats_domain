@@ -662,3 +662,25 @@ def _extract_preferred_location(text: str) -> str | None:
     m = re.search(r"(preferred\s*location|location\s*preference|willing\s*to\s*relocate)[:\s-]*([^\n]{2,60})", t, re.I)
     return m.group(2).strip() if m else None
 
+
+
+
+def _extract_experience_timeline(lines: list[str]) -> list[dict[str, str]]:
+    timeline = []
+    date_re = re.compile(r"(20\d{2}|19\d{2})\s*[-–]\s*(20\d{2}|present|now)", re.I)
+    for i, ln in enumerate(lines[:220]):
+        m = date_re.search(ln)
+        if not m:
+            continue
+        role = ln.strip()
+        company = lines[i - 1].strip() if i > 0 else ""
+        if len(company) < 3:
+            company = ""
+        timeline.append(
+            {
+                "role": role[:120],
+                "company": company[:120],
+                "period": m.group(0),
+            }
+        )
+    return timeline[:12]
