@@ -372,7 +372,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           <span className={`status-badge status-${candidate.status || "applied"}`}>
             {formatStatus(candidate.status || "applied")}
           </span>
-          {!isOwner ? <div className="toolbar-actions"><input style={{ maxWidth: 260 }} value={ownershipReason} onChange={(e) => setOwnershipReason(e.target.value)} placeholder="Reason to request ownership" /> <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/ownership/request`, { reason: ownershipReason }); notify("Ownership request sent", "success"); const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`); setCandidate(updated); }} disabled={(((candidate?.parsed_json as any)?.ownership_requests || []) as any[]).some((r) => String(r.from_email||"").toLowerCase()===meEmail && r.status==="pending")}>Request ownership</button></div> : null}
+          {!isOwner ? <div className="toolbar-actions"><input style={{ maxWidth: 260 }} value={ownershipReason} onChange={(e) => setOwnershipReason(e.target.value)} placeholder="Reason to request ownership" /> <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/ownership/request`, { reason: ownershipReason }); notify("Ownership request sent", "success"); const updated = (await apiGet(`/api/candidates/${candidateId}`)) as Candidate; setCandidate(updated); }} disabled={(((candidate?.parsed_json as any)?.ownership_requests || []) as any[]).some((r) => String(r.from_email||"").toLowerCase()===meEmail && r.status==="pending")}>Request ownership</button></div> : null}
         </div>
       </div>
 
