@@ -1141,3 +1141,8 @@ textarea {
 .match-item:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.12); }
 .job-item { transition: transform .12s ease, border-color .12s ease; }
 .job-item:hover { transform: translateY(-1px); border-color: color-mix(in srgb, #60a5fa 40%, var(--border)); }
+
+
+.job-item .toolbar-actions button { white-space: nowrap; }
+.match-item .chip { font-weight: 700; }
+.match-item .explain-box { line-height: 1.35; }

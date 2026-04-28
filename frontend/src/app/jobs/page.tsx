@@ -148,6 +148,21 @@ export default function JobsPage() {
         </div>
       </div>
 
+      <div className="card">
+        <div className="toolbar">
+          <div>
+            <h3 style={{ margin: 0 }}>How matching works</h3>
+            <small>Pick threshold, choose AI mode, run matching, then shortlist best-fit candidates.</small>
+          </div>
+          <div className="chip-wrap">
+            <span className="chip">1) Configure threshold</span>
+            <span className="chip">2) Run match</span>
+            <span className="chip">3) Review explanation</span>
+            <span className="chip">4) Move to Screening</span>
+          </div>
+        </div>
+      </div>
+
       {!showTrash && (
         <div className="card">
           <div className="toolbar">
@@ -170,7 +185,7 @@ export default function JobsPage() {
       )}
 
       <div className="card">
-        <h3>{showTrash ? "Job Trash" : t("job_list")}</h3>
+        <div className="toolbar"><h3 style={{ margin: 0 }}>{showTrash ? "Job Trash" : t("job_list")}</h3><small>{showTrash ? "Deleted jobs can be restored." : "Only your jobs are visible here."}</small></div>
         <div className="job-list" style={{ marginTop: 10 }}>
           {jobs.map((job) => (
             <div key={job.id} className="job-item">
@@ -189,7 +204,7 @@ export default function JobsPage() {
                       onChange={(e) => setThresholdByJob((prev) => ({ ...prev, [job.id]: Number(e.target.value || 0) }))}
                       style={{ width: 82 }}
                     />
-                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => saveThreshold(job.id)}>Save %</button>
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => saveThreshold(job.id)}>Save threshold</button>
                     <button className="btn-outline" style={{ width: "auto" }} onClick={() => runMatch(job.id)}>
                       {loadingMatchId === job.id ? t("running") : `${t("run_matching")} (≥${thresholdByJob[job.id] ?? 50}%)`}
                     </button>
@@ -249,7 +264,7 @@ export default function JobsPage() {
           <div className="toolbar sticky-toolbar">
             <div>
               <h3 style={{ margin: 0 }}>{t("match_results")}: {match.job_title}</h3>
-              <small>Only candidates above selected threshold are shown.</small>
+              <small>Only candidates above selected threshold are shown. Use explanations to compare fit quality quickly.</small>
               <div className="chip-wrap" style={{ marginTop: 6 }}><span className={`chip ${useAiMatch ? "ai-on" : "ai-off"}`}>{useAiMatch ? "Expected: AI + fallback" : "Expected: Rule-based"}</span></div>
             </div>
             <button className="btn-outline" style={{ width: "auto" }} onClick={() => setMatch(null)}>Close</button>
@@ -265,7 +280,7 @@ export default function JobsPage() {
                   </div>
                   <div className="toolbar-actions">
                     <Link className="chip" href={`/candidates/${r.candidate_id}`}>View</Link>
-                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => shortlistFromMatch(r.candidate_id)}>Shortlist</button>
+                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => shortlistFromMatch(r.candidate_id)}>Move to Screening</button>
                   </div>
                 </div>
                 <div className={`explain-box ${expandedExplain[r.candidate_id] ? "expanded" : "collapsed"}`}>{formatExplanation(r.explanation)}</div>
