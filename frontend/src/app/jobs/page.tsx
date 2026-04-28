@@ -139,25 +139,31 @@ export default function JobsPage() {
             <h2 style={{ marginTop: 0 }}>{t("jobs_title")}</h2>
             <small>{t("jobs_hint")}</small>
           </div>
-          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>
-            {showTrash ? "Back to Active" : "Trash"}
-          </button>
-                  </div>
+          <div className="toolbar-actions">
+            <label className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><input type="checkbox" checked={useAiMatch} onChange={(e) => setUseAiMatch(e.target.checked)} /> Use AI match</label>
+            <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>{showTrash ? "Back to Active" : "Trash"}</button>
+          </div>
+        </div>
       </div>
 
       {!showTrash && (
         <div className="card">
-          <h3>{t("create_job")}</h3>
-          <div className="grid" style={{ marginTop: 8 }}>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("job_title")} />
-            <textarea
-              style={{ minHeight: 120 }}
-              value={requirements}
-              onChange={(e) => setRequirements(e.target.value)}
-              placeholder={t("enter_requirements")}
-            />
-            <button onClick={createJob}>{t("save_job")}</button>
+          <div className="toolbar">
+            <h3 style={{ margin: 0 }}>{t("create_job")}</h3>
+            <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowCreateJob((v) => !v)}>{showCreateJob ? "Hide" : "Create new job"}</button>
           </div>
+          {showCreateJob ? (
+            <div className="grid" style={{ marginTop: 8 }}>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("job_title")} />
+              <textarea
+                style={{ minHeight: 120 }}
+                value={requirements}
+                onChange={(e) => setRequirements(e.target.value)}
+                placeholder={t("enter_requirements")}
+              />
+              <button onClick={createJob}>{t("save_job")}</button>
+            </div>
+          ) : <small>Click "Create new job" to open the form.</small>}
         </div>
       )}
 
