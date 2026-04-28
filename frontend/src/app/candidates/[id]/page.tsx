@@ -467,6 +467,21 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           <label>{t("summary")}</label>
           <textarea rows={6} value={form.summary} onChange={(e) => updateField("summary", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
         </div>
+        <div className="grid grid-2" style={{ marginTop: 12 }}>
+          <div><label>Domain tags</label><input value={String(((candidate.parsed_json as any)?.domain_tags || []).join(", "))} readOnly disabled /></div>
+          <div><label>Notice period</label><input value={String((candidate.parsed_json as any)?.notice_period || "")} readOnly disabled /></div>
+          <div><label>Preferred location</label><input value={String((candidate.parsed_json as any)?.preferred_location || "")} readOnly disabled /></div>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label>Experience details</label>
+          <textarea rows={4} value={String(((candidate.parsed_json as any)?.experience_details || []).join("
+"))} readOnly disabled />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label>Achievements</label>
+          <textarea rows={4} value={String(((candidate.parsed_json as any)?.achievements || []).join("
+"))} readOnly disabled />
+        </div>
         <div style={{ marginTop: 12 }}>
           <label>{t("add_note_update")}</label>
           <textarea rows={3} value={form.note} onChange={(e) => updateField("note", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />

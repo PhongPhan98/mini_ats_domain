@@ -630,3 +630,35 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
         "title_score_pct": round(title_score * 100, 2),
         "semantic_score_pct": round(semantic_score * 100, 2),
     }
+
+
+
+def _extract_domain_tags(text: str) -> list[str]:
+    t = _match_normalize(text)
+    tags = []
+    hints = {
+        "fintech": ["fintech", "bank", "payment", "e-wallet"],
+        "ecommerce": ["ecommerce", "e-commerce", "marketplace", "shop"],
+        "saas": ["saas", "b2b", "subscription"],
+        "healthcare": ["healthcare", "hospital", "medical"],
+        "education": ["edtech", "education", "learning"],
+        "logistics": ["logistics", "supply chain", "warehouse"],
+        "ai/ml": ["machine learning", "deep learning", "ai", "llm"],
+    }
+    for k, arr in hints.items():
+        if any(x in t for x in arr):
+            tags.append(k)
+    return tags[:6]
+
+
+def _extract_notice_period(text: str) -> str | None:
+    t = _normalize_text(text)
+    m = re.search(r"(notice\s*period|available\s*from|can\s*join)[:\s-]*([^\n]{2,40})", t, re.I)
+    return m.group(2).strip() if m else None
+
+
+def _extract_preferred_location(text: str) -> str | None:
+    t = _normalize_text(text)
+    m = re.search(r"(preferred\s*location|location\s*preference|willing\s*to\s*relocate)[:\s-]*([^\n]{2,60})", t, re.I)
+    return m.group(2).strip() if m else None
+
