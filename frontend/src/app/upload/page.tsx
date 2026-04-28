@@ -24,6 +24,13 @@ type Draft = {
     certifications_text: string;
     languages_text: string;
     projects_text: string;
+    education_text: string;
+    previous_companies_text: string;
+    experience_text: string;
+    domain_tags_text: string;
+    achievements_text: string;
+    preferred_location: string;
+    notice_period: string;
   };
   saving?: boolean;
   savedCandidateId?: number;
@@ -48,6 +55,13 @@ function fromParsed(file: File, parsed: any): Draft {
       certifications_text: (parsed?.certifications || []).join(", "),
       languages_text: (parsed?.languages || []).join(", "),
       projects_text: (parsed?.projects || []).join(" | "),
+      education_text: (parsed?.education || []).join("\n"),
+      previous_companies_text: (parsed?.previous_companies || []).join(", "),
+      experience_text: (parsed?.experience_details || []).join("\n"),
+      domain_tags_text: (parsed?.domain_tags || []).join(", "),
+      achievements_text: (parsed?.achievements || []).join("\n"),
+      preferred_location: parsed?.preferred_location || "",
+      notice_period: parsed?.notice_period || "",
     },
   };
 }
@@ -98,6 +112,8 @@ export default function UploadPage() {
     if (current.editing.skills_text) pts += 20;
     if (current.editing.summary) pts += 20;
     if (current.editing.current_title) pts += 10;
+    if (current.editing.education_text) pts += 10;
+    if (current.editing.experience_text) pts += 10;
     return pts;
   }, [current]);
 
@@ -157,6 +173,13 @@ export default function UploadPage() {
     certifications: d.editing.certifications_text.split(",").map((x) => x.trim()).filter(Boolean),
     languages: d.editing.languages_text.split(",").map((x) => x.trim()).filter(Boolean),
     projects: d.editing.projects_text.split("|").map((x) => x.trim()).filter(Boolean),
+    education: d.editing.education_text.split("\n").map((x) => x.trim()).filter(Boolean),
+    previous_companies: d.editing.previous_companies_text.split(",").map((x) => x.trim()).filter(Boolean),
+    experience_details: d.editing.experience_text.split("\n").map((x) => x.trim()).filter(Boolean),
+    domain_tags: d.editing.domain_tags_text.split(",").map((x) => x.trim()).filter(Boolean),
+    achievements: d.editing.achievements_text.split("\n").map((x) => x.trim()).filter(Boolean),
+    preferred_location: d.editing.preferred_location || null,
+    notice_period: d.editing.notice_period || null,
   });
 
   const saveCurrent = async () => {
@@ -297,6 +320,14 @@ export default function UploadPage() {
                 <div><label>Languages (CSV)</label><input value={current.editing.languages_text} onChange={(e) => update("languages_text", e.target.value)} /></div>
                 <div><label>Projects (separate by |)</label><input className={isLow(current.data?.confidence?.projects, current.editing.projects_text) ? "field-low" : ""} value={current.editing.projects_text} onChange={(e) => update("projects_text", e.target.value)} /></div>
                 <div><label>{t("summary")}</label><textarea className={isLow(current.data?.confidence?.summary, current.editing.summary) ? "field-low" : ""} rows={5} value={current.editing.summary} onChange={(e) => update("summary", e.target.value)} /></div>
+
+                <div><label>Education details (one per line)</label><textarea rows={4} value={current.editing.education_text} onChange={(e) => update("education_text", e.target.value)} /></div>
+                <div><label>Previous companies (CSV)</label><input value={current.editing.previous_companies_text} onChange={(e) => update("previous_companies_text", e.target.value)} /></div>
+                <div><label>Experience details (one bullet per line)</label><textarea rows={5} value={current.editing.experience_text} onChange={(e) => update("experience_text", e.target.value)} /></div>
+                <div><label>Achievements (one per line)</label><textarea rows={4} value={current.editing.achievements_text} onChange={(e) => update("achievements_text", e.target.value)} /></div>
+                <div><label>Domain tags (CSV)</label><input value={current.editing.domain_tags_text} onChange={(e) => update("domain_tags_text", e.target.value)} /></div>
+                <div className="grid grid-2"><div><label>Preferred location</label><input value={current.editing.preferred_location} onChange={(e) => update("preferred_location", e.target.value)} /></div><div><label>Notice period</label><input value={current.editing.notice_period} onChange={(e) => update("notice_period", e.target.value)} /></div></div>
+
               </div>
             </div>
           </div>
