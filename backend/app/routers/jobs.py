@@ -8,6 +8,7 @@ from app.rbac import require_roles
 from app.schemas import JobCreate, JobOut, MatchItem, MatchResponse
 from app.services.rule_based import match_candidate_rule_based
 from app.services.audit import log_event
+from app.services.llm import LLMService
 from pathlib import Path
 import json
 
@@ -144,6 +145,7 @@ def match_candidates(
     job_id: int,
     threshold: int | None = Query(default=None),
     lang: str = Query(default="en"),
+    use_ai: bool = Query(default=False),
     db: Session = Depends(get_db),
     _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
@@ -158,7 +160,19 @@ def match_candidates(
     results = []
     for c in candidates:
         payload = _to_candidate_payload(c)
-        m = match_candidate_rule_based(job.title, job.requirements, payload, lang=lang)
+        m = None
+        if use_ai:
+            try:
+                m_ai = LLMService.match_candidate(job.title, job.requirements, payload)
+                m = {
+                    "match_score": int(m_ai.get("match_score", 0)),
+                    "explanation": m_ai.get("explanation") or "AI matching",
+                }
+            except Exception:
+                m = None
+        if m is None:
+            m = match_candidate_rule_based(job.title, job.requirements, payload, lang=lang)
+
         if m["match_score"] >= min_threshold:
             results.append(
                 MatchItem(
