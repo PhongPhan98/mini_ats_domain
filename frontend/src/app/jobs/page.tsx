@@ -24,7 +24,7 @@ export default function JobsPage() {
   const [modalFullscreen, setModalFullscreen] = useState(false);
   const [expandedExplain, setExpandedExplain] = useState<Record<number, boolean>>({});
   const [useAiMatch, setUseAiMatch] = useState(false);
-  const [showCreateJob, setShowCreateJob] = useState(true);
+  const [showCreateJob, setShowCreateJob] = useState(false);
   const { t, lang } = useAppLanguage();
 
   const loadJobs = async () => {
