@@ -28,6 +28,7 @@ app.mount("/uploads", StaticFiles(directory=upload_path), name="uploads")
 
 app.include_router(auth.router)
 app.include_router(audit.router)
+app.include_router(activity.router)
 app.include_router(users.router)
 app.include_router(candidates.router)
 app.include_router(comments.router)

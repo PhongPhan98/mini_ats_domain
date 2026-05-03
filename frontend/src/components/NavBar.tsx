@@ -58,6 +58,7 @@ export default function NavBar() {
         <Link className={isActive("/automation") ? "nav-link nav-link-active" : "nav-link"} href="/automation"><NavLabel full={t("nav_automation")} short="Auto" /></Link>
         <Link className={isActive("/upload") ? "nav-link nav-link-active" : "nav-link"} href="/upload"><NavLabel full={t("nav_upload")} short="Upload" /></Link>
         <Link className={isActive("/notifications") ? "nav-link nav-link-active" : "nav-link"} href="/notifications"><NavLabel full="Notifications" short="Notif" />{mentionCount > 0 ? <span className="chip" style={{ marginLeft: 6 }}>{mentionCount}</span> : null}</Link>
+        <Link className={isActive("/activity") ? "nav-link nav-link-active" : "nav-link"} href="/activity"><NavLabel full="Activity" short="Act" /></Link>
         {me?.role === "admin" && <Link className={isActive("/users") ? "nav-link nav-link-active" : "nav-link"} href="/users"><NavLabel full="Users" short="User" /></Link>}
         {me?.role === "admin" && <Link className={isActive("/audit") ? "nav-link nav-link-active" : "nav-link"} href="/audit"><NavLabel full="Audit" short="Log" /></Link>}
         {me?.role === "admin" && <Link className={isActive("/permissions") ? "nav-link nav-link-active" : "nav-link"} href="/permissions"><NavLabel full="Permissions" short="Perm" /></Link>}
