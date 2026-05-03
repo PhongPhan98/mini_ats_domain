@@ -363,6 +363,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   return (
     <div className="grid page-enter">
       <div className="card">
+        {!isOwner ? <div className="chip" style={{ marginBottom: 10, display: "inline-flex" }}>View-only access: you can comment and request ownership; only owner can edit candidate profile.</div> : null}
         <div className="toolbar">
           <div>
             <Link href="/">← {t("back")}</Link>
@@ -377,6 +378,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
 {!isViewOnly ? <div className="card">
+        {!isOwner ? <div className="chip" style={{ marginBottom: 10, display: "inline-flex" }}>View-only access: you can comment and request ownership; only owner can edit candidate profile.</div> : null}
         <div className="toolbar">
           <h3 style={{ margin: 0 }}>Original CV Files</h3>
           <small>{candidate.files?.length || 0} file(s)</small>
@@ -629,6 +631,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       <div id="sec-comments" className="grid grid-2">
         <div className="card">
           <h3>{t("comments_mentions")}</h3>
+          <small>Use comments for team discussion and mentions.</small>
           <small>{t("mention_hint")}</small>
           <div style={{ marginTop: 10 }}>
             <textarea

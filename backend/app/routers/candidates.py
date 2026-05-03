@@ -415,6 +415,17 @@ def update_candidate(
 
     update_data = payload.model_dump(exclude_unset=True)
 
+    # Prevent privilege escalation / ownership tampering via generic PATCH payload.
+    protected_fields = {
+        "owner_user_id", "owner_email",
+        "collaborator_user_ids", "collaborator_emails",
+        "share_invitations", "ownership_requests",
+        "deleted", "deleted_at",
+    }
+    for k in list(update_data.keys()):
+        if k in protected_fields:
+            update_data.pop(k, None)
+
     note_text = None
     if "notes" in update_data:
         note_text = (update_data.pop("notes") or "").strip() or None
