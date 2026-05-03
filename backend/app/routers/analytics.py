@@ -28,16 +28,19 @@ def _candidate_source(candidate: Candidate) -> str:
     return "direct"
 
 
-def _first_timeline_ts(candidate: Candidate, event_type: str):
+def _first_timeline_ts(candidate: Candidate, event_type: str, contains_value: str | None = None):
     timeline = (candidate.parsed_json or {}).get("timeline", [])
     for ev in timeline:
-        if str(ev.get("type", "")).lower() == event_type:
-            ts = ev.get("timestamp")
-            if ts:
-                try:
-                    return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-                except Exception:
-                    pass
+        if str(ev.get("type", "")).lower() != event_type:
+            continue
+        if contains_value and contains_value.lower() not in str(ev.get("value", "")).lower():
+            continue
+        ts = ev.get("timestamp")
+        if ts:
+            try:
+                return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+            except Exception:
+                pass
     return None
 
 
@@ -110,6 +113,14 @@ def summary(
     offer = status_distribution.get("offer", 0)
     hired = status_distribution.get("hired", 0)
 
+    funnel_counts = [
+        {"stage": "applied", "count": applied},
+        {"stage": "screening", "count": screening},
+        {"stage": "interview", "count": interview},
+        {"stage": "offer", "count": offer},
+        {"stage": "hired", "count": hired},
+    ]
+
     conversion_rates = [
         {"stage": "applied_to_screening", "rate_pct": round(screening * 100 / applied, 2)},
         {"stage": "screening_to_interview", "rate_pct": round(interview * 100 / max(screening, 1), 2)},
@@ -122,7 +133,7 @@ def summary(
         if normalize_status(c.status) != "hired":
             continue
         start = c.created_at
-        hired_ts = _first_timeline_ts(c, "status")
+        hired_ts = _first_timeline_ts(c, "status", "hired")
         if start and hired_ts:
             tth_days.append((hired_ts - start).total_seconds() / 86400)
 
@@ -175,4 +186,5 @@ def summary(
         stage_age_summary=stage_age_summary,
         source_hire_effectiveness=source_hire_effectiveness,
         hiring_trend=hiring_trend,
+        funnel_counts=funnel_counts,
     )
