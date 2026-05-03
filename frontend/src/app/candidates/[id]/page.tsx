@@ -392,6 +392,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             </select>
             {!isViewOnly ? <button style={{ width: "auto" }} onClick={onSave} disabled={!canSave || !isOwner}>{saving ? t("saving") : "Move Stage"}</button> : null}
             {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={onScheduleInterview} disabled={!isOwner}>Schedule Interview</button> : null}
+            {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/email/interview`, {}); notify("Interview email sent", "success"); }}>Send Interview Email</button> : null}
+            {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/email/rejection`, {}); notify("Rejection email sent", "success"); }}>Send Rejection Email</button> : null}
             {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={() => { updateField("status", "rejected"); }}>Reject</button> : null}
           </div>
         </div>

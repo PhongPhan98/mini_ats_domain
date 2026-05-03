@@ -18,6 +18,7 @@ from app.services.rule_based import SKILL_ALIASES, parse_candidate_from_cv
 from app.services.storage import LocalStorageService
 from app.services.audit import log_event
 from app.services.llm import LLMService
+from app.services.emailer import send_email
 from app.config import settings
 
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
@@ -840,3 +841,45 @@ def decide_ownership_request(
     _append_timeline_event(candidate, "share", f"ownership_{decision}:{target.get('from_email')}")
     db.commit()
     return {"ok": True, "request": target}
+
+
+@router.post("/{candidate_id}/email/interview")
+def send_interview_email(
+    candidate_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_manage_candidate(_actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    to_email = payload.get("to_email") or candidate.email
+    subject = payload.get("subject") or f"Interview Invitation - {candidate.name or 'Candidate'}"
+    body = payload.get("body") or ("Hello " + (candidate.name or "") + "\n\nYou are invited to interview.\n\nBest regards.")
+    ok = send_email(to_email, subject, body)
+    _append_timeline_event(candidate, "note", f"email_interview_sent:{to_email}:{'ok' if ok else 'skipped'}")
+    db.commit()
+    return {"ok": ok}
+
+
+@router.post("/{candidate_id}/email/rejection")
+def send_rejection_email(
+    candidate_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_manage_candidate(_actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    to_email = payload.get("to_email") or candidate.email
+    subject = payload.get("subject") or f"Application Update - {candidate.name or 'Candidate'}"
+    body = payload.get("body") or ("Hello " + (candidate.name or "") + "\n\nThank you for your application. We will not proceed this time.\n\nBest regards.")
+    ok = send_email(to_email, subject, body)
+    _append_timeline_event(candidate, "note", f"email_rejection_sent:{to_email}:{'ok' if ok else 'skipped'}")
+    db.commit()
+    return {"ok": ok}
