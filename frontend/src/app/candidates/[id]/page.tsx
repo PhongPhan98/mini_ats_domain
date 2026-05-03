@@ -171,6 +171,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [shareReason, setShareReason] = useState("");
   const [ownershipReason, setOwnershipReason] = useState("");
   const [selectedFileUrl, setSelectedFileUrl] = useState("");
+  const [activeTab, setActiveTab] = useState<"profile"|"interviews"|"notes"|"timeline">("profile");
   const { t, lang } = useAppLanguage();
   const { me } = useMe();
 
@@ -409,16 +410,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       </div> : null}
 
       <div className="card section-nav-card">
-        <div className="toolbar-actions">
-          <a className="chip" href="#sec-profile">Profile</a>
-          <a className="chip" href="#sec-interview">Interview</a>
-          <a className="chip" href="#sec-comments">Comments</a>
-          <a className="chip" href="#sec-collab">Collab</a>
-          <a className="chip" href="#sec-timeline">Timeline</a>
+        <div className="toolbar" style={{ alignItems: "center" }}>
+          <div><h3 style={{ margin: 0 }}>Candidate Workspace</h3><small>Use tabs to focus your workflow.</small></div>
+          <div className="toolbar-actions">
+            <button className={activeTab === "profile" ? "" : "btn-outline"} style={{ width: "auto" }} onClick={() => setActiveTab("profile")}>Profile</button>
+            <button className={activeTab === "interviews" ? "" : "btn-outline"} style={{ width: "auto" }} onClick={() => setActiveTab("interviews")}>Interviews</button>
+            <button className={activeTab === "notes" ? "" : "btn-outline"} style={{ width: "auto" }} onClick={() => setActiveTab("notes")}>Notes</button>
+            <button className={activeTab === "timeline" ? "" : "btn-outline"} style={{ width: "auto" }} onClick={() => setActiveTab("timeline")}>Timeline</button>
+          </div>
         </div>
       </div>
 
-      <div id="sec-profile" className="card">
+      {activeTab === "profile" ? <div id="sec-profile" className="card">
         <h3>{t("profile_information")}</h3>
         <div className="grid grid-2">
           <div>
@@ -493,9 +496,9 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div> : null}
         {message && <p style={{ color: "green" }}>{message}</p>}
         {error && <p style={{ color: "red" }}>{error}</p>}
-      </div>
+      </div> : null}
 
-{!isViewOnly && (
+{activeTab === "interviews" && !isViewOnly && (
       <div id="sec-interview" className="grid grid-2">
         <div className="card">
           <h3>{t("interview_scheduling")}</h3>
@@ -605,7 +608,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       </div>
       )}
 
-      {isViewOnly && (
+      {activeTab === "interviews" && isViewOnly && (
         <div id="sec-interview" className="card">
           <h3>{t("interview_scorecards")}</h3>
           <div className="timeline" style={{ marginTop: 12 }}>
@@ -628,7 +631,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <div id="sec-comments" className="grid grid-2">
+      {activeTab === "notes" ? <div id="sec-comments" className="grid grid-2">
         <div className="card">
           <h3>{t("comments_mentions")}</h3>
           <small>Use comments for team discussion and mentions.</small>
@@ -717,7 +720,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             {!timelineOf(candidate).length && <small>{t("no_timeline")}</small>}
           </div>
         </div> : null}
-      </div>
+      </div> : null}
     </div>
   );
 }
