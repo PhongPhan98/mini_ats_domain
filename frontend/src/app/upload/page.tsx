@@ -90,6 +90,7 @@ export default function UploadPage() {
   const aiStatus = String(current?.data?.ai_parse_status || "rule_only");
   const aiProvider = String(current?.data?.ai_provider || "local");
   const [cvPreviewUrl, setCvPreviewUrl] = useState("");
+  const [step, setStep] = useState<1|2|3|4>(1);
 
   useEffect(() => {
     if (!current?.file) {
@@ -119,6 +120,7 @@ export default function UploadPage() {
 
   const onParseOnly = async () => {
     if (!files.length) return;
+    setStep(2);
     setLoading(true);
     setError("");
     const next: Draft[] = [];
@@ -134,6 +136,7 @@ export default function UploadPage() {
     }
 
     setDrafts(next);
+    if (next.length) setStep(3);
     setIdx(0);
     setFiles([]);
     if (inputRef.current) inputRef.current.value = "";
@@ -187,6 +190,7 @@ export default function UploadPage() {
     setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: true } : d)));
     try {
       const saved = await uploadCandidateReviewed(current.file, buildEditedPayload(current));
+      setStep(4);
       setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: false, savedCandidateId: saved.id } : d)));
       notify("Imported after review successfully", "success");
     } catch (e: any) {
@@ -222,6 +226,15 @@ export default function UploadPage() {
 
   return (
     <div className="grid">
+      <div className="card upload-steps">
+        <div className="chip-wrap">
+          <span className={`chip ${step >= 1 ? "step-on" : ""}`}>1. Upload</span>
+          <span className={`chip ${step >= 2 ? "step-on" : ""}`}>2. AI Parsing</span>
+          <span className={`chip ${step >= 3 ? "step-on" : ""}`}>3. Review</span>
+          <span className={`chip ${step >= 4 ? "step-on" : ""}`}>4. Save</span>
+        </div>
+      </div>
+
       <div className="card">
         <h2>{t("upload_title")}</h2>
         <small>{t("upload_supported")} — parse only first, then review and save to import.</small>
@@ -275,6 +288,7 @@ export default function UploadPage() {
 
             <div className="card" style={{ marginBottom: 0 }}>
               <h3 style={{ marginTop: 0 }}>HR Review Form</h3>
+              <div className="chip-wrap" style={{ marginBottom: 8 }}><span className="chip conf-high">Email High</span><span className="chip conf-medium">Phone Medium</span><span className="chip conf-low">Skills Low</span></div>
               <small className="low-hint">Red fields are low-confidence and still empty.</small>
               <div className="chip-wrap" style={{ marginTop: 8 }}>
                 <span className="chip">AI Provider: {aiProvider}</span>
