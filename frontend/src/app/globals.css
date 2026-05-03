@@ -1171,3 +1171,17 @@ textarea {
 button:not(.btn-outline) { background: #2563eb; color: #fff; }
 button:not(.btn-outline):disabled { background: #94a3b8; color: #f8fafc; }
 .empty-state { background: color-mix(in srgb, var(--panel) 90%, #94a3b8 10%); }
+
+
+/* Pipeline card overflow fix */
+.kanban-column { min-width: 0; }
+.kanban-cards, .kanban-card { min-width: 0; }
+.kanban-card { overflow: hidden; }
+.kanban-card .toolbar-actions { flex-wrap: wrap; max-width: 100%; }
+.kanban-card input, .kanban-card select, .kanban-card button, .kanban-card .chip, .kanban-card a {
+  max-width: 100%;
+}
+.kanban-card small, .kanban-card .kanban-title {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
