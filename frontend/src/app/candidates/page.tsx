@@ -345,7 +345,7 @@ export default function DashboardPage() {
           </thead>
           <tbody>
 {!pagedCandidates.length ? (
-              <tr><td colSpan={8}><div className="empty-state"><strong>No candidates found</strong><small>Try changing filters, importing CVs, or switching Active/Trash.</small></div></td></tr>
+              <tr><td colSpan={8}><div className="empty-state"><strong>No data yet</strong><small>Try changing filters, importing CVs, or switching Active/Trash.</small></div></td></tr>
             ) : null}
             {pagedCandidates.map((c) => (
               <tr key={c.id}>

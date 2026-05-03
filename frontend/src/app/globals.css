@@ -1163,3 +1163,10 @@ textarea {
 
 .field-focus { border-color: rgba(59,130,246,.7) !important; box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
 .cv-focus { border: 1px solid rgba(59,130,246,.5); border-radius: 10px; padding: 6px; }
+
+
+/* Slice10 consistency pack */
+.card { padding: 14px; }
+.toolbar + .grid, .toolbar + .job-list, .toolbar + .kanban-board { margin-top: 10px; }
+button:not(.btn-outline) { background: var(--primary); color: white; }
+.empty-state { background: color-mix(in srgb, var(--panel) 90%, #94a3b8 10%); }
