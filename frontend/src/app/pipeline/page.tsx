@@ -80,6 +80,19 @@ export default function PipelinePage() {
         </div>
       </div>
 
+      <div className="card">
+        <div className="toolbar">
+          <div>
+            <h3 style={{ margin: 0 }}>Pipeline workflow</h3>
+            <small>Drag candidates across stages or use quick Move to actions.</small>
+          </div>
+          <div className="toolbar-actions">
+            <Link className="chip" href="/jobs">Create Job</Link>
+            <Link className="chip" href="/upload">Upload CV</Link>
+          </div>
+        </div>
+      </div>
+
       <div className="kanban-board">
         {STAGES.map((stage) => (
           <div
