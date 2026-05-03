@@ -219,14 +219,14 @@ export default function JobsPage() {
               </div>
             </div>
           ))}
-          {!jobs.length && <div className="empty-state"><strong>{showTrash ? "Trash is empty." : "No jobs yet"}</strong><small>{showTrash ? "No deleted jobs to restore." : "Start by creating your first job, then run AI matching to shortlist candidates."}</small>{!showTrash ? <button style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>Create first job</button> : null}</div>}
+          {!jobs.length && <div className="empty-state"><strong>{showTrash ? "Trash is empty." : "No data yet"}</strong><small>{showTrash ? "No deleted jobs to restore." : "Start by creating your first job, then run AI matching to shortlist candidates."}</small>{!showTrash ? <button style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>Create first job</button> : null}</div>}
         </div>
       </div>
 
       <div className="card sticky-quick-actions">
         <h3 style={{ marginTop: 0 }}>Quick Actions</h3>
         <div className="grid" style={{ gap: 8 }}>
-          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>+ Create Job</button>
+          <button style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>Create Job</button>
           <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash(false)}>View Active Jobs</button>
           <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash(true)}>Open Job Trash</button>
         </div>
