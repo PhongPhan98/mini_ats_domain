@@ -1168,5 +1168,6 @@ textarea {
 /* Slice10 consistency pack */
 .card { padding: 14px; }
 .toolbar + .grid, .toolbar + .job-list, .toolbar + .kanban-board { margin-top: 10px; }
-button:not(.btn-outline) { background: var(--primary); color: white; }
+button:not(.btn-outline) { background: #2563eb; color: #fff; }
+button:not(.btn-outline):disabled { background: #94a3b8; color: #f8fafc; }
 .empty-state { background: color-mix(in srgb, var(--panel) 90%, #94a3b8 10%); }
