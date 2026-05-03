@@ -860,6 +860,7 @@ def send_interview_email(
     body = payload.get("body") or ("Hello " + (candidate.name or "") + "\n\nYou are invited to interview.\n\nBest regards.")
     ok = send_email(to_email, subject, body)
     _append_timeline_event(candidate, "note", f"email_interview_sent:{to_email}:{'ok' if ok else 'skipped'}")
+    log_event(_actor.email, "candidate.email.interview", f"candidate:{candidate_id}", {"to": to_email, "ok": ok})
     db.commit()
     return {"ok": ok}
 
@@ -881,5 +882,6 @@ def send_rejection_email(
     body = payload.get("body") or ("Hello " + (candidate.name or "") + "\n\nThank you for your application. We will not proceed this time.\n\nBest regards.")
     ok = send_email(to_email, subject, body)
     _append_timeline_event(candidate, "note", f"email_rejection_sent:{to_email}:{'ok' if ok else 'skipped'}")
+    log_event(_actor.email, "candidate.email.rejection", f"candidate:{candidate_id}", {"to": to_email, "ok": ok})
     db.commit()
     return {"ok": ok}
