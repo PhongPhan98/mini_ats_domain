@@ -553,7 +553,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!schedules.length && <small>{t("no_schedules")}</small>}
+            {!schedules.length && <div className="empty-state"><strong>No interviews scheduled yet</strong><small>Use the form above to schedule the first interview.</small></div>}
           </div>
         </div>
 
@@ -612,7 +612,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!scorecards.length && <small>{t("no_scorecards")}</small>}
+            {!scorecards.length && <div className="empty-state"><strong>No scorecards yet</strong><small>Submit first scorecard after interview.</small></div>}
           </div>
         </div>
       </div>
@@ -636,7 +636,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!scorecards.length && <small>{t("no_scorecards")}</small>}
+            {!scorecards.length && <div className="empty-state"><strong>No scorecards yet</strong><small>Submit first scorecard after interview.</small></div>}
           </div>
         </div>
       )}
@@ -644,7 +644,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       {activeTab === "notes" ? <div id="sec-comments" className="grid grid-2">
         <div className="card">
           <h3>{t("comments_mentions")}</h3>
-          <small>Use comments for team discussion and mentions.</small>
+          <small>Team notes (chat-style). Mention teammates with @name.</small>
           <small>{t("mention_hint")}</small>
           <div style={{ marginTop: 10 }}>
             <textarea
@@ -670,7 +670,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!comments.length && <small>{t("no_comments")}</small>}
+            {!comments.length && <div className="empty-state"><strong>No notes yet</strong><small>Add first note to start collaboration.</small></div>}
           </div>
         </div>
 
@@ -727,7 +727,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               </div>
             ))}
-            {!timelineOf(candidate).length && <small>{t("no_timeline")}</small>}
+            {!timelineOf(candidate).length && <div className="empty-state"><strong>No activity yet</strong><small>Actions on this candidate will appear here.</small></div>}
           </div>
         </div> : null}
       </div> : null}
