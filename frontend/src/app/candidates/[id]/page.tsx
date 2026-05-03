@@ -378,6 +378,25 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      <div className="card sticky-toolbar">
+        <div className="toolbar">
+          <div>
+            <strong>{candidate.name || t("candidate_detail")}</strong>
+            <small style={{ display: "block" }}>Stage control and quick actions</small>
+          </div>
+          <div className="toolbar-actions">
+            <select value={form.status} onChange={(e) => updateField("status", e.target.value)} disabled={isViewOnly} style={{ width: "auto" }}>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>{formatStatus(s)}</option>
+              ))}
+            </select>
+            {!isViewOnly ? <button style={{ width: "auto" }} onClick={onSave} disabled={!canSave || !isOwner}>{saving ? t("saving") : "Move Stage"}</button> : null}
+            {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={onScheduleInterview} disabled={!isOwner}>Schedule Interview</button> : null}
+            {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={() => { updateField("status", "rejected"); }}>Reject</button> : null}
+          </div>
+        </div>
+      </div>
+
 {!isViewOnly ? <div className="card">
         {!isOwner ? <div className="chip" style={{ marginBottom: 10, display: "inline-flex" }}>View-only access: you can comment and request ownership; only owner can edit candidate profile.</div> : null}
         <div className="toolbar">
@@ -437,16 +456,6 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             <input value={form.phone} onChange={(e) => updateField("phone", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
           </div>
           <div>
-            <label>{t("stage_label")}</label>
-            <select value={form.status} onChange={(e) => updateField("status", e.target.value)} disabled={isViewOnly}>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {formatStatus(s)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
             <label>{t("years_experience")}</label>
             <input
               type="number"
@@ -459,6 +468,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         <div style={{ marginTop: 12 }}>
           <label>{t("skills_csv")}</label>
           <input value={form.skills_text} onChange={(e) => updateField("skills_text", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
+          <div className="chip-wrap" style={{ marginTop: 8 }}>{normalizeCommaList(form.skills_text).slice(0,12).map((sk) => <span key={sk} className="chip">{sk}</span>)}{!normalizeCommaList(form.skills_text).length ? <small>No skills yet</small> : null}</div>
         </div>
         <div style={{ marginTop: 12 }}>
           <label>{t("education")}</label>
