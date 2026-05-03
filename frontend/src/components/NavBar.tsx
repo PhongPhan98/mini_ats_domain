@@ -51,11 +51,12 @@ export default function NavBar() {
   return (
     <nav className="card nav-bar">
       {!isLogin && <div className="nav-links">
-        <Link className={isActive("/") ? "nav-link nav-link-active" : "nav-link"} href="/"><NavLabel full={t("nav_dashboard")} short="Home" /></Link>
         <Link className={isActive("/pipeline") ? "nav-link nav-link-active" : "nav-link"} href="/pipeline"><NavLabel full={t("nav_pipeline")} short="Pipe" /></Link>
+        <Link className={isActive("/dashboard") ? "nav-link nav-link-active" : "nav-link"} href="/dashboard"><NavLabel full={t("nav_dashboard")} short="Dash" /></Link>
+        <Link className={isActive("/jobs") ? "nav-link nav-link-active" : "nav-link"} href="/jobs"><NavLabel full={t("nav_jobs")} short="Jobs" /></Link>
+        <Link className={isActive("/candidates") ? "nav-link nav-link-active" : "nav-link"} href="/candidates"><NavLabel full="Candidates" short="Cand" /></Link>
         <Link className={isActive("/automation") ? "nav-link nav-link-active" : "nav-link"} href="/automation"><NavLabel full={t("nav_automation")} short="Auto" /></Link>
         <Link className={isActive("/upload") ? "nav-link nav-link-active" : "nav-link"} href="/upload"><NavLabel full={t("nav_upload")} short="Upload" /></Link>
-        <Link className={isActive("/jobs") ? "nav-link nav-link-active" : "nav-link"} href="/jobs"><NavLabel full={t("nav_jobs")} short="Jobs" /></Link>
         <Link className={isActive("/notifications") ? "nav-link nav-link-active" : "nav-link"} href="/notifications"><NavLabel full="Notifications" short="Notif" />{mentionCount > 0 ? <span className="chip" style={{ marginLeft: 6 }}>{mentionCount}</span> : null}</Link>
         {me?.role === "admin" && <Link className={isActive("/users") ? "nav-link nav-link-active" : "nav-link"} href="/users"><NavLabel full="Users" short="User" /></Link>}
         {me?.role === "admin" && <Link className={isActive("/audit") ? "nav-link nav-link-active" : "nav-link"} href="/audit"><NavLabel full="Audit" short="Log" /></Link>}
