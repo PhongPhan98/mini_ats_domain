@@ -8,6 +8,7 @@ import { useAppLanguage } from "../../lib/language";
 import type { Candidate, CandidateStatus } from "../../components/types";
 
 const STAGES: CandidateStatus[] = ["applied", "screening", "interview", "offer", "hired", "rejected"];
+const VISIBLE_STEP = 30;
 
 function label(s: CandidateStatus) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -18,6 +19,7 @@ export default function PipelinePage() {
   const [dragId, setDragId] = useState<number | null>(null);
   const [keyword, setKeyword] = useState("");
   const [overStage, setOverStage] = useState<CandidateStatus | null>(null);
+  const [visibleByStage, setVisibleByStage] = useState<Record<string, number>>({});
   const { t } = useAppLanguage();
 
   const load = async () => {
@@ -47,6 +49,17 @@ export default function PipelinePage() {
     }
     return map;
   }, [filtered]);
+
+
+  useEffect(() => {
+    setVisibleByStage((prev) => {
+      const next = { ...prev };
+      for (const st of STAGES) {
+        if (!next[st]) next[st] = VISIBLE_STEP;
+      }
+      return next;
+    });
+  }, [candidates.length]);
 
   const onDropToStage = async (stage: CandidateStatus) => {
     if (!dragId) return;
@@ -108,7 +121,7 @@ export default function PipelinePage() {
             </div>
 
             <div className="kanban-cards">
-              {byStage[stage].map((c) => (
+              {byStage[stage].slice(0, visibleByStage[stage] || VISIBLE_STEP).map((c) => (
                 <div
                   key={c.id}
                   className="kanban-card"
@@ -135,7 +148,8 @@ export default function PipelinePage() {
                   </div>
                 </div>
               ))}
-              {!byStage[stage].length && <div className="empty-state"><strong>No candidates yet</strong><small>Add or upload candidates to start this stage.</small><div className="toolbar-actions"><Link className="chip" href="/upload">Upload CV</Link><Link className="chip" href="/">Add Candidate</Link></div></div>}
+              {!byStage[stage].length && <div className="empty-state"><strong>No candidates yet</strong><small>Add or upload candidates to start this stage.</small><div className="toolbar-actions"><Link className="chip" href="/upload">Upload CV</Link><Link className="chip" href="/candidates">Add Candidate</Link></div></div>}
+              {byStage[stage].length > (visibleByStage[stage] || VISIBLE_STEP) ? <button className="btn-outline" style={{ width: "100%" }} onClick={() => setVisibleByStage((prev) => ({ ...prev, [stage]: (prev[stage] || VISIBLE_STEP) + VISIBLE_STEP }))}>Load more ({byStage[stage].length - (visibleByStage[stage] || VISIBLE_STEP)} remaining)</button> : null}
             </div>
           </div>
         ))}
