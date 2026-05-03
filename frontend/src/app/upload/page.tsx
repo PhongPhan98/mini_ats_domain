@@ -91,6 +91,7 @@ export default function UploadPage() {
   const aiProvider = String(current?.data?.ai_provider || "local");
   const [cvPreviewUrl, setCvPreviewUrl] = useState("");
   const [step, setStep] = useState<1|2|3|4>(1);
+  const [activeField, setActiveField] = useState<string>("");
 
   useEffect(() => {
     if (!current?.file) {
@@ -271,6 +272,7 @@ export default function UploadPage() {
           <div className="split-grid" style={{ marginTop: 12 }}>
             <div className="card" style={{ marginBottom: 0 }}>
               <h3 style={{ marginTop: 0 }}>Original CV</h3>
+              <small>Field mapping focus: {activeField || "none"}</small>
               <small>{current.filename}</small>
               <div style={{ marginTop: 10 }}>
                 <iframe
