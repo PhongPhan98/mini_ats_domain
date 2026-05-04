@@ -223,16 +223,7 @@ export default function JobsPage() {
         </div>
       </div>
 
-      <div className="card sticky-quick-actions">
-        <h3 style={{ marginTop: 0 }}>Quick Actions</h3>
-        <div className="grid" style={{ gap: 8 }}>
-          <button style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>Create Job</button>
-          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash(false)}>View Active Jobs</button>
-          <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash(true)}>Open Job Trash</button>
-        </div>
-      </div>
-
-
+      
       {editingId !== null && (
         <div className="modal-overlay" onClick={() => setEditingId(null)}>
           <div className={`modal-card ${modalFullscreen ? "modal-full" : ""}`} onClick={(e) => e.stopPropagation()}>

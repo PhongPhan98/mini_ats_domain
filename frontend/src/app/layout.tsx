@@ -4,6 +4,7 @@ import NavBar from "../components/NavBar";
 import AuthGate from "../components/AuthGate";
 import AppQueryProvider from "../components/QueryProvider";
 import ToastHost from "../components/ToastHost";
+import EmailSuggestEnhancer from "../components/EmailSuggestEnhancer";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -13,6 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <div className="container page-enter">
             <NavBar />
             <ToastHost />
+            <EmailSuggestEnhancer />
             <AuthGate>{children}</AuthGate>
           </div>
         </AppQueryProvider>
