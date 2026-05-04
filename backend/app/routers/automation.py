@@ -38,3 +38,12 @@ def get_events(
 def clear_automation_events(actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
     clear_events()
     return {"ok": True}
+
+
+@router.post("/rules/test-run")
+def test_run_rule(payload: dict, actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    from datetime import datetime
+    from app.services.automation import append_event
+    rid = payload.get("rule_id") or "manual-test"
+    append_event({"timestamp": datetime.utcnow().isoformat(), "candidate_id": 0, "candidate_name": "TEST", "stage": payload.get("stage") or "interview", "rule_id": rid, "action": {"type": "log"}, "result": "test_run_ok"})
+    return {"ok": True}

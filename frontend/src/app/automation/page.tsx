@@ -21,6 +21,7 @@ type Rule = {
 };
 
 const STAGES = ["applied", "screening", "interview", "offer", "hired", "rejected"];
+const fmtHumanTime = (v?: string) => { if (!v) return "-"; const d = new Date(v); return `${d.toLocaleString()} (Asia/Saigon)`; };
 
 export default function AutomationPage() {
   const [rules, setRules] = useState<Rule[]>([]);
@@ -129,6 +130,7 @@ export default function AutomationPage() {
                 <div><strong>{r.id}</strong><small style={{ display: "block" }}>Stage: {r.on_stage} • {r.enabled ? "Enabled" : "Disabled"}</small></div>
                 <div className="toolbar-actions">
                   <button style={{ width: "auto" }} onClick={() => { setSelectedRuleIdx(idx); setRuleDraft(JSON.parse(JSON.stringify(r))); setTimeout(() => document.getElementById('rule-editor-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}>Edit</button>
+                  <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost("/api/automation/rules/test-run", { rule_id: r.id, stage: r.on_stage }); const x = await apiGet<{events:any[]}>("/api/automation/events?limit=120"); setEvents(x.events || []); }}>Run Test</button>
                 </div>
               </div>
             ))}
@@ -241,7 +243,7 @@ export default function AutomationPage() {
           <tbody>
             {events.map((e, i) => (
               <tr key={`${e.timestamp}-${i}`} style={{ cursor: "pointer" }} onClick={() => { setSelectedEvent(e); setSelectedEventIdx(i); }}>
-                <td>{e.timestamp}</td>
+                <td><div>{fmtHumanTime(e.timestamp)}</div><small>{e.timestamp}</small></td>
                 <td>{e.candidate_name}</td>
                 <td>{e.stage}</td>
                 <td>{e.rule_id}</td>
@@ -262,7 +264,7 @@ export default function AutomationPage() {
               <button className="btn-outline" style={{ width: "auto" }} onClick={() => { setSelectedEvent(null); setSelectedEventIdx(null); }}>×</button>
             </div>
             <div className="grid grid-2">
-              <div><label>Time</label><input value={selectedEvent.timestamp || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, timestamp: e.target.value })} /></div>
+              <div><label>Time</label><input type="datetime-local" value={(selectedEvent.timestamp || "").slice(0,16)} onChange={(e) => setSelectedEvent({ ...selectedEvent, timestamp: e.target.value })} /><small>{fmtHumanTime(selectedEvent.timestamp)}</small></div>
               <div><label>Candidate</label><input value={selectedEvent.candidate_name || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, candidate_name: e.target.value })} /></div>
               <div><label>Stage</label><input value={selectedEvent.stage || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, stage: e.target.value })} /></div>
               <div><label>Rule</label><input value={selectedEvent.rule_id || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, rule_id: e.target.value })} /></div>
