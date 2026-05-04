@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from app.rbac import require_roles
-from app.services.automation import load_rules, read_events, save_rules
+from app.services.automation import load_rules, read_events, save_rules, clear_events
 
 router = APIRouter(prefix="/api/automation", tags=["automation"])
 
@@ -32,3 +32,9 @@ def get_events(
     _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
     return {"events": read_events(limit=limit)}
+
+
+@router.post("/events/clear")
+def clear_automation_events(actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    clear_events()
+    return {"ok": True}

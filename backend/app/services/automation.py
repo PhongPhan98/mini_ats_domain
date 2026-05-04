@@ -77,6 +77,11 @@ def append_event(event: dict[str, Any]):
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def clear_events():
+    _ensure_files()
+    EVENTS_FILE.write_text("", encoding="utf-8")
+
+
 def read_events(limit: int = 200) -> list[dict[str, Any]]:
     _ensure_files()
     lines = [ln for ln in EVENTS_FILE.read_text(encoding="utf-8").splitlines() if ln.strip()]
