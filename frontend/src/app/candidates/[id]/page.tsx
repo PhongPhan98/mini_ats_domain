@@ -6,6 +6,8 @@ import { apiDelete, apiGet, apiPatch, apiPost } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
 import { useMe } from "../../../lib/me";
 import { notify } from "../../../lib/toast";
+import CandidateTabs from "../../../components/CandidateTabs";
+import InterviewForm from "../../../components/InterviewForm";
 import type { Candidate, CandidateStatus, TimelineEvent } from "../../../components/types";
 
 type CandidateForm = {
@@ -430,17 +432,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div> : null}
 
-      <div className="card section-nav-card">
-        <div className="toolbar" style={{ alignItems: "center" }}>
-          <div><h3 style={{ margin: 0 }}>Candidate Workspace</h3><small>Use tabs to focus your workflow.</small></div>
-          <div className="toolbar-actions">
-            <button className={activeTab === "profile" ? "" : "btn-outline"} style={{ width: "auto" }} onClick={() => setActiveTab("profile")}>Profile</button>
-            <button className={activeTab === "interviews" ? "" : "btn-outline"} style={{ width: "auto" }} onClick={() => setActiveTab("interviews")}>Interviews</button>
-            <button className={activeTab === "notes" ? "" : "btn-outline"} style={{ width: "auto" }} onClick={() => setActiveTab("notes")}>Notes</button>
-            <button className={activeTab === "timeline" ? "" : "btn-outline"} style={{ width: "auto" }} onClick={() => setActiveTab("timeline")}>Timeline</button>
-          </div>
-        </div>
-      </div>
+      <CandidateTabs activeTab={activeTab} onTab={setActiveTab} />
 
       {activeTab === "profile" ? <div id="sec-profile" className="card">
         <h3>{t("profile_information")}</h3>
@@ -514,35 +506,20 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       <div id="sec-interview" className="grid grid-2">
         <div className="card">
           <h3>{t("interview_scheduling")}</h3>
-          <div className="grid grid-2">
-            <div>
-              <label>{t("interviewer_email")}</label>
-              <input
-                value={schedInterviewer}
-                onChange={(e) => setSchedInterviewer(e.target.value)}
-                placeholder="interviewer@company.com"
-              />
-            </div>
-            <div>
-              <label>{t("scheduled_at")}</label>
-              <input type="datetime-local" value={schedAt} onChange={(e) => setSchedAt(e.target.value)} />
-            </div>
-            <div>
-              <label>{t("duration_mins")}</label>
-              <input type="number" min={15} value={schedDuration} onChange={(e) => setSchedDuration(e.target.value)} />
-            </div>
-            <div>
-              <label>{t("meeting_link")}</label>
-              <input value={schedLink} onChange={(e) => setSchedLink(e.target.value)} placeholder="https://meet..." />
-            </div>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <label>{t("notes")}</label>
-            <textarea rows={2} value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} />
-          </div>
-          <button style={{ marginTop: 8 }} onClick={onScheduleInterview} disabled={!isOwner}>
-            {t("schedule_interview")}
-          </button>
+          <InterviewForm
+            schedInterviewer={schedInterviewer}
+            setSchedInterviewer={setSchedInterviewer}
+            schedAt={schedAt}
+            setSchedAt={setSchedAt}
+            schedDuration={schedDuration}
+            setSchedDuration={setSchedDuration}
+            schedLink={schedLink}
+            setSchedLink={setSchedLink}
+            schedNotes={schedNotes}
+            setSchedNotes={setSchedNotes}
+            onSchedule={onScheduleInterview}
+            disabled={!isOwner}
+          />
           <div className="timeline" style={{ marginTop: 12 }}>
             {schedules.map((s) => (
               <div className="timeline-item" key={s.id}>
