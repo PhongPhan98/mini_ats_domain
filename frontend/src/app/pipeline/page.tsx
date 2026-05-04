@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PipelineColumn from "../../components/PipelineColumn";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPatch } from "../../lib/api";
@@ -103,50 +104,20 @@ export default function PipelinePage() {
 
       <div className="kanban-board">
         {STAGES.map((stage) => (
-          <div
+          <PipelineColumn
             key={stage}
-            className={`kanban-column ${overStage === stage ? "drop-active" : ""}`}
+            stage={stage}
+            items={byStage[stage]}
+            count={byStage[stage].length}
+            visible={visibleByStage[stage] || VISIBLE_STEP}
+            active={overStage === stage}
             onDragOver={(e) => { e.preventDefault(); setOverStage(stage); }}
             onDragLeave={() => setOverStage((prev) => (prev === stage ? null : prev))}
             onDrop={() => onDropToStage(stage)}
-          >
-            <div className="kanban-column-head">
-              <strong>{label(stage)}</strong>
-              <span className={`status-badge status-${stage}`}>{byStage[stage].length}</span>
-            </div>
-
-            <div className="kanban-cards">
-              {byStage[stage].slice(0, visibleByStage[stage] || VISIBLE_STEP).map((c) => (
-                <div
-                  key={c.id}
-                  className="kanban-card"
-                  draggable
-                  onDragStart={() => setDragId(c.id)}
-                >
-                  <div className="kanban-title">{c.name || `Candidate #${c.id}`}</div>
-                  <small>{(c.parsed_json as any)?.current_title || "Role not set"} • {c.years_of_experience || 0} yrs</small>
-                  <small>{c.email || "No email"}</small>
-                  <small>Match {Number((c.parsed_json as any)?.match_score || 0)}% • Last active {(c.parsed_json as any)?.timeline?.length ? `${(c.parsed_json as any).timeline.length} events` : "new"}</small>
-                  <div className="chip-wrap" style={{ marginTop: 8 }}>
-                    {(c.skills || []).slice(0, 3).map((s) => (
-                      <span className="chip" key={`${c.id}-${s}`}>
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="toolbar-actions card-hover-actions" style={{ marginTop: 10 }}>
-                    <Link href={`/candidates/${c.id}`} className="chip">View</Link>
-                    <select value={c.status || "applied"} onChange={(e) => moveToStage(c.id, e.target.value as CandidateStatus)} style={{ width: "auto" }}>
-                      {STAGES.map((s) => <option key={s} value={s}>Move to {label(s)}</option>)}
-                    </select>
-                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => moveToStage(c.id, "rejected")}>Reject</button>
-                  </div>
-                </div>
-              ))}
-              {!byStage[stage].length && <div className="empty-state"><strong>No candidates yet</strong><small>Add or upload candidates to start this stage.</small><div className="toolbar-actions"><Link className="chip" href="/upload">Upload CV</Link><Link className="chip" href="/candidates">Add Candidate</Link></div></div>}
-              {byStage[stage].length > (visibleByStage[stage] || VISIBLE_STEP) ? <button className="btn-outline" style={{ width: "100%" }} onClick={() => setVisibleByStage((prev) => ({ ...prev, [stage]: (prev[stage] || VISIBLE_STEP) + VISIBLE_STEP }))}>Load more ({byStage[stage].length - (visibleByStage[stage] || VISIBLE_STEP)} remaining)</button> : null}
-            </div>
-          </div>
+            onMove={moveToStage}
+            onLoadMore={() => setVisibleByStage((prev) => ({ ...prev, [stage]: (prev[stage] || VISIBLE_STEP) + VISIBLE_STEP }))}
+            onDragStart={(id) => setDragId(id)}
+          />
         ))}
       </div>
     </div>
