@@ -41,6 +41,13 @@ export default function PipelinePage() {
     });
   }, [candidates, keyword]);
 
+  const avgTimeToHire = useMemo(() => {
+    const hired = candidates.filter((c) => (c.status || "") === "hired" && c.created_at);
+    if (!hired.length) return 0;
+    const days = hired.map((c:any) => (Date.now() - new Date(c.created_at).getTime()) / 86400000);
+    return Math.round((days.reduce((a,b)=>a+b,0)/days.length)*10)/10;
+  }, [candidates]);
+
   const byStage = useMemo(() => {
     const map: Record<string, Candidate[]> = {};
     for (const s of STAGES) map[s] = [];
@@ -85,6 +92,7 @@ export default function PipelinePage() {
           <div>
             <h2 style={{ margin: 0 }}>{t("pipeline_title")}</h2>
             <small>{t("pipeline_hint")}</small>
+            <small>Time-to-hire (selection): {avgTimeToHire} days</small>
           </div>
           <div className="toolbar-actions">
             <select value={selectedJobId} onChange={(e) => setSelectedJobId(Number(e.target.value || 0))} style={{ width: "auto" }}>

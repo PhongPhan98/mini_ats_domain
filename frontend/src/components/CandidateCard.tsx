@@ -10,6 +10,7 @@ export default function CandidateCard({ c, stages, onMove, onDragStart }: { c: C
       <small>{c.email || "No email"}</small>
       <small>Match {Number((c.parsed_json as any)?.match_score || 0)}% • Last active {(c.parsed_json as any)?.timeline?.length ? `${(c.parsed_json as any).timeline.length} events` : "new"}</small>
       <div className="chip-wrap" style={{ marginTop: 8 }}>
+        {(c.parsed_json as any)?.applied_job_title ? <span className="chip">Job: {(c.parsed_json as any)?.applied_job_title}</span> : null}
         {(c.skills || []).slice(0, 3).map((s) => <span className="chip" key={`${c.id}-${s}`}>{s}</span>)}
       </div>
       <div className="toolbar-actions card-hover-actions" style={{ marginTop: 10 }}>
