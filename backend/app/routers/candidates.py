@@ -909,7 +909,6 @@ def update_candidate_stage(
     if stage != normalize_status(candidate.status):
         candidate.status = stage
         _append_timeline_event(candidate, "status", stage)
-        _append_timeline_event(candidate, "automation", f"auto_action:notify_on_stage_change:{stage}")
     db.commit()
     stmt = select(Candidate).options(selectinload(Candidate.files)).where(Candidate.id == candidate.id)
     return db.execute(stmt).scalar_one()

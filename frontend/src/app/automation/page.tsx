@@ -26,6 +26,7 @@ export default function AutomationPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [selectedRuleIdx, setSelectedRuleIdx] = useState<number | null>(null);
   const { t } = useAppLanguage();
 
   const load = async () => {
@@ -118,7 +119,7 @@ export default function AutomationPage() {
 
         <div className="grid">
           {rules.map((r, idx) => (
-            <div key={r.id} className="card" style={{ marginBottom: 8 }}>
+            <div key={r.id} className="card" style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setSelectedRuleIdx(idx)}>
               <div className="grid grid-3">
                 <div>
                   <label>Rule ID</label>
@@ -173,7 +174,7 @@ export default function AutomationPage() {
 
       <div className="card">
         <h3>{t("event_log")}</h3>
-        <table>
+        <div style={{ maxHeight: 320, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8 }}><table>
           <thead>
             <tr>
               <th>{t("time")}</th>
@@ -197,8 +198,9 @@ export default function AutomationPage() {
               <tr><td colSpan={5}><small>{t("no_events")}</small></td></tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
+      {selectedRuleIdx !== null ? <div className="modal-overlay" onClick={() => setSelectedRuleIdx(null)}><div className="modal-card" onClick={(e) => e.stopPropagation()}><div className="toolbar"><h3 style={{ margin: 0 }}>Automation Rule Detail</h3><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>×</button></div>{rules[selectedRuleIdx] ? <div className="grid"><small>Rule: {rules[selectedRuleIdx].id}</small><small>Stage: {rules[selectedRuleIdx].on_stage}</small><small>Actions: {rules[selectedRuleIdx].actions.length}</small><div className="toolbar-actions"><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>Close</button><button className="btn-outline" style={{ width: "auto" }} onClick={() => { setRules((prev) => prev.filter((_, i) => i !== selectedRuleIdx)); setSelectedRuleIdx(null); }}>Delete</button></div></div> : null}</div></div> : null}
     </div>
   );
 }
