@@ -48,10 +48,11 @@ def _set_job_owner(job_id: int, user_id: int, email: str):
     _save_job_settings(settings)
 
 
-def _can_access_job(user, job_id: int) -> bool:
+def _can_access_job(user, job_or_id, settings: dict | None = None) -> bool:
+    job_id = int(getattr(job_or_id, "id", job_or_id))
     if getattr(user, "role", "") != "recruiter":
         return True
-    meta = _job_owner_meta(job_id)
+    meta = ((settings or {}).get(str(job_id), {}) if settings is not None else _job_owner_meta(job_id))
     owner_id = meta.get("owner_user_id")
     owner_email = str(meta.get("owner_email") or "").lower()
     return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())

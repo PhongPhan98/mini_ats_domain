@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import analytics, audit, auth, automation, candidates, comments, jobs, reports, schedules, scorecards, users
+from app.routers import analytics, audit, auth, automation, candidates, comments, jobs, reports, schedules, scorecards, users, activity, public_jobs, interviews
 
 
 Base.metadata.create_all(bind=engine)

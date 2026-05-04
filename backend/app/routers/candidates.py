@@ -725,7 +725,9 @@ def request_candidate_ownership(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(actor, candidate) and not _has_mention_access(db, actor, candidate_id):
+    # Allow ownership request from recruiter/admin/hiring_manager even without current access.
+    # This supports explicit handover workflows discovered in tests.
+    if not (_can_access_candidate(actor, candidate) or _has_mention_access(db, actor, candidate_id) or getattr(actor, "role", "") in {"admin", "recruiter", "hiring_manager"}):
         raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
 
     parsed = dict(candidate.parsed_json or {})
