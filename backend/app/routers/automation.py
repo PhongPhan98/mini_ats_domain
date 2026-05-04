@@ -47,3 +47,42 @@ def test_run_rule(payload: dict, actor=Depends(require_roles("admin", "recruiter
     rid = payload.get("rule_id") or "manual-test"
     append_event({"timestamp": datetime.utcnow().isoformat(), "candidate_id": 0, "candidate_name": "TEST", "stage": payload.get("stage") or "interview", "rule_id": rid, "action": {"type": "log"}, "result": "test_run_ok"})
     return {"ok": True}
+
+from pathlib import Path
+import json
+from datetime import datetime
+from app.services.emailer import send_email
+
+SIMPLE_EMAIL_FILE = Path(__file__).resolve().parents[1] / "data" / "simple_email_schedules.json"
+
+def _load_simple_schedules():
+    SIMPLE_EMAIL_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if not SIMPLE_EMAIL_FILE.exists():
+        SIMPLE_EMAIL_FILE.write_text("[]", encoding="utf-8")
+    return json.loads(SIMPLE_EMAIL_FILE.read_text(encoding="utf-8") or "[]")
+
+def _save_simple_schedules(rows):
+    SIMPLE_EMAIL_FILE.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+
+@router.get("/email/schedules")
+def list_simple_email_schedules(actor=Depends(require_roles("admin","recruiter","hiring_manager"))):
+    return {"items": _load_simple_schedules()}
+
+@router.post("/email/send-now")
+def send_now(payload: dict, actor=Depends(require_roles("admin","recruiter","hiring_manager"))):
+    ok = send_email(payload.get("to",""), payload.get("subject","Interview update"), payload.get("body",""))
+    return {"ok": ok}
+
+@router.post("/email/schedules")
+def create_simple_email_schedule(payload: dict, actor=Depends(require_roles("admin","recruiter","hiring_manager"))):
+    rows = _load_simple_schedules()
+    rows.append({
+        "id": f"sch-{int(datetime.utcnow().timestamp()*1000)}",
+        "to": payload.get("to",""),
+        "subject": payload.get("subject","Interview update"),
+        "body": payload.get("body",""),
+        "send_at": payload.get("send_at",""),
+        "status": "scheduled",
+    })
+    _save_simple_schedules(rows)
+    return {"ok": True}
