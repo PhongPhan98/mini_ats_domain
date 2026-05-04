@@ -9,11 +9,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <div className="container page-enter">
-          <NavBar />
-          <ToastHost />
-          <AuthGate>{children}</AuthGate>
-        </div>
+        <AppQueryProvider>
+          <div className="container page-enter">
+            <NavBar />
+            <ToastHost />
+            <AuthGate>{children}</AuthGate>
+          </div>
+        </AppQueryProvider>
       </body>
     </html>
   );
