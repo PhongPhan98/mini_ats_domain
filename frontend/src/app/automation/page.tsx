@@ -118,6 +118,22 @@ export default function AutomationPage() {
           </div>
         </div>
 
+        
+        <div className="card" style={{ marginBottom: 10 }}>
+          <h4 style={{ marginTop: 0, marginBottom: 8 }}>Automation Jobs</h4>
+          <div className="grid" style={{ gap: 6 }}>
+            {rules.map((r, idx) => (
+              <div key={`pick-${r.id}-${idx}`} className="toolbar" style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
+                <div><strong>{r.id}</strong><small style={{ display: "block" }}>Stage: {r.on_stage} • {r.enabled ? "Enabled" : "Disabled"}</small></div>
+                <div className="toolbar-actions">
+                  <button style={{ width: "auto" }} onClick={() => { setSelectedRuleIdx(idx); setRuleDraft(JSON.parse(JSON.stringify(r))); setTimeout(() => document.getElementById('rule-editor-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}>Edit</button>
+                </div>
+              </div>
+            ))}
+            {!rules.length ? <small>No automation jobs yet</small> : null}
+          </div>
+        </div>
+
         <div className="grid">
           {rules.map((r, idx) => (
             <div key={r.id} className="card rule-card" style={{ marginBottom: 8 }}>
@@ -190,7 +206,7 @@ export default function AutomationPage() {
 
 
       {selectedRuleIdx !== null && ruleDraft ? (
-        <div className="card">
+        <div id="rule-editor-panel" className="card">
           <div className="toolbar">
             <h3 style={{ margin: 0 }}>Selected Automation Rule Editor</h3>
             <div className="toolbar-actions">
