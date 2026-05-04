@@ -188,6 +188,26 @@ export default function AutomationPage() {
         </div>
       </div>
 
+
+      {selectedRuleIdx !== null && ruleDraft ? (
+        <div className="card">
+          <div className="toolbar">
+            <h3 style={{ margin: 0 }}>Selected Automation Rule Editor</h3>
+            <div className="toolbar-actions">
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>Close</button>
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => setRules((prev)=>[...prev,{...ruleDraft,id:`${ruleDraft.id}-copy-${Date.now()}`}])}>Duplicate</button>
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => { setRules((prev) => prev.filter((_, i) => i !== selectedRuleIdx)); setSelectedRuleIdx(null); }}>Delete</button>
+              <button style={{ width: "auto" }} onClick={() => { if (selectedRuleIdx!==null) setRules((prev)=>prev.map((r,i)=>i===selectedRuleIdx?ruleDraft:r)); }}>Save Changes</button>
+            </div>
+          </div>
+          <div className="grid grid-3">
+            <div><label>Rule ID</label><input value={ruleDraft.id} onChange={(e)=>setRuleDraft({...ruleDraft,id:e.target.value})} /></div>
+            <div><label>On Stage</label><select value={ruleDraft.on_stage} onChange={(e)=>setRuleDraft({...ruleDraft,on_stage:e.target.value})}>{STAGES.map((st)=><option key={st} value={st}>{st}</option>)}</select></div>
+            <div><label>Enabled</label><select value={ruleDraft.enabled?"1":"0"} onChange={(e)=>setRuleDraft({...ruleDraft,enabled:e.target.value==="1"})}><option value="1">Enabled</option><option value="0">Disabled</option></select></div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="card">
         <div className="toolbar"><h3 style={{ margin: 0 }}>{t("event_log")}</h3><small>Recent automation runs and outcomes.</small></div>
         <div style={{ maxHeight: 320, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8 }}><table>
@@ -216,7 +236,6 @@ export default function AutomationPage() {
           </tbody>
         </table></div>
       </div>
-      {selectedRuleIdx !== null ? <div className="modal-overlay" onClick={() => setSelectedRuleIdx(null)}><div className="modal-card" onClick={(e) => e.stopPropagation()}><div className="toolbar"><h3 style={{ margin: 0 }}>Automation Rule Detail</h3><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>×</button></div>{ruleDraft ? <div className="grid"><label>Rule ID</label><input value={ruleDraft.id} onChange={(e)=>setRuleDraft({...ruleDraft,id:e.target.value})}/><label>Stage</label><select value={ruleDraft.on_stage} onChange={(e)=>setRuleDraft({...ruleDraft,on_stage:e.target.value})}>{STAGES.map((st)=><option key={st} value={st}>{st}</option>)}</select><label>Enabled</label><select value={ruleDraft.enabled?"1":"0"} onChange={(e)=>setRuleDraft({...ruleDraft,enabled:e.target.value==="1"})}><option value="1">Enabled</option><option value="0">Disabled</option></select><div className="toolbar-actions"><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>Cancel</button><button className="btn-outline" style={{ width: "auto" }} onClick={() => setRules((prev)=>[...prev,{...ruleDraft,id:`${ruleDraft.id}-copy-${Date.now()}`}])}>Duplicate</button><button className="btn-outline" style={{ width: "auto" }} onClick={() => { setRules((prev) => prev.filter((_, i) => i !== selectedRuleIdx)); setSelectedRuleIdx(null); }}>Delete</button><button style={{ width: "auto" }} onClick={() => { if (selectedRuleIdx!==null && ruleDraft) setRules((prev)=>prev.map((r,i)=>i===selectedRuleIdx?ruleDraft:r)); setSelectedRuleIdx(null); }}>Save</button></div></div> : null}</div></div> : null}
-    </div>
+          </div>
   );
 }
