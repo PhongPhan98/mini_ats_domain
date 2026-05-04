@@ -120,7 +120,7 @@ export default function AutomationPage() {
 
         <div className="grid">
           {rules.map((r, idx) => (
-            <div key={r.id} className="card rule-card" style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => { setSelectedRuleIdx(idx); setRuleDraft(JSON.parse(JSON.stringify(r))); }}>
+            <div key={r.id} className="card rule-card" style={{ marginBottom: 8 }}>
               <div className="grid grid-3">
                 <div>
                   <label>Rule ID</label>
@@ -142,9 +142,10 @@ export default function AutomationPage() {
               </div>
 
               <div style={{ marginTop: 12 }} className="toolbar-actions">
-                <button className="btn-outline" onClick={() => addAction(idx, "log")}>+ Log</button>
-                <button className="btn-outline" onClick={() => addAction(idx, "email")}>+ Email</button>
-                <button className="btn-outline" onClick={() => addAction(idx, "webhook")}>+ Webhook</button>
+                <button className="btn-outline" style={{ width: "auto" }} onClick={() => { setSelectedRuleIdx(idx); setRuleDraft(JSON.parse(JSON.stringify(r))); }}>View / Edit</button>
+                <button className="btn-outline" onClick={(e) => { e.stopPropagation(); addAction(idx, "log"); }}>+ Log</button>
+                <button className="btn-outline" onClick={(e) => { e.stopPropagation(); addAction(idx, "email"); }}>+ Email</button>
+                <button className="btn-outline" onClick={(e) => { e.stopPropagation(); addAction(idx, "webhook"); }}>+ Webhook</button>
               </div>
 
               <div className="grid" style={{ marginTop: 10 }}>
