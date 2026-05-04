@@ -9,6 +9,19 @@ export default function EmailSuggestEnhancer() {
         el.setAttribute("list", "email-domain-suggest");
         el.setAttribute("autocomplete", "email");
         if (!el.getAttribute("placeholder")) el.setAttribute("placeholder", "name@gmail.com");
+        if (!el.dataset.tabAutofillBound) {
+          el.addEventListener("keydown", (ev: KeyboardEvent) => {
+            if (ev.key !== "Tab") return;
+            const input = ev.target as HTMLInputElement;
+            const v = String(input.value || "").trim();
+            if (v.endsWith("@")) {
+              ev.preventDefault();
+              input.value = v + "gmail.com";
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+          });
+          el.dataset.tabAutofillBound = "1";
+        }
       }
     };
     apply();
