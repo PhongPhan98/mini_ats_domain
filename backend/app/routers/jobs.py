@@ -303,5 +303,15 @@ def list_job_candidates(
     if not _can_access_job(_actor, job.id):
         raise HTTPException(status_code=403, detail="Not allowed to access this job")
 
-    items = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted") and _can_manage_candidate_for_job(_actor, c)]
+    items = []
+    for c in list(db.execute(select(Candidate)).scalars().all()):
+        parsed = c.parsed_json or {}
+        if parsed.get("deleted"):
+            continue
+        if not _can_manage_candidate_for_job(_actor, c):
+            continue
+        applied_job_id = parsed.get("applied_job_id")
+        shortlisted_job_ids = set(parsed.get("shortlisted_job_ids") or [])
+        if (applied_job_id is not None and int(applied_job_id) == int(job_id)) or (int(job_id) in {int(x) for x in shortlisted_job_ids if str(x).isdigit()}):
+            items.append(c)
     return {"job_id": job_id, "candidates": [{"id": c.id, "name": c.name, "status": c.status, "email": c.email} for c in items]}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import PipelineColumn from "../../components/PipelineColumn";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiGet, updateCandidateStage } from "../../lib/api";
+import { apiGet, updateCandidateStage, getJobCandidates } from "../../lib/api";
 import { notify } from "../../lib/toast";
 import { useAppLanguage } from "../../lib/language";
 import type { Candidate, CandidateStatus } from "../../components/types";
@@ -20,11 +20,17 @@ export default function PipelinePage() {
   const [dragId, setDragId] = useState<number | null>(null);
   const [keyword, setKeyword] = useState("");
   const [overStage, setOverStage] = useState<CandidateStatus | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<number>(0);
   const [visibleByStage, setVisibleByStage] = useState<Record<string, number>>({});
   const { t } = useAppLanguage();
 
   const qc = useQueryClient();
-  const { data: candidates = [] } = useQuery({ queryKey: ["pipeline-candidates"], queryFn: () => apiGet<Candidate[]>("/api/candidates") });
+  const { data: jobs = [] } = useQuery({ queryKey: ["pipeline-jobs"], queryFn: () => apiGet<any[]>("/api/jobs") });
+  const { data: candidates = [] } = useQuery({ queryKey: ["pipeline-candidates", selectedJobId], queryFn: async () => {
+    if (!selectedJobId) return apiGet<Candidate[]>("/api/candidates");
+    const data = await getJobCandidates(selectedJobId);
+    return (data.candidates || []) as Candidate[];
+  } });
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -80,12 +86,18 @@ export default function PipelinePage() {
             <h2 style={{ margin: 0 }}>{t("pipeline_title")}</h2>
             <small>{t("pipeline_hint")}</small>
           </div>
-          <input
-            style={{ maxWidth: 320 }}
-            placeholder={t("search_placeholder")}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-          />
+          <div className="toolbar-actions">
+            <select value={selectedJobId} onChange={(e) => setSelectedJobId(Number(e.target.value || 0))} style={{ width: "auto" }}>
+              <option value={0}>All Jobs</option>
+              {jobs.map((j: any) => <option key={j.id} value={j.id}>{j.title}</option>)}
+            </select>
+            <input
+              style={{ maxWidth: 320 }}
+              placeholder={t("search_placeholder")}
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
