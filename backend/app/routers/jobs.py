@@ -288,3 +288,19 @@ def update_job_settings(
     settings[str(job_id)] = cur
     _save_job_settings(settings)
     return {"job_id": job_id, "threshold": threshold}
+
+
+@router.get("/{job_id}/candidates")
+def list_job_candidates(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager", "interviewer")),
+):
+    job = db.get(Job, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if not _can_access_job(_actor, job.id):
+        raise HTTPException(status_code=403, detail="Not allowed to access this job")
+
+    items = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted") and _can_manage_candidate_for_job(_actor, c)]
+    return {"job_id": job_id, "candidates": [{"id": c.id, "name": c.name, "status": c.status, "email": c.email} for c in items]}

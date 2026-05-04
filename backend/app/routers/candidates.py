@@ -885,3 +885,29 @@ def send_rejection_email(
     log_event(_actor.email, "candidate.email.rejection", f"candidate:{candidate_id}", {"to": to_email, "ok": ok})
     db.commit()
     return {"ok": ok}
+
+
+@router.patch("/{candidate_id}/stage", response_model=CandidateOut)
+def update_candidate_stage(
+    candidate_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_manage_candidate(_actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed to update this candidate")
+
+    stage = normalize_status(str(payload.get("status") or payload.get("stage") or ""))
+    if stage not in ALLOWED_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status '{stage}'")
+
+    if stage != normalize_status(candidate.status):
+        candidate.status = stage
+        _append_timeline_event(candidate, "status", stage)
+        _append_timeline_event(candidate, "automation", f"auto_action:notify_on_stage_change:{stage}")
+    db.commit()
+    stmt = select(Candidate).options(selectinload(Candidate.files)).where(Candidate.id == candidate.id)
+    return db.execute(stmt).scalar_one()

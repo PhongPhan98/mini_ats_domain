@@ -63,7 +63,7 @@ export default function PipelinePage() {
 
   const onDropToStage = async (stage: CandidateStatus) => {
     if (!dragId) return;
-    await apiPatch(`/api/candidates/${dragId}`, { status: stage });
+    await apiPatch(`/api/candidates/${dragId}/stage`, { stage });
     setCandidates((prev) => prev.map((c) => (c.id === dragId ? { ...c, status: stage } : c)));
     setDragId(null);
     setOverStage(null);
@@ -71,7 +71,7 @@ export default function PipelinePage() {
   };
 
   const moveToStage = async (candidateId: number, stage: CandidateStatus) => {
-    await apiPatch(`/api/candidates/${candidateId}`, { status: stage });
+    await apiPatch(`/api/candidates/${candidateId}/stage`, { stage });
     setCandidates((prev) => prev.map((c) => (c.id === candidateId ? { ...c, status: stage } : c)));
     notify(`Candidate moved to ${label(stage)}`, "success");
   };
