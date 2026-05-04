@@ -114,6 +114,18 @@ export default function PipelinePage() {
         </div>
       </div>
 
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Job Funnel Snapshot</h3>
+        <div className="grid" style={{ gap: 8 }}>
+          {STAGES.map((s) => {
+            const c = byStage[s].length;
+            const total = Math.max(1, candidates.length);
+            const pct = Math.max(2, Math.min(100, Math.round((c * 100) / total)));
+            return <div key={`funnel-${s}`}><small>{label(s)} • {c}</small><div className="score-bar" style={{ width: "100%" }}><span style={{ width: `${pct}%` }} /></div></div>;
+          })}
+        </div>
+      </div>
+
       <div className="kanban-board">
         {STAGES.map((stage) => (
           <PipelineColumn
