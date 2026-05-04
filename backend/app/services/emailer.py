@@ -6,7 +6,7 @@ from app.config import settings
 def send_email(to_email: str, subject: str, body: str) -> bool:
     host = getattr(settings, "smtp_host", "")
     port = int(getattr(settings, "smtp_port", 587) or 587)
-    user = getattr(settings, "smtp_user", "")
+    user = getattr(settings, "smtp_username", "") or getattr(settings, "smtp_user", "")
     password = getattr(settings, "smtp_password", "")
     from_email = getattr(settings, "smtp_from_email", user or "noreply@miniats.local")
     if not host:
