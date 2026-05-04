@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "../../lib/api";
+import { notify } from "../../lib/toast";
 
 export default function AutomationPage() {
   const [to, setTo] = useState("");
@@ -22,7 +23,7 @@ export default function AutomationPage() {
       <input placeholder="Subject" value={subject} onChange={(e)=>setSubject(e.target.value)} />
       <textarea rows={6} placeholder="Email content" value={body} onChange={(e)=>setBody(e.target.value)} />
       <input type="datetime-local" value={sendAt} onChange={(e)=>setSendAt(e.target.value)} />
-      <div className="toolbar-actions"><button onClick={async()=>{await apiPost('/api/automation/email/send-now',{to,subject,body});}}>Send Now</button><button className="btn-outline" onClick={async()=>{await apiPost('/api/automation/email/schedules',{to,subject,body,send_at:sendAt}); await load();}}>Schedule Send</button></div>
+      <div className="toolbar-actions"><button onClick={async()=>{ const r:any = await apiPost('/api/automation/email/send-now',{to,subject,body}); if (r?.ok) notify("Email sent successfully", "success"); else notify(`Send failed: ${r?.message || "unknown"}`, "error"); }}>Send Now</button><button className="btn-outline" onClick={async()=>{await apiPost('/api/automation/email/schedules',{to,subject,body,send_at:sendAt}); notify("Email scheduled", "success"); await load();}}>Schedule Send</button></div>
     </div></div>
     <div className="card"><h3 style={{ marginTop: 0 }}>Scheduled Emails</h3><div className="grid">{items.map((x)=><div key={x.id} className="card"><strong>{x.to}</strong><small>{x.subject}</small><small>{x.send_at}</small><small>{x.status}</small></div>)}{!items.length?<small>No scheduled emails yet</small>:null}</div></div>
   </div>;

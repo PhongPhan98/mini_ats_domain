@@ -70,8 +70,11 @@ def list_simple_email_schedules(actor=Depends(require_roles("admin","recruiter",
 
 @router.post("/email/send-now")
 def send_now(payload: dict, actor=Depends(require_roles("admin","recruiter","hiring_manager"))):
-    ok = send_email(payload.get("to",""), payload.get("subject","Interview update"), payload.get("body",""))
-    return {"ok": ok}
+    try:
+        ok = send_email(payload.get("to",""), payload.get("subject","Interview update"), payload.get("body",""))
+        return {"ok": bool(ok), "message": "sent" if ok else "smtp_not_configured_or_failed"}
+    except Exception as e:
+        return {"ok": False, "message": f"send_failed:{e}"}
 
 @router.post("/email/schedules")
 def create_simple_email_schedule(payload: dict, actor=Depends(require_roles("admin","recruiter","hiring_manager"))):
