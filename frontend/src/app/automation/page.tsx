@@ -110,7 +110,21 @@ export default function AutomationPage() {
 
       <div className="card">
         <div className="toolbar">
-          <h3>{t("rules")} ({rules.length})</h3>
+          <div>
+            <h3 style={{ margin: 0 }}>Automation workflow</h3>
+            <small>Create stage-based rules, review actions, then save once.</small>
+          </div>
+          <div className="chip-wrap">
+            <span className="chip">1) Define stage</span>
+            <span className="chip">2) Add actions</span>
+            <span className="chip">3) Save rules</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="toolbar">
+          <h3 style={{ margin: 0 }}>{t("rules")} <span className="chip">{rules.length}</span></h3>
           <div className="toolbar-actions">
             <button className="btn-outline" onClick={addRule}>{t("add_rule")}</button>
             <button onClick={saveRules} disabled={saving}>{saving ? t("saving") : t("save_rules")}</button>
@@ -119,7 +133,7 @@ export default function AutomationPage() {
 
         <div className="grid">
           {rules.map((r, idx) => (
-            <div key={r.id} className="card" style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setSelectedRuleIdx(idx)}>
+            <div key={r.id} className="card rule-card" style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => setSelectedRuleIdx(idx)}>
               <div className="grid grid-3">
                 <div>
                   <label>Rule ID</label>
@@ -173,7 +187,21 @@ export default function AutomationPage() {
       </div>
 
       <div className="card">
-        <h3>{t("event_log")}</h3>
+        <div className="toolbar">
+          <div>
+            <h3 style={{ margin: 0 }}>Automation workflow</h3>
+            <small>Create stage-based rules, review actions, then save once.</small>
+          </div>
+          <div className="chip-wrap">
+            <span className="chip">1) Define stage</span>
+            <span className="chip">2) Add actions</span>
+            <span className="chip">3) Save rules</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="toolbar"><h3 style={{ margin: 0 }}>{t("event_log")}</h3><small>Recent automation runs and outcomes.</small></div>
         <div style={{ maxHeight: 320, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8 }}><table>
           <thead>
             <tr>
@@ -200,7 +228,7 @@ export default function AutomationPage() {
           </tbody>
         </table></div>
       </div>
-      {selectedRuleIdx !== null ? <div className="modal-overlay" onClick={() => setSelectedRuleIdx(null)}><div className="modal-card" onClick={(e) => e.stopPropagation()}><div className="toolbar"><h3 style={{ margin: 0 }}>Automation Rule Detail</h3><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>×</button></div>{rules[selectedRuleIdx] ? <div className="grid"><small>Rule: {rules[selectedRuleIdx].id}</small><small>Stage: {rules[selectedRuleIdx].on_stage}</small><small>Actions: {rules[selectedRuleIdx].actions.length}</small><div className="toolbar-actions"><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>Close</button><button className="btn-outline" style={{ width: "auto" }} onClick={() => { setRules((prev) => prev.filter((_, i) => i !== selectedRuleIdx)); setSelectedRuleIdx(null); }}>Delete</button></div></div> : null}</div></div> : null}
+      {selectedRuleIdx !== null ? <div className="modal-overlay" onClick={() => setSelectedRuleIdx(null)}><div className="modal-card" onClick={(e) => e.stopPropagation()}><div className="toolbar"><h3 style={{ margin: 0 }}>Automation Rule Detail</h3><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>×</button></div>{rules[selectedRuleIdx] ? <div className="grid"><small>Rule: {rules[selectedRuleIdx].id}</small><small>Stage: {rules[selectedRuleIdx].on_stage}</small><small>Actions: {rules[selectedRuleIdx].actions.length}</small><div className="toolbar-actions"><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>Close</button><button className="btn-outline" style={{ width: "auto" }} onClick={() => { setRules((prev) => prev.filter((_, i) => i !== selectedRuleIdx)); setSelectedRuleIdx(null); }}>Delete</button><button style={{ width: "auto" }} onClick={() => setSelectedRuleIdx(null)}>Done</button></div></div> : null}</div></div> : null}
     </div>
   );
 }

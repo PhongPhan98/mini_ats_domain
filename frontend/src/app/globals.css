@@ -1185,3 +1185,7 @@ button:not(.btn-outline):disabled { background: #94a3b8; color: #f8fafc; }
   word-break: break-word;
   overflow-wrap: anywhere;
 }
+
+
+.rule-card { transition: transform .12s ease, box-shadow .12s ease; }
+.rule-card:hover { transform: translateY(-1px); box-shadow: 0 8px 14px rgba(15,23,42,.12); }
