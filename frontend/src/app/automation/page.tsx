@@ -28,6 +28,7 @@ export default function AutomationPage() {
   const [saving, setSaving] = useState(false);
   const [selectedRuleIdx, setSelectedRuleIdx] = useState<number | null>(null);
   const [ruleDraft, setRuleDraft] = useState<Rule | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const { t } = useAppLanguage();
 
   const load = async () => {
@@ -205,6 +206,8 @@ export default function AutomationPage() {
       </div>
 
 
+      {selectedEvent ? <div className="card"><div className="toolbar"><h3 style={{ margin: 0 }}>Event Detail</h3><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedEvent(null)}>Close</button></div><pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(selectedEvent, null, 2)}</pre></div> : null}
+
       {selectedRuleIdx !== null && ruleDraft ? (
         <div id="rule-editor-panel" className="card">
           <div className="toolbar">
@@ -225,7 +228,7 @@ export default function AutomationPage() {
       ) : null}
 
       <div className="card">
-        <div className="toolbar"><h3 style={{ margin: 0 }}>{t("event_log")}</h3><small>Recent automation runs and outcomes.</small></div>
+        <div className="toolbar"><h3 style={{ margin: 0 }}>{t("event_log")}</h3><div className="toolbar-actions"><small>Recent automation runs and outcomes.</small><button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost("/api/automation/events/clear", {}); setEvents([]); }}>Clear All</button></div></div>
         <div style={{ maxHeight: 320, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8 }}><table>
           <thead>
             <tr>
@@ -233,21 +236,20 @@ export default function AutomationPage() {
               <th>{t("candidate")}</th>
               <th>{t("stage")}</th>
               <th>{t("rule")}</th>
-              <th>{t("result")}</th>
+              <th>{t("result")}</th><th>Action</th>
             </tr>
           </thead>
           <tbody>
             {events.map((e, i) => (
-              <tr key={`${e.timestamp}-${i}`}>
+              <tr key={`${e.timestamp}-${i}`} style={{ cursor: "pointer" }} onClick={() => setSelectedEvent(e)}>
                 <td>{e.timestamp}</td>
                 <td>{e.candidate_name}</td>
                 <td>{e.stage}</td>
                 <td>{e.rule_id}</td>
-                <td>{e.result}</td>
-              </tr>
+                <td>{e.result}</td><td><button className="btn-outline" style={{ width: "auto" }} onClick={(ev) => { ev.stopPropagation(); setEvents((prev) => prev.filter((_, idx) => idx !== i)); }}>Delete</button></td></tr>
             ))}
             {!events.length && (
-              <tr><td colSpan={5}><small>{t("no_events")}</small></td></tr>
+              <tr><td colSpan={6}><small>{t("no_events")}</small></td></tr>
             )}
           </tbody>
         </table></div>
