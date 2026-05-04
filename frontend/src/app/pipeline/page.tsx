@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPatch } from "../../lib/api";
 import { notify } from "../../lib/toast";
 import { useAppLanguage } from "../../lib/language";
@@ -15,21 +16,14 @@ function label(s: CandidateStatus) {
 }
 
 export default function PipelinePage() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [dragId, setDragId] = useState<number | null>(null);
   const [keyword, setKeyword] = useState("");
   const [overStage, setOverStage] = useState<CandidateStatus | null>(null);
   const [visibleByStage, setVisibleByStage] = useState<Record<string, number>>({});
   const { t } = useAppLanguage();
 
-  const load = async () => {
-    const data = await apiGet<Candidate[]>("/api/candidates");
-    setCandidates(data);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
+  const qc = useQueryClient();
+  const { data: candidates = [] } = useQuery({ queryKey: ["pipeline-candidates"], queryFn: () => apiGet<Candidate[]>("/api/candidates") });
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -54,25 +48,26 @@ export default function PipelinePage() {
   useEffect(() => {
     setVisibleByStage((prev) => {
       const next = { ...prev };
-      for (const st of STAGES) {
-        if (!next[st]) next[st] = VISIBLE_STEP;
-      }
+      for (const st of STAGES) { if (!next[st]) next[st] = VISIBLE_STEP; }
       return next;
     });
   }, [candidates.length]);
 
+  const stageMutation = useMutation({
+    mutationFn: ({ candidateId, stage }: { candidateId: number; stage: CandidateStatus }) => apiPatch(`/api/candidates/${candidateId}/stage`, { stage }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline-candidates"] }),
+  });
+
   const onDropToStage = async (stage: CandidateStatus) => {
     if (!dragId) return;
-    await apiPatch(`/api/candidates/${dragId}/stage`, { stage });
-    setCandidates((prev) => prev.map((c) => (c.id === dragId ? { ...c, status: stage } : c)));
+    await stageMutation.mutateAsync({ candidateId: dragId, stage });
     setDragId(null);
     setOverStage(null);
     notify(`Candidate moved to ${label(stage)}`, "success");
   };
 
   const moveToStage = async (candidateId: number, stage: CandidateStatus) => {
-    await apiPatch(`/api/candidates/${candidateId}/stage`, { stage });
-    setCandidates((prev) => prev.map((c) => (c.id === candidateId ? { ...c, status: stage } : c)));
+    await stageMutation.mutateAsync({ candidateId, stage });
     notify(`Candidate moved to ${label(stage)}`, "success");
   };
 
