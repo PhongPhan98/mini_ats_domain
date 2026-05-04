@@ -82,3 +82,16 @@ export async function apiDelete<T>(path: string): Promise<T> {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+
+export async function getJobCandidates(jobId: number) {
+  return apiGet<{ job_id: number; candidates: { id: number; name?: string; status?: string; email?: string }[] }>(`/api/jobs/${jobId}/candidates`);
+}
+
+export async function updateCandidateStage(candidateId: number, stage: string) {
+  return apiPatch(`/api/candidates/${candidateId}/stage`, { stage });
+}
+
+export async function createInterview(candidateId: number, payload: any) {
+  return apiPost(`/api/interviews?candidate_id=${candidateId}`, payload);
+}

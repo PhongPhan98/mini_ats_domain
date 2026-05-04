@@ -4,7 +4,7 @@ import Link from "next/link";
 import PipelineColumn from "../../components/PipelineColumn";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPatch } from "../../lib/api";
+import { apiGet, updateCandidateStage } from "../../lib/api";
 import { notify } from "../../lib/toast";
 import { useAppLanguage } from "../../lib/language";
 import type { Candidate, CandidateStatus } from "../../components/types";
@@ -55,7 +55,7 @@ export default function PipelinePage() {
   }, [candidates.length]);
 
   const stageMutation = useMutation({
-    mutationFn: ({ candidateId, stage }: { candidateId: number; stage: CandidateStatus }) => apiPatch(`/api/candidates/${candidateId}/stage`, { stage }),
+    mutationFn: ({ candidateId, stage }: { candidateId: number; stage: CandidateStatus }) => updateCandidateStage(candidateId, stage),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline-candidates"] }),
   });
 

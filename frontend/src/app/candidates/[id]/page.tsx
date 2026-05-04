@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { apiDelete, apiGet, apiPatch, apiPost } from "../../../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, createInterview } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
 import { useMe } from "../../../lib/me";
 import { notify } from "../../../lib/toast";
@@ -319,7 +319,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
   const onScheduleInterview = async () => {
     if (!candidateId || !schedInterviewer || !schedAt) { notify(t("missing_required_fields"), "error"); return; }
-    await apiPost(`/api/interviews?candidate_id=${candidateId}`, {
+    await createInterview(Number(candidateId), {
       interviewer_email: schedInterviewer,
       scheduled_at: new Date(schedAt).toISOString(),
       duration_minutes: Number(schedDuration || 60),
