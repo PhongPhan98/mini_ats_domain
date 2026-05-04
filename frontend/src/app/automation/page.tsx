@@ -29,6 +29,7 @@ export default function AutomationPage() {
   const [selectedRuleIdx, setSelectedRuleIdx] = useState<number | null>(null);
   const [ruleDraft, setRuleDraft] = useState<Rule | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [selectedEventIdx, setSelectedEventIdx] = useState<number | null>(null);
   const { t } = useAppLanguage();
 
   const load = async () => {
@@ -206,8 +207,6 @@ export default function AutomationPage() {
       </div>
 
 
-      {selectedEvent ? <div className="card"><div className="toolbar"><h3 style={{ margin: 0 }}>Event Detail</h3><button className="btn-outline" style={{ width: "auto" }} onClick={() => setSelectedEvent(null)}>Close</button></div><pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(selectedEvent, null, 2)}</pre></div> : null}
-
       {selectedRuleIdx !== null && ruleDraft ? (
         <div id="rule-editor-panel" className="card">
           <div className="toolbar">
@@ -241,7 +240,7 @@ export default function AutomationPage() {
           </thead>
           <tbody>
             {events.map((e, i) => (
-              <tr key={`${e.timestamp}-${i}`} style={{ cursor: "pointer" }} onClick={() => setSelectedEvent(e)}>
+              <tr key={`${e.timestamp}-${i}`} style={{ cursor: "pointer" }} onClick={() => { setSelectedEvent(e); setSelectedEventIdx(i); }}>
                 <td>{e.timestamp}</td>
                 <td>{e.candidate_name}</td>
                 <td>{e.stage}</td>
@@ -254,6 +253,31 @@ export default function AutomationPage() {
           </tbody>
         </table></div>
       </div>
+      
+      {selectedEvent ? (
+        <div className="modal-overlay" onClick={() => { setSelectedEvent(null); setSelectedEventIdx(null); }}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="toolbar">
+              <h3 style={{ margin: 0 }}>Event Detail</h3>
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => { setSelectedEvent(null); setSelectedEventIdx(null); }}>×</button>
+            </div>
+            <div className="grid grid-2">
+              <div><label>Time</label><input value={selectedEvent.timestamp || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, timestamp: e.target.value })} /></div>
+              <div><label>Candidate</label><input value={selectedEvent.candidate_name || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, candidate_name: e.target.value })} /></div>
+              <div><label>Stage</label><input value={selectedEvent.stage || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, stage: e.target.value })} /></div>
+              <div><label>Rule</label><input value={selectedEvent.rule_id || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, rule_id: e.target.value })} /></div>
+            </div>
+            <div style={{ marginTop: 10 }}><label>Result</label><textarea rows={3} value={selectedEvent.result || ""} onChange={(e) => setSelectedEvent({ ...selectedEvent, result: e.target.value })} /></div>
+            <div style={{ marginTop: 10 }}><label>Action payload (JSON)</label><textarea rows={6} value={JSON.stringify(selectedEvent.action || {}, null, 2)} onChange={(e) => { try { setSelectedEvent({ ...selectedEvent, action: JSON.parse(e.target.value || "{}") }); } catch {} }} /></div>
+            <div className="toolbar-actions" style={{ marginTop: 12 }}>
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => { if (selectedEventIdx !== null) setEvents((prev) => prev.filter((_, idx) => idx !== selectedEventIdx)); setSelectedEvent(null); setSelectedEventIdx(null); }}>Delete</button>
+              <button className="btn-outline" style={{ width: "auto" }} onClick={() => { setSelectedEvent(null); setSelectedEventIdx(null); }}>Cancel</button>
+              <button style={{ width: "auto" }} onClick={() => { if (selectedEventIdx !== null) setEvents((prev) => prev.map((ev, idx) => idx === selectedEventIdx ? selectedEvent : ev)); setSelectedEvent(null); setSelectedEventIdx(null); }}>Save</button>
+            </div>
           </div>
+        </div>
+      ) : null}
+
+    </div>
   );
 }
