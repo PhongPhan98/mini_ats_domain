@@ -317,7 +317,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
   const onScheduleInterview = async () => {
     if (!candidateId || !schedInterviewer || !schedAt) { notify(t("missing_required_fields"), "error"); return; }
-    await apiPost(`/api/candidates/${candidateId}/schedules`, {
+    await apiPost(`/api/interviews?candidate_id=${candidateId}`, {
       interviewer_email: schedInterviewer,
       scheduled_at: new Date(schedAt).toISOString(),
       duration_minutes: Number(schedDuration || 60),
