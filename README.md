@@ -523,3 +523,8 @@ Not installed by default:
 - embedding-heavy stack (`sentence-transformers`)
 
 The code remains adaptive: if optional libs are missing, ATS falls back to lightweight parsing/matching paths.
+
+
+## Raw CV retention modes
+- `STORAGE_MODE=local` (default): save raw CV files under `UPLOAD_DIR`
+- `STORAGE_MODE=none` (recommended high-scale privacy mode): do not persist raw CV on app disk; only metadata marker is stored (`suppressed://...`).

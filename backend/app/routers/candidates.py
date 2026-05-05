@@ -15,14 +15,14 @@ from app.schemas import CandidateOut, CandidateUpdate
 from app.services.automation import run_stage_change_automations
 from app.services.parser import CVTextParser
 from app.services.rule_based import SKILL_ALIASES, parse_candidate_from_cv
-from app.services.storage import LocalStorageService
+from app.services.storage import get_storage_service
 from app.services.audit import log_event
 from app.services.llm import LLMService
 from app.services.emailer import send_email
 from app.config import settings
 
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
-storage = LocalStorageService()
+storage = get_storage_service()
 
 ALLOWED_STATUSES = {"applied", "screening", "interview", "offer", "hired", "rejected"}
 

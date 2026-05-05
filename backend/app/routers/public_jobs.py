@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Job, Candidate, CandidateFile
-from app.services.storage import LocalStorageService
+from app.services.storage import get_storage_service
 from app.services.audit import log_event
 
 router = APIRouter(prefix="/api/public/jobs", tags=["public-jobs"])
-storage = LocalStorageService()
+storage = get_storage_service()
 _RATE_LIMIT: dict[str, list[float]] = {}
 
 
