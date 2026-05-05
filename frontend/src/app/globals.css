@@ -1189,3 +1189,13 @@ button:not(.btn-outline):disabled { background: #94a3b8; color: #f8fafc; }
 
 .rule-card { transition: transform .12s ease, box-shadow .12s ease; }
 .rule-card:hover { transform: translateY(-1px); box-shadow: 0 8px 14px rgba(15,23,42,.12); }
+
+
+/* Slice2 UX consistency pack */
+.card h2, .card h3 { letter-spacing: .1px; }
+.card small { color: color-mix(in srgb, var(--text) 65%, #64748b 35%); }
+.toolbar-actions { gap: 8px; flex-wrap: wrap; }
+button { border-radius: 10px; }
+.btn-outline { background: transparent; }
+.empty-state { padding: 14px; }
+input, select, textarea { border-radius: 10px; }

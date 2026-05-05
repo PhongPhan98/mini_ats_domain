@@ -180,7 +180,7 @@ export default function JobsPage() {
               />
               <button onClick={createJob}>{t("save_job")}</button>
             </div>
-          ) : <small>Click "Create new job" to open the form.</small>}
+          ) : <small>No data yet. Click "Create new job" to open the form.</small>}
         </div>
       )}
 
