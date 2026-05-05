@@ -80,3 +80,30 @@ def create_simple_email_schedule(payload: dict, actor=Depends(require_roles("adm
     db.add(row)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/email/schedules/run-due")
+def run_due_schedules(actor=Depends(require_roles("admin","recruiter","hiring_manager")), db: Session = Depends(get_db)):
+    now = datetime.utcnow()
+    rows = db.query(EmailSchedule).filter(EmailSchedule.status == "scheduled").all()
+    sent = 0
+    failed = 0
+    for r in rows:
+        if r.send_at and r.send_at > now:
+            continue
+        try:
+            ok = send_email(r.to_email, r.subject, r.body)
+            if ok:
+                r.status = "sent"
+                r.error_message = None
+                sent += 1
+            else:
+                r.status = "failed"
+                r.error_message = "smtp_not_configured_or_failed"
+                failed += 1
+        except Exception as e:
+            r.status = "failed"
+            r.error_message = str(e)
+            failed += 1
+    db.commit()
+    return {"ok": True, "sent": sent, "failed": failed}
