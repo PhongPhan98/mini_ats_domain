@@ -48,25 +48,16 @@ def test_run_rule(payload: dict, actor=Depends(require_roles("admin", "recruiter
     append_event({"timestamp": datetime.utcnow().isoformat(), "candidate_id": 0, "candidate_name": "TEST", "stage": payload.get("stage") or "interview", "rule_id": rid, "action": {"type": "log"}, "result": "test_run_ok"})
     return {"ok": True}
 
-from pathlib import Path
-import json
 from datetime import datetime
 from app.services.emailer import send_email
-
-SIMPLE_EMAIL_FILE = Path(__file__).resolve().parents[1] / "data" / "simple_email_schedules.json"
-
-def _load_simple_schedules():
-    SIMPLE_EMAIL_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if not SIMPLE_EMAIL_FILE.exists():
-        SIMPLE_EMAIL_FILE.write_text("[]", encoding="utf-8")
-    return json.loads(SIMPLE_EMAIL_FILE.read_text(encoding="utf-8") or "[]")
-
-def _save_simple_schedules(rows):
-    SIMPLE_EMAIL_FILE.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+from app.database import get_db
+from sqlalchemy.orm import Session
+from app.models import EmailSchedule
 
 @router.get("/email/schedules")
-def list_simple_email_schedules(actor=Depends(require_roles("admin","recruiter","hiring_manager"))):
-    return {"items": _load_simple_schedules()}
+def list_simple_email_schedules(actor=Depends(require_roles("admin","recruiter","hiring_manager")), db: Session = Depends(get_db)):
+    rows = db.query(EmailSchedule).order_by(EmailSchedule.created_at.desc()).limit(500).all()
+    return {"items": [{"id": f"sch-{r.id}", "to": r.to_email, "subject": r.subject, "body": r.body, "send_at": (r.send_at.isoformat() if r.send_at else ""), "status": r.status} for r in rows]}
 
 @router.post("/email/send-now")
 def send_now(payload: dict, actor=Depends(require_roles("admin","recruiter","hiring_manager"))):
@@ -77,15 +68,15 @@ def send_now(payload: dict, actor=Depends(require_roles("admin","recruiter","hir
         return {"ok": False, "message": f"send_failed:{e}"}
 
 @router.post("/email/schedules")
-def create_simple_email_schedule(payload: dict, actor=Depends(require_roles("admin","recruiter","hiring_manager"))):
-    rows = _load_simple_schedules()
-    rows.append({
-        "id": f"sch-{int(datetime.utcnow().timestamp()*1000)}",
-        "to": payload.get("to",""),
-        "subject": payload.get("subject","Interview update"),
-        "body": payload.get("body",""),
-        "send_at": payload.get("send_at",""),
-        "status": "scheduled",
-    })
-    _save_simple_schedules(rows)
+def create_simple_email_schedule(payload: dict, actor=Depends(require_roles("admin","recruiter","hiring_manager")), db: Session = Depends(get_db)):
+    send_at = payload.get("send_at")
+    dt = None
+    if send_at:
+        try:
+            dt = datetime.fromisoformat(str(send_at))
+        except Exception:
+            dt = None
+    row = EmailSchedule(created_by_user_id=getattr(actor, "id", None), to_email=payload.get("to",""), subject=payload.get("subject","Interview update"), body=payload.get("body",""), send_at=dt, status="scheduled")
+    db.add(row)
+    db.commit()
     return {"ok": True}

@@ -110,3 +110,19 @@ class Job(Base):
     title: Mapped[str] = mapped_column(String(255), index=True)
     requirements: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmailSchedule(Base):
+    __tablename__ = "email_schedules"
+
+    id = mapped_column(Integer, primary_key=True, index=True)
+    created_by_user_id = mapped_column(Integer, nullable=True)
+    candidate_id = mapped_column(Integer, nullable=True)
+    to_email = mapped_column(String(255), nullable=False, index=True)
+    subject = mapped_column(String(500), nullable=False, default="Interview update")
+    body = mapped_column(Text, nullable=False, default="")
+    send_at = mapped_column(DateTime(timezone=True), nullable=True)
+    status = mapped_column(String(32), nullable=False, default="scheduled", index=True)
+    error_message = mapped_column(Text, nullable=True)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
