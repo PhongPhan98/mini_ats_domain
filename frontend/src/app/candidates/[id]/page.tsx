@@ -20,6 +20,10 @@ type CandidateForm = {
   education_text: string;
   previous_companies_text: string;
   summary: string;
+  domain_tags_text: string;
+  experience_details_text: string;
+  notice_period: string;
+  preferred_location: string;
   note: string;
 };
 
@@ -74,6 +78,10 @@ function toForm(c: Candidate): CandidateForm {
     education_text: (c.education || []).join("\n"),
     previous_companies_text: (c.previous_companies || []).join("\n"),
     summary: c.summary || "",
+    domain_tags_text: String((((c.parsed_json as any)?.domain_tags || [])).join(", ")),
+    experience_details_text: String((((c.parsed_json as any)?.experience_details || [])).join("\n")),
+    notice_period: String((c.parsed_json as any)?.notice_period || ""),
+    preferred_location: String((c.parsed_json as any)?.preferred_location || ""),
     note: "",
   };
 }
@@ -481,13 +489,13 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           <textarea rows={6} value={form.summary} onChange={(e) => updateField("summary", e.target.value)}  readOnly={isViewOnly} disabled={isViewOnly} />
         </div>
         <div className="grid grid-2" style={{ marginTop: 12 }}>
-          <div><label>Domain tags</label><input value={String(((candidate.parsed_json as any)?.domain_tags || []).join(", "))} readOnly disabled /></div>
-          <div><label>Notice period</label><input value={String((candidate.parsed_json as any)?.notice_period || "")} readOnly disabled /></div>
-          <div><label>Preferred location</label><input value={String((candidate.parsed_json as any)?.preferred_location || "")} readOnly disabled /></div>
+          <div><label>Domain tags</label><input value={form.domain_tags_text || ""} onChange={(e) => updateField("domain_tags_text", e.target.value)} readOnly={isViewOnly} disabled={isViewOnly} /></div>
+          <div><label>Notice period</label><input value={form.notice_period || ""} onChange={(e) => updateField("notice_period", e.target.value)} readOnly={isViewOnly} disabled={isViewOnly} /></div>
+          <div><label>Preferred location</label><input value={form.preferred_location || ""} onChange={(e) => updateField("preferred_location", e.target.value)} readOnly={isViewOnly} disabled={isViewOnly} /></div>
         </div>
         <div style={{ marginTop: 12 }}>
           <label>Experience details</label>
-          <textarea rows={4} value={String(((candidate.parsed_json as any)?.experience_details || []).join("\n"))} readOnly disabled />
+          <textarea rows={4} value={form.experience_details_text || ""} onChange={(e) => updateField("experience_details_text", e.target.value)} readOnly={isViewOnly} disabled={isViewOnly} />
         </div>
         <div style={{ marginTop: 12 }}>
           <label>Achievements</label>

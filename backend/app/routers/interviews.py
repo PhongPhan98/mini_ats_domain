@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Candidate, InterviewSchedule
+from app.models import Candidate, InterviewSchedule, EmailSchedule
 from app.rbac import get_current_user, require_roles
 from app.schemas import InterviewScheduleCreate, InterviewScheduleOut
 from app.services.automation import append_event, run_stage_change_automations
@@ -47,6 +47,17 @@ def create_interview(
     _append_timeline_event(candidate, "schedule", f"Interview scheduled at {payload.scheduled_at.isoformat()} with {payload.interviewer_email}")
     run_stage_change_automations(candidate_id=candidate.id, candidate_name=candidate.name or f"Candidate #{candidate.id}", stage="interview", email=candidate.email)
     append_event({"timestamp": datetime.utcnow().isoformat(), "candidate_id": candidate.id, "candidate_name": candidate.name or f"Candidate #{candidate.id}", "stage": "interview", "rule_id": "schedule-notify", "action": {"type": "email", "to": payload.interviewer_email, "subject": f"Interview scheduled: {candidate.name or candidate.id}"}, "result": f"queued_schedule_notification:{payload.interviewer_email}"})
+
+    if candidate.email:
+        db.add(EmailSchedule(
+            created_by_user_id=getattr(user, "id", None),
+            candidate_id=candidate.id,
+            to_email=candidate.email,
+            subject=f"Interview Invitation - {candidate.name or 'Candidate'}",
+            body=f"Hello {candidate.name or ''},\n\nYou are invited to interview at {payload.scheduled_at.isoformat()}.\n\nBest regards.",
+            send_at=payload.scheduled_at,
+            status="scheduled",
+        ))
 
     db.commit()
     db.refresh(schedule)
