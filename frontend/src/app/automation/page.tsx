@@ -8,10 +8,11 @@ export default function AutomationPage() {
   const [subject, setSubject] = useState("Interview Invitation");
   const [body, setBody] = useState("Hello, you are invited to interview.");
   const [sendAt, setSendAt] = useState("");
-  const [items, setItems] = useState<any[]>([]);
+  type ScheduledEmail = { id: string; to: string; subject: string; body: string; send_at: string; status: string };
+  const [items, setItems] = useState<ScheduledEmail[]>([]);
 
   const load = async () => {
-    const d = await apiGet<{ items: any[] }>("/api/automation/email/schedules");
+    const d = await apiGet<{ items: ScheduledEmail[] }>("/api/automation/email/schedules");
     setItems(d.items || []);
   };
   useEffect(() => { load(); }, []);
@@ -23,7 +24,7 @@ export default function AutomationPage() {
       <input placeholder="Subject" value={subject} onChange={(e)=>setSubject(e.target.value)} />
       <textarea rows={6} placeholder="Email content" value={body} onChange={(e)=>setBody(e.target.value)} />
       <input type="datetime-local" value={sendAt} onChange={(e)=>setSendAt(e.target.value)} />
-      <div className="toolbar-actions"><button onClick={async()=>{ const r:any = await apiPost('/api/automation/email/send-now',{to,subject,body}); if (r?.ok) notify("Email sent successfully", "success"); else notify(`Send failed: ${r?.message || "unknown"}`, "error"); }}>Send Now</button><button className="btn-outline" onClick={async()=>{await apiPost('/api/automation/email/schedules',{to,subject,body,send_at:sendAt}); notify("Email scheduled", "success"); await load();}}>Schedule Send</button></div>
+      <div className="toolbar-actions"><button onClick={async()=>{ const r = await apiPost<{ ok: boolean; message?: string }>("/api/automation/email/send-now",{to,subject,body}); if (r?.ok) notify("Email sent successfully", "success"); else notify(`Send failed: ${r?.message || "unknown"}`, "error"); }}>Send Now</button><button className="btn-outline" onClick={async()=>{await apiPost('/api/automation/email/schedules',{to,subject,body,send_at:sendAt}); notify("Email scheduled", "success"); await load();}}>Schedule Send</button></div>
     </div></div>
     <div className="card"><h3 style={{ marginTop: 0 }}>Scheduled Emails</h3><div className="grid">{items.map((x)=><div key={x.id} className="card"><strong>{x.to}</strong><small>{x.subject}</small><small>{x.send_at}</small><small>{x.status}</small></div>)}{!items.length?<small>No scheduled emails yet</small>:null}</div></div>
   </div>;

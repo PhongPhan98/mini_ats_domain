@@ -10,6 +10,7 @@ import { useAppLanguage } from "../../lib/language";
 import type { Candidate, CandidateStatus } from "../../components/types";
 
 const STAGES: CandidateStatus[] = ["applied", "screening", "interview", "offer", "hired", "rejected"];
+type JobLite = { id: number; title: string };
 const VISIBLE_STEP = 30;
 
 function label(s: CandidateStatus) {
@@ -25,7 +26,7 @@ export default function PipelinePage() {
   const { t } = useAppLanguage();
 
   const qc = useQueryClient();
-  const { data: jobs = [] } = useQuery({ queryKey: ["pipeline-jobs"], queryFn: () => apiGet<any[]>("/api/jobs") });
+  const { data: jobs = [] } = useQuery({ queryKey: ["pipeline-jobs"], queryFn: () => apiGet<JobLite[]>("/api/jobs") });
   const { data: candidates = [] } = useQuery({ queryKey: ["pipeline-candidates", selectedJobId], queryFn: async () => {
     if (!selectedJobId) return apiGet<Candidate[]>("/api/candidates");
     const data = await getJobCandidates(selectedJobId);
@@ -97,7 +98,7 @@ export default function PipelinePage() {
           <div className="toolbar-actions">
             <select value={selectedJobId} onChange={(e) => setSelectedJobId(Number(e.target.value || 0))} style={{ width: "auto" }}>
               <option value={0}>All Jobs</option>
-              {jobs.map((j: any) => <option key={j.id} value={j.id}>{j.title}</option>)}
+              {jobs.map((j) => <option key={j.id} value={j.id}>{j.title}</option>)}
             </select>
             <input
               style={{ maxWidth: 320 }}
