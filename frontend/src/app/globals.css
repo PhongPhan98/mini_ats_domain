@@ -1199,3 +1199,7 @@ button { border-radius: 10px; }
 .btn-outline { background: transparent; }
 .empty-state { padding: 14px; }
 input, select, textarea { border-radius: 10px; }
+
+
+.nav-links { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.nav-link { display:inline-flex; align-items:center; justify-content:center; min-height:32px; }

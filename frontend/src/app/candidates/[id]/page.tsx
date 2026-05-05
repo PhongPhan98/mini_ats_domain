@@ -174,6 +174,10 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [ownershipReason, setOwnershipReason] = useState("");
   const [selectedFileUrl, setSelectedFileUrl] = useState("");
   const [activeTab, setActiveTab] = useState<"profile"|"interviews"|"notes"|"timeline">("profile");
+  const [emailMode, setEmailMode] = useState<"interview"|"rejection"|null>(null);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
   const { t, lang } = useAppLanguage();
   const { me } = useMe();
 
@@ -394,8 +398,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             </select>
             {!isViewOnly ? <button style={{ width: "auto" }} onClick={onSave} disabled={!canSave || !isOwner}>{saving ? t("saving") : "Move Stage"}</button> : null}
             {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={onScheduleInterview} disabled={!isOwner}>Schedule Interview</button> : null}
-            {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/email/interview`, {}); notify("Interview email sent", "success"); }}>Send Interview Email</button> : null}
-            {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={async () => { await apiPost(`/api/candidates/${candidateId}/email/rejection`, {}); notify("Rejection email sent", "success"); }}>Send Rejection Email</button> : null}
+            {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={() => { setEmailMode("interview"); setEmailTo(candidate?.email || ""); setEmailSubject(`Interview Invitation - ${candidate?.name || "Candidate"}`); setEmailBody(`Hello ${candidate?.name || ""},\n\nWe would like to invite you to an interview.\n\nBest regards,`); }}>Send Interview Email</button> : null}
+            {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={() => { setEmailMode("rejection"); setEmailTo(candidate?.email || ""); setEmailSubject(`Application Update - ${candidate?.name || "Candidate"}`); setEmailBody(`Hello ${candidate?.name || ""},\n\nThank you for your application. We will not proceed this time.\n\nBest regards,`); }}>Send Rejection Email</button> : null}
             {!isViewOnly ? <button className="btn-outline" style={{ width: "auto" }} onClick={() => { updateField("status", "rejected"); }}>Reject</button> : null}
           </div>
         </div>
@@ -710,6 +714,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div> : null}
       </div> : null}
+      {emailMode ? <div className="modal-overlay" onClick={() => setEmailMode(null)}><div className="modal-card" onClick={(e) => e.stopPropagation()}><div className="toolbar"><h3 style={{ margin: 0 }}>Compose Email</h3><button className="btn-outline" style={{ width: "auto" }} onClick={() => setEmailMode(null)}>×</button></div><div className="grid"><label>To</label><input type="email" list="email-domain-suggest" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} /><label>Subject</label><input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} /><label>Body</label><textarea rows={8} value={emailBody} onChange={(e) => setEmailBody(e.target.value)} /></div><div className="toolbar-actions" style={{ marginTop: 10 }}><button className="btn-outline" style={{ width: "auto" }} onClick={() => setEmailMode(null)}>Cancel</button><button style={{ width: "auto" }} onClick={async () => { const path = emailMode === "interview" ? `/api/candidates/${candidateId}/email/interview` : `/api/candidates/${candidateId}/email/rejection`; await apiPost(path, { to_email: emailTo, subject: emailSubject, body: emailBody }); notify("Email sent", "success"); setEmailMode(null); }}>Send Email</button></div></div></div> : null}
     </div>
   );
 }
