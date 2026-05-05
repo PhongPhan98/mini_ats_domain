@@ -51,7 +51,7 @@ def create_scorecard(
     payload: InterviewScorecardCreate,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
-    _=Depends(require_roles("admin", "interviewer", "hiring_manager")),
+    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
