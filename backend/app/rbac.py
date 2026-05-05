@@ -57,8 +57,9 @@ def require_roles(*roles: str):
     required = set(roles)
 
     def _dep(user=Depends(get_current_user)):
-        if required and user.role not in required:
-            raise HTTPException(status_code=403, detail=f"Role '{user.role}' not allowed")
+        current_role = str(getattr(user, "role", "") or "").strip().lower()
+        if required and current_role not in {r.strip().lower() for r in required}:
+            raise HTTPException(status_code=403, detail=f"Role '{current_role}' not allowed")
         return user
 
     return _dep
