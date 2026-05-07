@@ -4,6 +4,22 @@ A production-oriented **Applicant Tracking System (ATS)** built for recruiter te
 
 This project supports end-to-end hiring operations: CV ingestion, parsing, candidate management, collaboration, interview workflow, job matching, automation, analytics, reporting, and role-based access.
 
+## Latest Implementation Updates (May 2026)
+
+- **Storage privacy mode added**: `STORAGE_MODE=none` enables metadata-only CV handling (no raw CV file persisted to disk).
+- **Email Scheduler upgraded to DB persistence**:
+  - scheduled emails now stored in `email_schedules` table (replacing JSON file persistence)
+  - manual sender endpoint and UI action added: `Run Due Now` (`POST /api/automation/email/schedules/run-due`)
+- **Candidate page email compose flow**:
+  - HR can compose interview/rejection emails with editable `To`, `Subject`, `Body`
+  - receiver defaults to candidate email but remains editable
+- **Candidate profile enhancements**:
+  - editable HR fields: Domain tags, Notice period, Preferred location, Experience details
+- **Interview scheduling integration**:
+  - scheduling an interview now also creates a scheduled email record visible in Automation → Scheduled Emails
+- **Permission fix**:
+  - recruiters can submit interview scorecards
+
 ---
 
 ## 1) Business Flows
