@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppLanguage } from "../lib/language";
 
 type ThemeMode = "light" | "dark";
 
@@ -10,6 +11,7 @@ function applyTheme(mode: ThemeMode) {
 
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeMode>("light");
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     const saved = localStorage.getItem("mini_ats_theme") as ThemeMode | null;
@@ -26,8 +28,13 @@ export default function ThemeToggle() {
   };
 
   return (
-    <button type="button" className="btn-outline" onClick={onToggle} style={{ width: "auto" }}>
-      {theme === "light" ? "🌙 Dark" : "☀️ Light"}
+    <button
+      type="button"
+      className="btn-outline"
+      onClick={onToggle}
+      style={{ width: "auto" }}
+    >
+      {theme === "light" ? `🌙 ${t("dark")}` : `☀️ ${t("light")}`}
     </button>
   );
 }

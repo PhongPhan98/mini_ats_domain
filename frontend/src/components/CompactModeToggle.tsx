@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppLanguage } from "../lib/language";
 
 export default function CompactModeToggle() {
   const [compact, setCompact] = useState(false);
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     const saved = localStorage.getItem("mini_ats_compact_mode") === "1";
@@ -19,8 +21,13 @@ export default function CompactModeToggle() {
   };
 
   return (
-    <button type="button" className="btn-outline" style={{ width: "auto" }} onClick={toggle}>
-      {compact ? "📏 Spacious" : "🗜️ Compact"}
+    <button
+      type="button"
+      className="btn-outline"
+      style={{ width: "auto" }}
+      onClick={toggle}
+    >
+      {compact ? `📏 ${t("spacious")}` : `🗜️ ${t("compact")}`}
     </button>
   );
 }

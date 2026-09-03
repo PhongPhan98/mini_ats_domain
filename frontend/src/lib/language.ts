@@ -14,6 +14,12 @@ export const text = {
     nav_automation: "Automation",
     nav_upload: "Upload CV",
     nav_jobs: "Jobs & Matching",
+    nav_candidates: "Candidates",
+    nav_notifications: "Notifications",
+    nav_activity: "Activity",
+    nav_users: "Users",
+    nav_audit: "Audit",
+    nav_permissions: "Permissions",
 
     dashboard_title: "Recruitment Dashboard",
     report_candidates_csv: "Candidates CSV",
@@ -30,7 +36,8 @@ export const text = {
     raw_json: "Raw JSON",
 
     pipeline_title: "Recruitment Pipeline",
-    pipeline_hint: "Drag candidates between stages to update status and trigger automation.",
+    pipeline_hint:
+      "Drag candidates between stages to update status and trigger automation.",
     search_placeholder: "Search by name/email/skills",
     no_candidates: "No candidates",
     open: "Open",
@@ -71,7 +78,8 @@ export const text = {
     schedule_success: "Interview scheduled successfully",
     update_success: "Information saved successfully",
     save_failed: "Save failed",
-    parse_warning: "Could not extract full CV content. Please try another file or cleaner PDF.",
+    parse_warning:
+      "Could not extract full CV content. Please try another file or cleaner PDF.",
 
     candidate_detail: "Candidate Detail",
     back: "Back",
@@ -85,8 +93,35 @@ export const text = {
     education: "Education",
     previous_companies: "Previous companies",
     summary: "Summary",
+    domain_tags: "Domain tags",
+    notice_period: "Notice period",
+    preferred_location: "Preferred location",
+    experience_details: "Experience details",
+    achievements: "Achievements",
     add_note_update: "Add note update",
     save_changes: "Save changes",
+    stage_quick_actions: "Stage control and quick actions",
+    original_cv_files: "Original CV Files",
+    view_only_access:
+      "View-only access: you can comment and request ownership; only owner can edit candidate profile.",
+    request_ownership: "Request ownership",
+    reason_request_ownership: "Reason to request ownership",
+    move_stage: "Move Stage",
+    send_interview_email: "Send Interview Email",
+    send_rejection_email: "Send Rejection Email",
+    reject: "Reject",
+    ownership_request_sent: "Ownership request sent",
+    login_google: "Login Google",
+    logout: "Logout",
+    compact: "Compact",
+    spacious: "Spacious",
+    dark: "Dark",
+    light: "Light",
+    candidate_workspace: "Candidate Workspace",
+    workspace_hint: "Use tabs to focus your workflow.",
+    profile: "Profile",
+    interviews: "Interviews",
+    timeline: "Timeline",
     interview_scheduling: "Interview Scheduling",
     interviewer_email: "Interviewer Email",
     scheduled_at: "Scheduled At",
@@ -128,6 +163,12 @@ export const text = {
     nav_automation: "Tự động",
     nav_upload: "Nhập CV",
     nav_jobs: "Việc làm",
+    nav_candidates: "Ứng viên",
+    nav_notifications: "Thông báo",
+    nav_activity: "Hoạt động",
+    nav_users: "Người dùng",
+    nav_audit: "Kiểm toán",
+    nav_permissions: "Phân quyền",
 
     dashboard_title: "Bảng điều khiển tuyển dụng",
     report_candidates_csv: "CSV ứng viên",
@@ -144,7 +185,8 @@ export const text = {
     raw_json: "JSON thô",
 
     pipeline_title: "Quy trình tuyển dụng",
-    pipeline_hint: "Kéo thả ứng viên giữa các giai đoạn để cập nhật trạng thái và kích hoạt tự động hoá.",
+    pipeline_hint:
+      "Kéo thả ứng viên giữa các giai đoạn để cập nhật trạng thái và kích hoạt tự động hoá.",
     search_placeholder: "Tìm theo tên/email/kỹ năng",
     no_candidates: "Chưa có ứng viên",
     open: "Mở",
@@ -185,7 +227,8 @@ export const text = {
     schedule_success: "Đã lên lịch phỏng vấn thành công",
     update_success: "Đã lưu thông tin thành công",
     save_failed: "Lưu thất bại",
-    parse_warning: "Không thể trích xuất đầy đủ nội dung CV. Hãy thử file khác hoặc PDF rõ hơn.",
+    parse_warning:
+      "Không thể trích xuất đầy đủ nội dung CV. Hãy thử file khác hoặc PDF rõ hơn.",
 
     candidate_detail: "Chi tiết ứng viên",
     back: "Quay lại",
@@ -199,8 +242,35 @@ export const text = {
     education: "Học vấn",
     previous_companies: "Công ty trước đây",
     summary: "Tóm tắt",
+    domain_tags: "Nhãn lĩnh vực",
+    notice_period: "Thời gian báo trước",
+    preferred_location: "Địa điểm mong muốn",
+    experience_details: "Chi tiết kinh nghiệm",
+    achievements: "Thành tích",
     add_note_update: "Thêm ghi chú cập nhật",
     save_changes: "Lưu thay đổi",
+    stage_quick_actions: "Điều khiển vòng và thao tác nhanh",
+    original_cv_files: "Tệp CV gốc",
+    view_only_access:
+      "Quyền chỉ xem: bạn có thể bình luận và yêu cầu chuyển quyền; chỉ chủ sở hữu được sửa hồ sơ.",
+    request_ownership: "Yêu cầu quyền sở hữu",
+    reason_request_ownership: "Lý do yêu cầu quyền sở hữu",
+    move_stage: "Chuyển vòng",
+    send_interview_email: "Gửi email phỏng vấn",
+    send_rejection_email: "Gửi email từ chối",
+    reject: "Từ chối",
+    ownership_request_sent: "Đã gửi yêu cầu quyền sở hữu",
+    login_google: "Đăng nhập Google",
+    logout: "Đăng xuất",
+    compact: "Thu gọn",
+    spacious: "Mở rộng",
+    dark: "Tối",
+    light: "Sáng",
+    candidate_workspace: "Không gian ứng viên",
+    workspace_hint: "Dùng các thẻ để tập trung vào quy trình.",
+    profile: "Hồ sơ",
+    interviews: "Phỏng vấn",
+    timeline: "Dòng thời gian",
     interview_scheduling: "Lên lịch phỏng vấn",
     interviewer_email: "Email người phỏng vấn",
     scheduled_at: "Thời gian phỏng vấn",
@@ -267,7 +337,9 @@ export function useAppLanguage() {
   const setLang = (next: AppLang) => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(STORAGE_KEY, next);
-    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { lang: next } }));
+    window.dispatchEvent(
+      new CustomEvent(EVENT_NAME, { detail: { lang: next } }),
+    );
   };
 
   const t = (key: keyof typeof text.en) => text[lang][key] || text.en[key];

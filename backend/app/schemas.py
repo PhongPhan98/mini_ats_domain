@@ -128,6 +128,11 @@ class CandidateUpdate(BaseModel):
     certifications: list[str] | None = None
     languages: list[str] | None = None
     projects: list[str] | None = None
+    domain_tags: list[str] | None = None
+    experience_details: list[str] | None = None
+    notice_period: str | None = None
+    preferred_location: str | None = None
+    achievements: list[str] | None = None
     notes: str | None = None
 
 

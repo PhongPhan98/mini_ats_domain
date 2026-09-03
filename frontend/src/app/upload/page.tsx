@@ -36,11 +36,11 @@ type Draft = {
   savedCandidateId?: number;
 };
 
-function fromParsed(file: File, parsed: any): Draft {
+function fromParsed(file: File, parsed: any, sourceText = ""): Draft {
   return {
     file,
     filename: file.name,
-    data: parsed,
+    data: { ...parsed, source_text: sourceText },
     editing: {
       name: parsed?.name || "",
       email: parsed?.email || "",
@@ -66,9 +66,17 @@ function fromParsed(file: File, parsed: any): Draft {
   };
 }
 
+function isDocx(filename: string) {
+  return filename.toLowerCase().endsWith(".docx");
+}
+
 function confidenceClass(v?: string) {
   const c = (v || "low").toLowerCase();
-  return c === "high" ? "conf-high" : c === "medium" ? "conf-medium" : "conf-low";
+  return c === "high"
+    ? "conf-high"
+    : c === "medium"
+      ? "conf-medium"
+      : "conf-low";
 }
 function isLow(v?: string, current?: string) {
   return (v || "low").toLowerCase() === "low" && !(current || "").trim();
@@ -90,7 +98,7 @@ export default function UploadPage() {
   const aiStatus = String(current?.data?.ai_parse_status || "rule_only");
   const aiProvider = String(current?.data?.ai_provider || "local");
   const [cvPreviewUrl, setCvPreviewUrl] = useState("");
-  const [step, setStep] = useState<1|2|3|4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [activeField, setActiveField] = useState<string>("");
 
   useEffect(() => {
@@ -130,7 +138,7 @@ export default function UploadPage() {
     for (const f of files) {
       try {
         const res = await parseCandidatePreview(f);
-        next.push(fromParsed(f, res.parsed));
+        next.push(fromParsed(f, res.parsed, res.source_text));
       } catch {
         failed += 1;
       }
@@ -141,7 +149,8 @@ export default function UploadPage() {
     setIdx(0);
     setFiles([]);
     if (inputRef.current) inputRef.current.value = "";
-    if (next.length) notify(`Parsed ${next.length} CV(s). Review before import.`, "success");
+    if (next.length)
+      notify(`Parsed ${next.length} CV(s). Review before import.`, "success");
     if (failed) {
       setError(`${failed} file(s) failed to parse.`);
       notify(`${failed} file(s) failed to parse`, "error");
@@ -150,7 +159,11 @@ export default function UploadPage() {
   };
 
   const update = (k: keyof Draft["editing"], v: string) => {
-    setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, editing: { ...d.editing, [k]: v } } : d)));
+    setDrafts((prev) =>
+      prev.map((d, i) =>
+        i === idx ? { ...d, editing: { ...d.editing, [k]: v } } : d,
+      ),
+    );
   };
 
   const removeCurrent = () => {
@@ -162,46 +175,87 @@ export default function UploadPage() {
     });
   };
 
-
   const buildEditedPayload = (d: Draft) => ({
     name: d.editing.name || null,
     email: d.editing.email || null,
     phone: d.editing.phone || null,
-    years_of_experience: d.editing.years_of_experience ? Number(d.editing.years_of_experience) : null,
-    skills: d.editing.skills_text.split(",").map((x) => x.trim()).filter(Boolean),
+    years_of_experience: d.editing.years_of_experience
+      ? Number(d.editing.years_of_experience)
+      : null,
+    skills: d.editing.skills_text
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean),
     summary: d.editing.summary || null,
     current_title: d.editing.current_title || null,
     location: d.editing.location || null,
     linkedin_url: d.editing.linkedin_url || null,
     github_url: d.editing.github_url || null,
-    certifications: d.editing.certifications_text.split(",").map((x) => x.trim()).filter(Boolean),
-    languages: d.editing.languages_text.split(",").map((x) => x.trim()).filter(Boolean),
-    projects: d.editing.projects_text.split("|").map((x) => x.trim()).filter(Boolean),
-    education: d.editing.education_text.split("\n").map((x) => x.trim()).filter(Boolean),
-    previous_companies: d.editing.previous_companies_text.split(",").map((x) => x.trim()).filter(Boolean),
-    experience_details: d.editing.experience_text.split("\n").map((x) => x.trim()).filter(Boolean),
-    domain_tags: d.editing.domain_tags_text.split(",").map((x) => x.trim()).filter(Boolean),
-    achievements: d.editing.achievements_text.split("\n").map((x) => x.trim()).filter(Boolean),
+    certifications: d.editing.certifications_text
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean),
+    languages: d.editing.languages_text
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean),
+    projects: d.editing.projects_text
+      .split("|")
+      .map((x) => x.trim())
+      .filter(Boolean),
+    education: d.editing.education_text
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean),
+    previous_companies: d.editing.previous_companies_text
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean),
+    experience_details: d.editing.experience_text
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean),
+    domain_tags: d.editing.domain_tags_text
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean),
+    achievements: d.editing.achievements_text
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean),
     preferred_location: d.editing.preferred_location || null,
     notice_period: d.editing.notice_period || null,
   });
 
   const saveCurrent = async () => {
     if (!current) return;
-    setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: true } : d)));
+    setDrafts((prev) =>
+      prev.map((d, i) => (i === idx ? { ...d, saving: true } : d)),
+    );
     try {
-      const saved = await uploadCandidateReviewed(current.file, buildEditedPayload(current));
+      const saved = await uploadCandidateReviewed(
+        current.file,
+        buildEditedPayload(current),
+      );
       setStep(4);
-      setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: false, savedCandidateId: saved.id } : d)));
+      setDrafts((prev) =>
+        prev.map((d, i) =>
+          i === idx ? { ...d, saving: false, savedCandidateId: saved.id } : d,
+        ),
+      );
       notify("Imported after review successfully", "success");
     } catch (e: any) {
-      setDrafts((prev) => prev.map((d, i) => (i === idx ? { ...d, saving: false } : d)));
+      setDrafts((prev) =>
+        prev.map((d, i) => (i === idx ? { ...d, saving: false } : d)),
+      );
       notify(t("save_failed"), "error");
     }
   };
 
   const saveAllReviewed = async () => {
-    const pending = drafts.map((d, i) => ({ d, i })).filter(({ d }) => !d.savedCandidateId);
+    const pending = drafts
+      .map((d, i) => ({ d, i }))
+      .filter(({ d }) => !d.savedCandidateId);
     if (!pending.length) return;
 
     setBulkSaving(true);
@@ -209,14 +263,25 @@ export default function UploadPage() {
     let fail = 0;
 
     for (const { d, i } of pending) {
-      setDrafts((prev) => prev.map((x, idx) => (idx === i ? { ...x, saving: true } : x)));
+      setDrafts((prev) =>
+        prev.map((x, idx) => (idx === i ? { ...x, saving: true } : x)),
+      );
       try {
-        const saved = await uploadCandidateReviewed(d.file, buildEditedPayload(d));
+        const saved = await uploadCandidateReviewed(
+          d.file,
+          buildEditedPayload(d),
+        );
         ok += 1;
-        setDrafts((prev) => prev.map((x, idx) => (idx === i ? { ...x, saving: false, savedCandidateId: saved.id } : x)));
+        setDrafts((prev) =>
+          prev.map((x, idx) =>
+            idx === i ? { ...x, saving: false, savedCandidateId: saved.id } : x,
+          ),
+        );
       } catch {
         fail += 1;
-        setDrafts((prev) => prev.map((x, idx) => (idx === i ? { ...x, saving: false } : x)));
+        setDrafts((prev) =>
+          prev.map((x, idx) => (idx === i ? { ...x, saving: false } : x)),
+        );
       }
     }
 
@@ -229,43 +294,112 @@ export default function UploadPage() {
     <div className="grid">
       <div className="card upload-steps">
         <div className="chip-wrap">
-          <span className={`chip ${step >= 1 ? "step-on" : ""}`}>1. Upload</span>
-          <span className={`chip ${step >= 2 ? "step-on" : ""}`}>2. AI Parsing</span>
-          <span className={`chip ${step >= 3 ? "step-on" : ""}`}>3. Review</span>
+          <span className={`chip ${step >= 1 ? "step-on" : ""}`}>
+            1. Upload
+          </span>
+          <span className={`chip ${step >= 2 ? "step-on" : ""}`}>
+            2. AI Parsing
+          </span>
+          <span className={`chip ${step >= 3 ? "step-on" : ""}`}>
+            3. Review
+          </span>
           <span className={`chip ${step >= 4 ? "step-on" : ""}`}>4. Save</span>
         </div>
       </div>
 
       <div className="card">
         <h2>{t("upload_title")}</h2>
-        <small>{t("upload_supported")} — parse only first, then review and save to import.</small>
+        <small>
+          {t("upload_supported")} — parse only first, then review and save to
+          import.
+        </small>
         <div style={{ marginTop: 12 }}>
-          <input ref={inputRef} type="file" multiple accept=".pdf,.docx" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+          <input
+            ref={inputRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx"
+            onChange={(e) => setFiles(Array.from(e.target.files || []))}
+          />
         </div>
         <div className="toolbar" style={{ marginTop: 12 }}>
-          <small>{files.length ? `${files.length} ${t("files_selected")}` : t("no_files_selected")}</small>
-          <button style={{ width: "auto" }} onClick={onParseOnly} disabled={!files.length || loading}>
+          <small>
+            {files.length
+              ? `${files.length} ${t("files_selected")}`
+              : t("no_files_selected")}
+          </small>
+          <button
+            style={{ width: "auto" }}
+            onClick={onParseOnly}
+            disabled={!files.length || loading}
+          >
             {loading ? t("uploading") : "Parse with AI (Review First)"}
           </button>
         </div>
         {error && <p style={{ color: "#ef4444" }}>{error}</p>}
       </div>
 
-      {loading ? <div className="card processing-overlay"><div className="spinner" /> <strong>Processing CV with AI...</strong><small>This can take a few seconds.</small></div> : null}
+      {loading ? (
+        <div className="card processing-overlay">
+          <div className="spinner" /> <strong>Processing CV with AI...</strong>
+          <small>This can take a few seconds.</small>
+        </div>
+      ) : null}
 
       {!!drafts.length && current && (
         <div className="card split-review">
           <div className="toolbar">
             <div className="toolbar-actions">
-              <button className="btn-outline" style={{ width: "auto" }} onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx <= 0}>↑ Prev</button>
-              <button className="btn-outline" style={{ width: "auto" }} onClick={saveAllReviewed} disabled={bulkSaving}>{bulkSaving ? "Importing..." : "Save & Import All Reviewed"}</button>
-              <button className="btn-outline" style={{ width: "auto" }} onClick={() => setIdx((i) => Math.min(drafts.length - 1, i + 1))} disabled={idx >= drafts.length - 1}>↓ Next</button>
-              <span className="chip">{idx + 1}/{drafts.length}</span>
+              <button
+                className="btn-outline"
+                style={{ width: "auto" }}
+                onClick={() => setIdx((i) => Math.max(0, i - 1))}
+                disabled={idx <= 0}
+              >
+                ↑ Prev
+              </button>
+              <button
+                className="btn-outline"
+                style={{ width: "auto" }}
+                onClick={saveAllReviewed}
+                disabled={bulkSaving}
+              >
+                {bulkSaving ? "Importing..." : "Save & Import All Reviewed"}
+              </button>
+              <button
+                className="btn-outline"
+                style={{ width: "auto" }}
+                onClick={() =>
+                  setIdx((i) => Math.min(drafts.length - 1, i + 1))
+                }
+                disabled={idx >= drafts.length - 1}
+              >
+                ↓ Next
+              </button>
+              <span className="chip">
+                {idx + 1}/{drafts.length}
+              </span>
               <span className="score-pill">Readiness: {score}%</span>
             </div>
             <div className="toolbar-actions">
-              <button className="btn-outline" style={{ width: "auto" }} onClick={removeCurrent}>Delete Draft</button>
-              <button style={{ width: "auto" }} onClick={saveCurrent} disabled={!!current.savedCandidateId || current.saving}>{current.saving ? t("saving") : current.savedCandidateId ? "Imported" : "Save & Import"}</button>
+              <button
+                className="btn-outline"
+                style={{ width: "auto" }}
+                onClick={removeCurrent}
+              >
+                Delete Draft
+              </button>
+              <button
+                style={{ width: "auto" }}
+                onClick={saveCurrent}
+                disabled={!!current.savedCandidateId || current.saving}
+              >
+                {current.saving
+                  ? t("saving")
+                  : current.savedCandidateId
+                    ? "Imported"
+                    : "Save & Import"}
+              </button>
             </div>
           </div>
 
@@ -275,75 +409,318 @@ export default function UploadPage() {
               <small>Field mapping focus: {activeField || "none"}</small>
               <small>{current.filename}</small>
               <div style={{ marginTop: 10 }}>
-                <iframe
-                  title={current.filename}
-                  src={cvPreviewUrl}
-                  style={{ width: "100%", height: 700, border: "1px solid var(--border)", borderRadius: 10 }}
-                />
+                {isDocx(current.filename) ? (
+                  <div className="cv-text-preview">
+                    {current.data?.source_text ||
+                      "No readable text was found in this DOCX. Use Download original to inspect it manually."}
+                  </div>
+                ) : (
+                  <iframe
+                    title={current.filename}
+                    src={cvPreviewUrl}
+                    style={{
+                      width: "100%",
+                      height: 700,
+                      border: "1px solid var(--border)",
+                      borderRadius: 10,
+                    }}
+                  />
+                )}
+                <a
+                  className="cv-download"
+                  href={cvPreviewUrl}
+                  download={current.filename}
+                >
+                  Download original
+                </a>
               </div>
               {current.savedCandidateId ? (
                 <div style={{ marginTop: 10 }}>
-                  <Link className="chip" href={`/candidates/${current.savedCandidateId}`}>Open Candidate Profile</Link>
+                  <Link
+                    className="chip"
+                    href={`/candidates/${current.savedCandidateId}`}
+                  >
+                    Open Candidate Profile
+                  </Link>
                 </div>
               ) : null}
             </div>
 
             <div className="card" style={{ marginBottom: 0 }}>
               <h3 style={{ marginTop: 0 }}>HR Review Form</h3>
-              <div className="chip-wrap" style={{ marginBottom: 8 }}><span className="chip conf-high">Email High</span><span className="chip conf-medium">Phone Medium</span><span className="chip conf-low">Skills Low</span></div>
-              <small className="low-hint">Red fields are low-confidence and still empty.</small>
+              <div className="chip-wrap" style={{ marginBottom: 8 }}>
+                <span className="chip conf-high">Email High</span>
+                <span className="chip conf-medium">Phone Medium</span>
+                <span className="chip conf-low">Skills Low</span>
+              </div>
+              <small className="low-hint">
+                Red fields are low-confidence and still empty.
+              </small>
               <div className="chip-wrap" style={{ marginTop: 8 }}>
                 <span className="chip">AI Provider: {aiProvider}</span>
                 <span className="chip">AI Status: {aiStatus}</span>
               </div>
 
-
-
-              {(parseWarning || scannedSuspected) ? (
-                <div className="card" style={{ marginTop: 10, borderColor: "#f59e0b", background: "rgba(245,158,11,0.08)" }}>
+              {parseWarning || scannedSuspected ? (
+                <div
+                  className="card"
+                  style={{
+                    marginTop: 10,
+                    borderColor: "#f59e0b",
+                    background: "rgba(245,158,11,0.08)",
+                  }}
+                >
                   <strong>Parsing warning</strong>
                   <div style={{ marginTop: 4 }}>
-                    {parseWarning || "This CV looks scanned/image-based. Lightweight mode may not extract full text."}
+                    {parseWarning ||
+                      "This CV looks scanned/image-based. Lightweight mode may not extract full text."}
                   </div>
                   <small style={{ display: "block", marginTop: 6 }}>
-                    Recommended: upload DOCX/text-based PDF, or continue with manual HR review fields below.
+                    Recommended: upload DOCX/text-based PDF, or continue with
+                    manual HR review fields below.
                   </small>
                 </div>
               ) : null}
 
               <div className="chip-wrap" style={{ marginTop: 8 }}>
-                <span className={`chip ${confidenceClass(current.data?.confidence?.name)}`}>name: {current.data?.confidence?.name || "low"}</span>
-                <span className={`chip ${confidenceClass(current.data?.confidence?.email)}`}>email: {current.data?.confidence?.email || "low"}</span>
-                <span className={`chip ${confidenceClass(current.data?.confidence?.phone)}`}>phone: {current.data?.confidence?.phone || "low"}</span>
-                <span className={`chip ${confidenceClass(current.data?.confidence?.skills)}`}>skills: {current.data?.confidence?.skills || "low"}</span>
-                <span className={`chip ${confidenceClass(current.data?.confidence?.projects)}`}>projects: {current.data?.confidence?.projects || "low"}</span>
+                <span
+                  className={`chip ${confidenceClass(current.data?.confidence?.name)}`}
+                >
+                  name: {current.data?.confidence?.name || "low"}
+                </span>
+                <span
+                  className={`chip ${confidenceClass(current.data?.confidence?.email)}`}
+                >
+                  email: {current.data?.confidence?.email || "low"}
+                </span>
+                <span
+                  className={`chip ${confidenceClass(current.data?.confidence?.phone)}`}
+                >
+                  phone: {current.data?.confidence?.phone || "low"}
+                </span>
+                <span
+                  className={`chip ${confidenceClass(current.data?.confidence?.skills)}`}
+                >
+                  skills: {current.data?.confidence?.skills || "low"}
+                </span>
+                <span
+                  className={`chip ${confidenceClass(current.data?.confidence?.projects)}`}
+                >
+                  projects: {current.data?.confidence?.projects || "low"}
+                </span>
               </div>
 
               <div className="grid grid-2" style={{ marginTop: 10 }}>
-                <div><label>{t("name")}</label><input className={isLow(current.data?.confidence?.name, current.editing.name) ? "field-low" : ""} value={current.editing.name} onChange={(e) => update("name", e.target.value)} /></div>
-                <div><label>{t("email")}</label><input className={isLow(current.data?.confidence?.email, current.editing.email) ? "field-low" : ""} value={current.editing.email} onChange={(e) => update("email", e.target.value)} /></div>
-                <div><label>{t("phone")}</label><input className={isLow(current.data?.confidence?.phone, current.editing.phone) ? "field-low" : ""} value={current.editing.phone} onChange={(e) => update("phone", e.target.value)} /></div>
-                <div><label>{t("years_experience")}</label><input type="number" min={0} value={current.editing.years_of_experience} onChange={(e) => update("years_of_experience", e.target.value)} /></div>
-                <div><label>Current Title</label><input value={current.editing.current_title} onChange={(e) => update("current_title", e.target.value)} /></div>
-                <div><label>Location</label><input value={current.editing.location} onChange={(e) => update("location", e.target.value)} /></div>
-                <div><label>LinkedIn</label><input value={current.editing.linkedin_url} onChange={(e) => update("linkedin_url", e.target.value)} /></div>
-                <div><label>GitHub</label><input value={current.editing.github_url} onChange={(e) => update("github_url", e.target.value)} /></div>
+                <div>
+                  <label>{t("name")}</label>
+                  <input
+                    className={
+                      isLow(
+                        current.data?.confidence?.name,
+                        current.editing.name,
+                      )
+                        ? "field-low"
+                        : ""
+                    }
+                    value={current.editing.name}
+                    onChange={(e) => update("name", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>{t("email")}</label>
+                  <input
+                    className={
+                      isLow(
+                        current.data?.confidence?.email,
+                        current.editing.email,
+                      )
+                        ? "field-low"
+                        : ""
+                    }
+                    value={current.editing.email}
+                    onChange={(e) => update("email", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>{t("phone")}</label>
+                  <input
+                    className={
+                      isLow(
+                        current.data?.confidence?.phone,
+                        current.editing.phone,
+                      )
+                        ? "field-low"
+                        : ""
+                    }
+                    value={current.editing.phone}
+                    onChange={(e) => update("phone", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>{t("years_experience")}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={current.editing.years_of_experience}
+                    onChange={(e) =>
+                      update("years_of_experience", e.target.value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label>Current Title</label>
+                  <input
+                    value={current.editing.current_title}
+                    onChange={(e) => update("current_title", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>Location</label>
+                  <input
+                    value={current.editing.location}
+                    onChange={(e) => update("location", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>LinkedIn</label>
+                  <input
+                    value={current.editing.linkedin_url}
+                    onChange={(e) => update("linkedin_url", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>GitHub</label>
+                  <input
+                    value={current.editing.github_url}
+                    onChange={(e) => update("github_url", e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="grid" style={{ marginTop: 10 }}>
-                <div><label>{t("skills_csv")}</label><input className={isLow(current.data?.confidence?.skills, current.editing.skills_text) ? "field-low" : ""} value={current.editing.skills_text} onChange={(e) => update("skills_text", e.target.value)} /></div>
-                <div><label>Certifications (CSV)</label><input value={current.editing.certifications_text} onChange={(e) => update("certifications_text", e.target.value)} /></div>
-                <div><label>Languages (CSV)</label><input value={current.editing.languages_text} onChange={(e) => update("languages_text", e.target.value)} /></div>
-                <div><label>Projects (separate by |)</label><input className={isLow(current.data?.confidence?.projects, current.editing.projects_text) ? "field-low" : ""} value={current.editing.projects_text} onChange={(e) => update("projects_text", e.target.value)} /></div>
-                <div><label>{t("summary")}</label><textarea className={isLow(current.data?.confidence?.summary, current.editing.summary) ? "field-low" : ""} rows={5} value={current.editing.summary} onChange={(e) => update("summary", e.target.value)} /></div>
+                <div>
+                  <label>{t("skills_csv")}</label>
+                  <input
+                    className={
+                      isLow(
+                        current.data?.confidence?.skills,
+                        current.editing.skills_text,
+                      )
+                        ? "field-low"
+                        : ""
+                    }
+                    value={current.editing.skills_text}
+                    onChange={(e) => update("skills_text", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>Certifications (CSV)</label>
+                  <input
+                    value={current.editing.certifications_text}
+                    onChange={(e) =>
+                      update("certifications_text", e.target.value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label>Languages (CSV)</label>
+                  <input
+                    value={current.editing.languages_text}
+                    onChange={(e) => update("languages_text", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>Projects (separate by |)</label>
+                  <input
+                    className={
+                      isLow(
+                        current.data?.confidence?.projects,
+                        current.editing.projects_text,
+                      )
+                        ? "field-low"
+                        : ""
+                    }
+                    value={current.editing.projects_text}
+                    onChange={(e) => update("projects_text", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>{t("summary")}</label>
+                  <textarea
+                    className={
+                      isLow(
+                        current.data?.confidence?.summary,
+                        current.editing.summary,
+                      )
+                        ? "field-low"
+                        : ""
+                    }
+                    rows={5}
+                    value={current.editing.summary}
+                    onChange={(e) => update("summary", e.target.value)}
+                  />
+                </div>
 
-                <div><label>Education details (one per line)</label><textarea rows={4} value={current.editing.education_text} onChange={(e) => update("education_text", e.target.value)} /></div>
-                <div><label>Previous companies (CSV)</label><input value={current.editing.previous_companies_text} onChange={(e) => update("previous_companies_text", e.target.value)} /></div>
-                <div><label>Experience details (one bullet per line)</label><textarea rows={5} value={current.editing.experience_text} onChange={(e) => update("experience_text", e.target.value)} /></div>
-                <div><label>Achievements (one per line)</label><textarea rows={4} value={current.editing.achievements_text} onChange={(e) => update("achievements_text", e.target.value)} /></div>
-                <div><label>Domain tags (CSV)</label><input value={current.editing.domain_tags_text} onChange={(e) => update("domain_tags_text", e.target.value)} /></div>
-                <div className="grid grid-2"><div><label>Preferred location</label><input value={current.editing.preferred_location} onChange={(e) => update("preferred_location", e.target.value)} /></div><div><label>Notice period</label><input value={current.editing.notice_period} onChange={(e) => update("notice_period", e.target.value)} /></div></div>
-
+                <div>
+                  <label>Education details (one per line)</label>
+                  <textarea
+                    rows={4}
+                    value={current.editing.education_text}
+                    onChange={(e) => update("education_text", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>Previous companies (CSV)</label>
+                  <input
+                    value={current.editing.previous_companies_text}
+                    onChange={(e) =>
+                      update("previous_companies_text", e.target.value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label>Experience details (one bullet per line)</label>
+                  <textarea
+                    rows={5}
+                    value={current.editing.experience_text}
+                    onChange={(e) => update("experience_text", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>Achievements (one per line)</label>
+                  <textarea
+                    rows={4}
+                    value={current.editing.achievements_text}
+                    onChange={(e) =>
+                      update("achievements_text", e.target.value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label>Domain tags (CSV)</label>
+                  <input
+                    value={current.editing.domain_tags_text}
+                    onChange={(e) => update("domain_tags_text", e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-2">
+                  <div>
+                    <label>Preferred location</label>
+                    <input
+                      value={current.editing.preferred_location}
+                      onChange={(e) =>
+                        update("preferred_location", e.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label>Notice period</label>
+                    <input
+                      value={current.editing.notice_period}
+                      onChange={(e) => update("notice_period", e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

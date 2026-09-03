@@ -38,14 +38,6 @@ def normalize_status(value: str | None) -> str:
     return legacy_map.get(value, value)
 
 
-
-
-
-
-
-
-
-
 def _ai_provider_chain() -> list[str]:
     primary = (settings.llm_provider or "").strip().lower() or "openrouter"
     ordered = [primary]
@@ -187,7 +179,8 @@ async def parse_cv_preview(
     parsed = _parse_or_fallback(file.filename, content, file.content_type or "application/octet-stream")
     parsed["owner_user_id"] = _actor.id
     parsed["owner_email"] = _actor.email
-    return {"filename": file.filename, "parsed": parsed}
+    source_text = CVTextParser.parse(file.filename, content)
+    return {"filename": file.filename, "parsed": parsed, "source_text": source_text}
 
 
 

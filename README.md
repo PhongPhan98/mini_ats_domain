@@ -25,12 +25,14 @@ This project supports end-to-end hiring operations: CV ingestion, parsing, candi
 ## 1) Business Flows
 
 ## 1.1 Candidate Intake & Parsing
+
 1. Recruiter uploads one or multiple CVs (PDF/DOCX).
 2. System parses CV into structured profile fields.
 3. Recruiter reviews/edits parsed data in parse-first UI.
 4. Candidate is imported into ATS with ownership metadata.
 
 ### Parsing logic (current)
+
 - Rule-based extraction with EN/VI support.
 - Section-aware extraction (skills/experience/education/projects/certifications/languages).
 - Confidence output per field + overall confidence score.
@@ -42,6 +44,7 @@ This project supports end-to-end hiring operations: CV ingestion, parsing, candi
 ---
 
 ## 1.2 Candidate Management
+
 - Recruiters manage candidates through ATS stages:
   - applied → screening → interview → offer → hired/rejected
 - Soft delete + restore via Trash.
@@ -56,11 +59,14 @@ This project supports end-to-end hiring operations: CV ingestion, parsing, candi
 ---
 
 ## 1.3 Collaboration & Ownership
+
 Ownership-first model:
+
 - Recruiter sees/manages own candidates/jobs by default.
 - Shared/invited access supports collaboration.
 
 Current collaboration flows:
+
 1. **Comment mentions**: @mention another HR.
 2. **Share invitation**:
    - HR A invites HR B
@@ -71,18 +77,21 @@ Current collaboration flows:
    - owner/admin approves/rejects
 
 View-only behavior:
+
 - Non-owner HR (view rights) can see limited candidate page and comment.
 - No edit/delete/submit actions unless owner.
 
 ---
 
 ## 1.4 Job & Matching Flow
+
 1. HR creates job title + requirements.
 2. Configure threshold per job.
 3. Run matching to get ranked candidates + explanations.
 4. Shortlist directly from match result.
 
 Matching evolution:
+
 - **Phase 1/2/3 hybrid rule engine** now includes:
   - required skills overlap
   - experience fit
@@ -93,6 +102,7 @@ Matching evolution:
 ---
 
 ## 1.5 Notifications
+
 - Mention notifications.
 - Share invitation inbox.
 - Ownership request updates.
@@ -101,6 +111,7 @@ Matching evolution:
 ---
 
 ## 1.6 Analytics & Reporting
+
 - Dashboard metrics and funnel views.
 - Source effectiveness & conversion metrics.
 - Weekly hiring trend, stage aging.
@@ -109,6 +120,7 @@ Matching evolution:
 ---
 
 ## 1.7 Auth & Access Control
+
 - Google OAuth login + JWT cookie session.
 - Strict auth mode supported.
 - Role-based access (admin/recruiter/interviewer/hiring_manager).
@@ -119,6 +131,7 @@ Matching evolution:
 ## 2) Technical Architecture
 
 ## 2.1 Stack
+
 - **Frontend**: Next.js 14 (App Router), React, TypeScript
 - **Backend**: FastAPI, SQLAlchemy
 - **Database**: PostgreSQL
@@ -126,6 +139,7 @@ Matching evolution:
 - **Optional AI**: OpenAI/Gemini for other services; matching/parsing core runs locally
 
 ## 2.2 Key Backend Modules
+
 - `app/routers/`:
   - `auth.py`, `users.py`, `audit.py`
   - `candidates.py`, `comments.py`, `jobs.py`
@@ -137,6 +151,7 @@ Matching evolution:
   - `storage.py`, `audit.py`, `automation.py`, `llm.py`
 
 ## 2.3 Frontend Main Pages
+
 - `/` dashboard
 - `/upload` parse-first CV import
 - `/candidates/[id]` candidate workspace
@@ -149,6 +164,7 @@ Matching evolution:
 ## 3) Database Design (Core Entities)
 
 ## users
+
 - `id` (PK)
 - `email` (unique)
 - `full_name`
@@ -156,6 +172,7 @@ Matching evolution:
 - `created_at`
 
 ## candidates
+
 - `id` (PK)
 - `name`, `email`, `phone`
 - `status`
@@ -168,11 +185,13 @@ Matching evolution:
 - `created_at`
 
 ## candidate_files
+
 - `id` (PK)
 - `candidate_id` (FK candidates)
 - `file_url`, `original_filename`, `uploaded_at`
 
 ## candidate_comments
+
 - `id` (PK)
 - `candidate_id` (FK)
 - `author_user_id` (FK users)
@@ -181,6 +200,7 @@ Matching evolution:
 - `created_at`
 
 ## interview_scorecards
+
 - `id` (PK)
 - `candidate_id` (FK)
 - `interviewer_user_id` (FK users)
@@ -189,6 +209,7 @@ Matching evolution:
 - `overall_score`, `recommendation`, `summary`, `created_at`
 
 ## interview_schedules
+
 - `id` (PK)
 - `candidate_id` (FK)
 - `organizer_user_id` (FK users)
@@ -197,6 +218,7 @@ Matching evolution:
 - `meeting_link`, `notes`, `created_at`
 
 ## jobs
+
 - `id` (PK)
 - `title`
 - `requirements`
@@ -208,12 +230,14 @@ Matching evolution:
 ## 4) How to Build & Run
 
 ## 4.1 Prerequisites
+
 - Python 3.11+
 - Node.js 18+
 - PostgreSQL 14+
 - (Optional OCR) `tesseract-ocr`, `poppler-utils`
 
 ## 4.2 Quick Run (scripts)
+
 From project root:
 
 ```bash
@@ -256,7 +280,7 @@ npm run dev
 
 ---
 
-## 4.5 Database Setup
+## 4.5 Database Setup `
 
 Using docker compose:
 
@@ -277,6 +301,7 @@ DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/mini_ats
 ## 4.6 Important Environment Variables
 
 ## Auth
+
 ```env
 AUTH_JWT_SECRET=change-me
 AUTH_ALLOW_DEV_HEADERS=false
@@ -288,12 +313,14 @@ AUTH_BOOTSTRAP_ADMIN_EMAIL=
 ```
 
 ## Matching Phase 3 (optional semantic rerank)
+
 ```env
 MATCHING_ENABLE_EMBEDDINGS=false
 MATCHING_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ```
 
 ## OCR dependencies (Phase 1 parsing enhancements)
+
 Python packages are in `requirements.txt`.
 System tools for OCR are optional and only needed if you explicitly enable OCR fallback.
 
@@ -302,6 +329,7 @@ System tools for OCR are optional and only needed if you explicitly enable OCR f
 ## 5) API Surface (high level)
 
 ## Candidates
+
 - `POST /api/candidates/parse`
 - `POST /api/candidates/upload`
 - `GET /api/candidates`
@@ -312,6 +340,7 @@ System tools for OCR are optional and only needed if you explicitly enable OCR f
 - share/invite/ownership/notifications endpoints
 
 ## Jobs
+
 - `POST /api/jobs`
 - `GET /api/jobs`
 - `PATCH /api/jobs/{id}`
@@ -319,11 +348,13 @@ System tools for OCR are optional and only needed if you explicitly enable OCR f
 - `GET/PATCH /api/jobs/{id}/settings`
 
 ## Automation / Analytics / Reports
+
 - `/api/automation/*`
 - `/api/analytics/summary`
 - `/api/reports/*`
 
 ## Auth / Admin
+
 - `/api/auth/*`
 - `/api/users/*`
 - `/api/audit/*`
@@ -333,6 +364,7 @@ System tools for OCR are optional and only needed if you explicitly enable OCR f
 ## 6) Current Product Status
 
 Implemented:
+
 - parse-first multi-CV workflow
 - ownership + collaboration controls
 - notifications + mentions
@@ -342,6 +374,7 @@ Implemented:
 - upgraded rule-based parsing & matching (Phase 1/2/3)
 
 Planned next:
+
 - model calibration tooling for match weights
 - benchmark dataset + automated quality checks
 - optional vector store for large-scale semantic retrieval
@@ -349,8 +382,8 @@ Planned next:
 ---
 
 ## 7) License & Notes
-Internal project for product development. Adapt architecture and security hardening before public production deployment.
 
+Internal project for product development. Adapt architecture and security hardening before public production deployment.
 
 ## 8) Architecture Diagram
 
@@ -443,7 +476,6 @@ sequenceDiagram
   BE-->>FE: ranked candidates above threshold
 ```
 
-
 ## 10) ER Diagram (Core Database)
 
 ```mermaid
@@ -529,18 +561,18 @@ erDiagram
   }
 ```
 
-
 ## 4.7 Lightweight dependency profile
 
 Default install is now kept lean.
 
 Not installed by default:
+
 - OCR-heavy stack (`pdf2image`, `pytesseract`, Pillow + OS packages)
 - embedding-heavy stack (`sentence-transformers`)
 
 The code remains adaptive: if optional libs are missing, ATS falls back to lightweight parsing/matching paths.
 
-
 ## Raw CV retention modes
+
 - `STORAGE_MODE=local` (default): save raw CV files under `UPLOAD_DIR`
 - `STORAGE_MODE=none` (recommended high-scale privacy mode): do not persist raw CV on app disk; only metadata marker is stored (`suppressed://...`).
