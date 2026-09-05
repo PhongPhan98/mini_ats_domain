@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     storage_mode: str = Field(default="local", alias="STORAGE_MODE")
     upload_dir: str = Field(default="./uploads", alias="UPLOAD_DIR")
     public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
+    supabase_url: str = Field(default="", alias="SUPABASE_URL")
+    supabase_service_role_key: str = Field(default="", alias="SUPABASE_SERVICE_ROLE_KEY")
+    supabase_storage_bucket: str = Field(default="candidate-cvs", alias="SUPABASE_STORAGE_BUCKET")
     frontend_base_url: str = Field(default="http://localhost:3000", alias="FRONTEND_BASE_URL")
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
 
