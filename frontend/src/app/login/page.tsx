@@ -7,9 +7,20 @@ export default function LoginPage() {
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
-    apiIsAuthenticated().then((authenticated) => {
-      if (authenticated) window.location.replace("/pipeline");
-    });
+    let active = true;
+    const checkSession = async () => {
+      try {
+        if ((await apiIsAuthenticated()) && active) {
+          window.location.assign(`${window.location.origin}/pipeline`);
+        }
+      } catch {}
+    };
+    checkSession();
+    const retry = window.setInterval(checkSession, 1000);
+    return () => {
+      active = false;
+      window.clearInterval(retry);
+    };
   }, []);
 
   const login = () => {

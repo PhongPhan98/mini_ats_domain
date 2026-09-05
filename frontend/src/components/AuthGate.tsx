@@ -12,20 +12,16 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     (async () => {
+      if (pathname === "/login") {
+        if (active) setReady(true);
+        return;
+      }
       try {
         const authenticated = await apiIsAuthenticated();
         if (!authenticated) throw new Error("Not authenticated");
-        if (active && pathname === "/login") {
-          window.location.replace("/pipeline");
-          return;
-        }
         if (active) setReady(true);
       } catch {
-        if (pathname === "/login") {
-          if (active) setReady(true);
-        } else {
-          router.replace("/login");
-        }
+        router.replace("/login");
       }
     })();
     return () => {
