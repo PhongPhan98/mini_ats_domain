@@ -16,6 +16,12 @@ from app.services import user_access
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
 
+logger.info(
+    "OAuth configuration loaded frontend_base_url=%s google_redirect_uri=%s",
+    settings.frontend_base_url,
+    settings.google_redirect_uri,
+)
+
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
