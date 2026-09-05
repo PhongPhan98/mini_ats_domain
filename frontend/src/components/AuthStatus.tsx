@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiGet, apiPost } from "../lib/api";
+import { apiGet, apiPost, apiUrl } from "../lib/api";
 import { useAppLanguage } from "../lib/language";
 
 export default function AuthStatus() {
@@ -22,7 +22,7 @@ export default function AuthStatus() {
   }, []);
 
   const login = () => {
-    window.location.href = "http://localhost:8000/api/auth/google/login";
+    window.location.href = apiUrl("/api/auth/google/login");
   };
 
   const logout = async () => {
