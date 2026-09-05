@@ -4,6 +4,8 @@ from typing import Any
 import json
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
+import httpx
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
