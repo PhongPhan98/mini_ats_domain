@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import logging
 from urllib.parse import urlencode
 
 import httpx
@@ -13,6 +14,7 @@ from app.models import User
 from app.services import user_access
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -118,7 +120,14 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="User is disabled")
 
     token = _issue_token(user)
-    resp = RedirectResponse(url=f"{settings.frontend_base_url.rstrip('/')}/pipeline")
+    redirect_url = f"{settings.frontend_base_url.rstrip('/')}/pipeline"
+    logger.info(
+        "Google OAuth success user_id=%s frontend_base_url=%s redirect_url=%s",
+        user.id,
+        settings.frontend_base_url,
+        redirect_url,
+    )
+    resp = RedirectResponse(url=redirect_url)
     _set_auth_cookie(resp, token)
     return resp
 
@@ -140,6 +149,7 @@ def me(request: Request, db: Session = Depends(get_db)):
     if user_access.is_disabled(user.id, user.email):
         raise HTTPException(status_code=403, detail="User is disabled")
 
+    logger.info("Authenticated session user_id=%s", user.id)
     return {
         "id": user.id,
         "email": user.email,
