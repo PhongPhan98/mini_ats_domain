@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { apiUrl } from "../../lib/api";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiGet, apiUrl } from "../../lib/api";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    apiGet("/api/auth/me")
+      .then(() => router.replace("/pipeline"))
+      .catch(() => undefined);
+  }, [router]);
 
   const login = () => {
     setRedirecting(true);
