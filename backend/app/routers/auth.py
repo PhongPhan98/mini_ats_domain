@@ -35,12 +35,13 @@ def _issue_token(user: User) -> str:
 
 
 def _set_auth_cookie(resp: Response, token: str):
+    is_production = settings.frontend_base_url.lower().startswith("https://")
     resp.set_cookie(
         key=settings.auth_cookie_name,
         value=token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=is_production,
+        samesite="none" if is_production else "lax",
         max_age=settings.auth_jwt_exp_hours * 3600,
         path="/",
     )
