@@ -4,7 +4,7 @@ from typing import Any
 import json
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -483,6 +483,43 @@ def delete_candidate_file(
     db.commit()
     log_event(_actor.email, "candidate.file.delete", f"candidate:{candidate_id}", {"file_id": file_id, "filename": file.original_filename})
     return {"ok": True}
+
+
+@router.get("/{candidate_id}/files/{file_id}/preview")
+def preview_candidate_file(
+    candidate_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if not _can_access_candidate(_actor, candidate) and not _has_mention_access(db, _actor, candidate_id):
+        raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
+
+    file = db.get(CandidateFile, file_id)
+    if not file or file.candidate_id != candidate_id:
+        raise HTTPException(status_code=404, detail="File not found")
+    if file.file_url.startswith("suppressed://"):
+        raise HTTPException(status_code=404, detail="Raw CV content is not available")
+
+    try:
+        file_response = httpx.get(file.file_url, timeout=30)
+        file_response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="Unable to fetch CV file") from exc
+
+    suffix = Path(file.original_filename or "").suffix.lower()
+    media_type = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }.get(suffix, "application/octet-stream")
+    return Response(
+        content=file_response.content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'inline; filename="{file.original_filename}"'},
+    )
 
 
 @router.delete("/{candidate_id}")

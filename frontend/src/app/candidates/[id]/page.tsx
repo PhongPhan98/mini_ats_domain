@@ -7,6 +7,7 @@ import {
   apiGet,
   apiPatch,
   apiPost,
+  apiUrl,
   createInterview,
 } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
@@ -457,7 +458,7 @@ export default function CandidateDetailPage({
       await apiDelete(`/api/candidates/${candidateId}/files/${fileId}`);
       const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
       setCandidate(updated);
-      setSelectedFileUrl(updated.files?.[0]?.file_url || "");
+      setSelectedFileUrl("");
       notify(t("update_success"), "success");
     } catch {
       notify(t("save_failed"), "error");
@@ -667,13 +668,21 @@ export default function CandidateDetailPage({
                       <button
                         className="btn-outline"
                         style={{ width: "auto" }}
-                        onClick={() => setSelectedFileUrl(f.file_url)}
+                        onClick={() =>
+                          setSelectedFileUrl(
+                            apiUrl(
+                              `/api/candidates/${candidateId}/files/${f.id}/preview`,
+                            ),
+                          )
+                        }
                       >
                         View
                       </button>
                       <a
                         className="btn-outline"
-                        href={f.file_url}
+                        href={apiUrl(
+                          `/api/candidates/${candidateId}/files/${f.id}/preview`,
+                        )}
                         target="_blank"
                         rel="noreferrer"
                         download={f.original_filename}
