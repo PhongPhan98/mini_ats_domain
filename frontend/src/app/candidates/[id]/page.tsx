@@ -274,7 +274,7 @@ export default function CandidateDetailPage({
         if (cancelled) return;
         setCandidate(data);
         setForm(toForm(data));
-        setSelectedFileUrl(data.files?.[0]?.file_url || "");
+        setSelectedFileUrl("");
         await Promise.all([
           loadComments(resolved.id),
           loadScorecards(resolved.id),
@@ -662,9 +662,7 @@ export default function CandidateDetailPage({
                       padding: 8,
                     }}
                   >
-                    <a href={f.file_url} target="_blank">
-                      {f.original_filename}
-                    </a>
+                    <span>{f.original_filename}</span>
                     <div className="toolbar-actions">
                       <button
                         className="btn-outline"
@@ -673,6 +671,15 @@ export default function CandidateDetailPage({
                       >
                         View
                       </button>
+                      <a
+                        className="btn-outline"
+                        href={f.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        download={f.original_filename}
+                      >
+                        Download
+                      </a>
                       {isOwner ? (
                         <button
                           className="btn-outline"
