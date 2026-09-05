@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     storage_mode: str = Field(default="local", alias="STORAGE_MODE")
     upload_dir: str = Field(default="./uploads", alias="UPLOAD_DIR")
     public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
+    frontend_base_url: str = Field(default="http://localhost:3000", alias="FRONTEND_BASE_URL")
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
 
     smtp_enabled: bool = Field(default=False, alias="SMTP_ENABLED")

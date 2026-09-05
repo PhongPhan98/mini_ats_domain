@@ -117,7 +117,7 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="User is disabled")
 
     token = _issue_token(user)
-    resp = RedirectResponse(url="http://localhost:3000")
+    resp = RedirectResponse(url=settings.frontend_base_url.rstrip("/"))
     _set_auth_cookie(resp, token)
     return resp
 
