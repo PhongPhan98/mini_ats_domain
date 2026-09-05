@@ -26,9 +26,12 @@ export default function AuthStatus() {
   };
 
   const logout = async () => {
-    await apiPost("/api/auth/logout", {});
-    setMe(null);
-    window.location.reload();
+    try {
+      await apiPost("/api/auth/logout", {});
+    } finally {
+      setMe(null);
+      window.location.assign("/login");
+    }
   };
 
   if (!me)

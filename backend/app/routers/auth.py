@@ -166,5 +166,16 @@ def me(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 def logout(response: Response):
-    response.delete_cookie(settings.auth_cookie_name, path="/")
+    is_production = settings.frontend_base_url.lower().startswith("https://")
+    response.set_cookie(
+        key=settings.auth_cookie_name,
+        value="",
+        max_age=0,
+        expires=0,
+        httponly=True,
+        secure=is_production,
+        samesite="none" if is_production else "lax",
+        path="/",
+    )
+    logger.info("Auth logout cookie cleared")
     return {"ok": True}
