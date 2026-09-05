@@ -13,7 +13,10 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Mini ATS", version="0.1.0")
 
-origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+origins = [o.strip().rstrip("/") for o in settings.cors_origins.split(",") if o.strip()]
+frontend_origin = settings.frontend_base_url.strip().rstrip("/")
+if frontend_origin and frontend_origin not in origins:
+    origins.append(frontend_origin)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
