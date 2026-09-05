@@ -1,18 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { apiGet, apiUrl } from "../../lib/api";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     apiGet("/api/auth/me")
-      .then(() => router.replace("/pipeline"))
+      .then(() => window.location.replace("/pipeline"))
       .catch(() => undefined);
-  }, [router]);
+  }, []);
 
   const login = () => {
     setRedirecting(true);
@@ -25,12 +23,23 @@ export default function LoginPage() {
         <div className="login-logo">🧑‍💼</div>
         <div className="login-badge">Mini ATS</div>
         <h1>Welcome back 👋</h1>
-        <p className="muted">Sign in with your Google account to continue to candidate pipeline, jobs and collaboration.</p>
-        <small className="login-subline">Use your approved work account for best access experience.</small>
+        <p className="muted">
+          Sign in with your Google account to continue to candidate pipeline,
+          jobs and collaboration.
+        </p>
+        <small className="login-subline">
+          Use your approved work account for best access experience.
+        </small>
 
-        <button className="login-google-btn" onClick={login} disabled={redirecting}>
+        <button
+          className="login-google-btn"
+          onClick={login}
+          disabled={redirecting}
+        >
           <span>{redirecting ? "⏳" : "🔐"}</span>
-          <span>{redirecting ? "Redirecting to Google..." : "Continue with Google"}</span>
+          <span>
+            {redirecting ? "Redirecting to Google..." : "Continue with Google"}
+          </span>
         </button>
 
         <div className="login-hints">
@@ -39,7 +48,9 @@ export default function LoginPage() {
           <div className="chip">Personal data isolation</div>
         </div>
 
-        <div className="login-help">Need help signing in? Check Google account access or contact admin.</div>
+        <div className="login-help">
+          Need help signing in? Check Google account access or contact admin.
+        </div>
       </div>
     </div>
   );
