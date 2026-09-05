@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { apiGet } from "../lib/api";
+import { apiIsAuthenticated } from "../lib/api";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -13,7 +13,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     let active = true;
     (async () => {
       try {
-        await apiGet("/api/auth/me");
+        const authenticated = await apiIsAuthenticated();
+        if (!authenticated) throw new Error("Not authenticated");
         if (active && pathname === "/login") {
           window.location.replace("/pipeline");
           return;

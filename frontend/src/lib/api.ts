@@ -1,7 +1,19 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+
+export async function apiIsAuthenticated(): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/api/auth/me`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return res.ok;
+}
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store", credentials: "include" });
+  const res = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -46,7 +58,6 @@ export async function uploadCandidate(file: File) {
   return res.json();
 }
 
-
 export async function parseCandidatePreview(file: File) {
   const form = new FormData();
   form.append("file", file);
@@ -61,7 +72,10 @@ export async function parseCandidatePreview(file: File) {
   return res.json();
 }
 
-export async function uploadCandidateReviewed(file: File, edited: Record<string, any>) {
+export async function uploadCandidateReviewed(
+  file: File,
+  edited: Record<string, any>,
+) {
   const form = new FormData();
   form.append("file", file);
   form.append("edited_json", JSON.stringify(edited));
@@ -76,16 +90,25 @@ export async function uploadCandidateReviewed(file: File, edited: Record<string,
   return res.json();
 }
 
-
 export async function apiDelete<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", credentials: "include" });
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-
 export async function getJobCandidates(jobId: number) {
-  return apiGet<{ job_id: number; candidates: { id: number; name?: string; status?: string; email?: string }[] }>(`/api/jobs/${jobId}/candidates`);
+  return apiGet<{
+    job_id: number;
+    candidates: {
+      id: number;
+      name?: string;
+      status?: string;
+      email?: string;
+    }[];
+  }>(`/api/jobs/${jobId}/candidates`);
 }
 
 export async function updateCandidateStage(candidateId: number, stage: string) {

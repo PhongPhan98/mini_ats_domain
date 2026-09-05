@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiGet, apiUrl } from "../../lib/api";
+import { apiIsAuthenticated, apiUrl } from "../../lib/api";
 
 export default function LoginPage() {
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
-    apiGet("/api/auth/me")
-      .then(() => window.location.replace("/pipeline"))
-      .catch(() => undefined);
+    apiIsAuthenticated().then((authenticated) => {
+      if (authenticated) window.location.replace("/pipeline");
+    });
   }, []);
 
   const login = () => {
