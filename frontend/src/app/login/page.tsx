@@ -5,13 +5,15 @@ import { apiIsAuthenticated, apiUrl } from "../../lib/api";
 
 export default function LoginPage() {
   const [redirecting, setRedirecting] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
     let active = true;
     const checkSession = async () => {
       try {
         if ((await apiIsAuthenticated()) && active) {
-          window.location.assign(`${window.location.origin}/pipeline`);
+          setAuthenticated(true);
+          window.location.href = "/pipeline";
         }
       } catch {}
     };
@@ -52,6 +54,12 @@ export default function LoginPage() {
             {redirecting ? "Redirecting to Google..." : "Continue with Google"}
           </span>
         </button>
+
+        {authenticated && (
+          <a className="chip" href="/pipeline" style={{ display: "inline-block", marginTop: 12 }}>
+            Open pipeline
+          </a>
+        )}
 
         <div className="login-hints">
           <div className="chip">Secure cookie session</div>
