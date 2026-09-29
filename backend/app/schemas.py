@@ -23,6 +23,9 @@ class CandidateFileOut(BaseModel):
     id: int
     file_url: str
     original_filename: str
+    content_sha256: str | None = None
+    content_type: str | None = None
+    size_bytes: int | None = None
     uploaded_at: datetime
 
     class Config:
@@ -47,16 +50,18 @@ class CandidateCommentOut(BaseModel):
 
 
 class InterviewScorecardCreate(BaseModel):
+    application_id: int | None = None
     interview_stage: str = "interview"
     criteria_scores: dict[str, int] = Field(default_factory=dict)
-    overall_score: int | None = None
-    recommendation: str | None = None
+    overall_score: int | None = Field(default=None, ge=1, le=5)
+    recommendation: Literal["strong_yes", "yes", "neutral", "no", "strong_no"] | None = None
     summary: str | None = None
 
 
 class InterviewScorecardOut(BaseModel):
     id: int
     candidate_id: int
+    application_id: int | None = None
     interviewer_user_id: int
     interview_stage: str
     criteria_scores: dict[str, int] = Field(default_factory=dict)
@@ -70,9 +75,10 @@ class InterviewScorecardOut(BaseModel):
 
 
 class InterviewScheduleCreate(BaseModel):
+    application_id: int | None = None
     interviewer_email: str
     scheduled_at: datetime
-    duration_minutes: int = 60
+    duration_minutes: int = Field(default=60, ge=15, le=480)
     meeting_link: str | None = None
     notes: str | None = None
 
@@ -80,12 +86,14 @@ class InterviewScheduleCreate(BaseModel):
 class InterviewScheduleOut(BaseModel):
     id: int
     candidate_id: int
+    application_id: int | None = None
     organizer_user_id: int
     interviewer_email: str
     scheduled_at: datetime
     duration_minutes: int
     meeting_link: str | None = None
     notes: str | None = None
+    status: str = "scheduled"
     created_at: datetime
 
     class Config:
@@ -94,10 +102,14 @@ class InterviewScheduleOut(BaseModel):
 
 class CandidateOut(BaseModel):
     id: int
+    owner_user_id: int | None = None
     name: str | None = None
     email: str | None = None
     phone: str | None = None
     status: CandidateStatus = "applied"
+    acquisition_source: str = "direct"
+    consent_status: str = "unknown"
+    retention_until: datetime | None = None
     skills: list[str] = Field(default_factory=list)
     years_of_experience: int | None = None
     education: list[str] = Field(default_factory=list)
@@ -134,6 +146,9 @@ class CandidateUpdate(BaseModel):
     preferred_location: str | None = None
     achievements: list[str] | None = None
     notes: str | None = None
+    acquisition_source: str | None = None
+    consent_status: str | None = None
+    retention_until: datetime | None = None
 
 
 class CandidateSearchQuery(BaseModel):
@@ -144,14 +159,45 @@ class CandidateSearchQuery(BaseModel):
 
 
 class JobCreate(BaseModel):
-    title: str
-    requirements: str
+    title: str = Field(min_length=2, max_length=255)
+    requirements: str = Field(min_length=2, max_length=50000)
+    description: str | None = None
+    requisition_code: str | None = None
+    department: str | None = None
+    location: str | None = None
+    employment_type: str | None = None
+    hiring_manager: str | None = None
+    headcount: int = Field(default=1, ge=1, le=1000)
+    salary_min: int | None = Field(default=None, ge=0)
+    salary_max: int | None = Field(default=None, ge=0)
+    currency: str | None = None
+    criteria: dict[str, Any] = Field(default_factory=dict)
+    pipeline_stages: list[str] = Field(default_factory=lambda: ["applied", "screening", "interview", "offer", "hired", "rejected"])
+    status: Literal["draft", "published", "closed"] = "draft"
+    closes_at: datetime | None = None
 
 
 class JobOut(BaseModel):
     id: int
     title: str
     requirements: str
+    slug: str | None = None
+    description: str | None = None
+    requisition_code: str | None = None
+    department: str | None = None
+    location: str | None = None
+    employment_type: str | None = None
+    hiring_manager: str | None = None
+    headcount: int = 1
+    salary_min: int | None = None
+    salary_max: int | None = None
+    currency: str | None = None
+    criteria: dict[str, Any] = Field(default_factory=dict)
+    pipeline_stages: list[str] = Field(default_factory=list)
+    status: str = "draft"
+    match_threshold: int = 50
+    published_at: datetime | None = None
+    closes_at: datetime | None = None
     created_at: datetime
     owner_user_id: int | None = None
     owner_email: str | None = None
@@ -173,6 +219,56 @@ class MatchResponse(BaseModel):
     results: list[MatchItem]
 
 
+class ApplicationOut(BaseModel):
+    id: int
+    candidate_id: int
+    job_id: int
+    stage: CandidateStatus
+    source: str
+    match_score: int | None = None
+    match_explanation: str | None = None
+    rejection_reason: str | None = None
+    withdrawn_at: datetime | None = None
+    applied_at: datetime
+    stage_changed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ApplicationStageUpdate(BaseModel):
+    stage: CandidateStatus
+    note: str | None = None
+    rejection_reason: str | None = None
+
+
+class OfferCreate(BaseModel):
+    application_id: int
+    title: str = Field(min_length=2, max_length=255)
+    salary_amount: int | None = Field(default=None, ge=0)
+    currency: str = Field(default="USD", min_length=3, max_length=8)
+    start_date: datetime | None = None
+    notes: str | None = None
+
+
+class OfferOut(BaseModel):
+    id: int
+    organization_id: int
+    application_id: int
+    created_by_user_id: int
+    approved_by_user_id: int | None = None
+    title: str
+    salary_amount: int | None = None
+    currency: str
+    start_date: datetime | None = None
+    notes: str | None = None
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class AnalyticsSummary(BaseModel):
     top_skills: list[dict]
     experience_distribution: list[dict]
@@ -185,3 +281,4 @@ class AnalyticsSummary(BaseModel):
     stage_age_summary: list[dict] = Field(default_factory=list)
     source_hire_effectiveness: list[dict] = Field(default_factory=list)
     hiring_trend: list[dict] = Field(default_factory=list)
+    funnel_counts: list[dict] = Field(default_factory=list)

@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Candidate, User
+from app.models import Candidate, CandidateAccess, Organization, User
 from app.routers.candidates import (
     _can_manage_candidate,
     decide_share_invitation,
@@ -17,16 +17,21 @@ def _db():
     return Session()
 
 
-def test_share_invite_approve_creates_owned_clone_for_recipient():
+def test_share_invite_approve_grants_access_without_cloning_candidate():
     db = _db()
-    owner = User(email="owner@example.com", full_name="owner", role="recruiter")
-    receiver = User(email="receiver@example.com", full_name="receiver", role="recruiter")
+    org = Organization(name="Example", slug="example")
+    db.add(org)
+    db.flush()
+    owner = User(organization_id=org.id, email="owner@example.com", full_name="owner", role="recruiter")
+    receiver = User(organization_id=org.id, email="receiver@example.com", full_name="receiver", role="recruiter")
     db.add_all([owner, receiver])
     db.commit()
     db.refresh(owner)
     db.refresh(receiver)
 
     c = Candidate(
+        organization_id=org.id,
+        owner_user_id=owner.id,
         name="Alice",
         status="applied",
         parsed_json={"owner_user_id": owner.id, "owner_email": owner.email, "timeline": []},
@@ -45,17 +50,13 @@ def test_share_invite_approve_creates_owned_clone_for_recipient():
 
     out = decide_share_invitation(c.id, invite_id, {"decision": "approve"}, db=db, actor=receiver)
     assert out["ok"] is True
-    clone_id = out.get("clone_candidate_id")
-    assert clone_id
-
-    clone = db.get(Candidate, clone_id)
-    assert clone is not None
-    assert (clone.parsed_json or {}).get("owner_email") == receiver.email
-    assert (clone.parsed_json or {}).get("source_candidate_id") == c.id
+    assert out.get("clone_candidate_id") is None
+    access = db.execute(select(CandidateAccess).where(CandidateAccess.candidate_id == c.id, CandidateAccess.user_id == receiver.id)).scalar_one()
+    assert access.permission == "view"
 
     assert _can_manage_candidate(owner, c)
     assert not _can_manage_candidate(receiver, c)
-    assert _can_manage_candidate(receiver, clone)
+    assert not _can_manage_candidate(receiver, c)
 
     all_candidates = list(db.execute(select(Candidate)).scalars().all())
-    assert len(all_candidates) == 2
+    assert len(all_candidates) == 1

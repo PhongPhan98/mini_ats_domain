@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Candidate, CandidateComment, User
+from app.models import Candidate, CandidateComment, Organization, User
 from app.routers.comments import my_mentions
 from app.routers.candidates import list_ownership_requests
 
@@ -42,14 +42,18 @@ def test_mentions_endpoint_returns_only_items_tagging_current_user():
 
 def test_ownership_inbox_returns_pending_requests_for_receiver():
     db = _db()
-    owner = User(email="owner@x.com", full_name="owner", role="recruiter")
-    receiver = User(email="recv@x.com", full_name="recv", role="recruiter")
+    org = Organization(name="X", slug="x")
+    db.add(org)
+    db.flush()
+    owner = User(organization_id=org.id, email="owner@x.com", full_name="owner", role="recruiter")
+    receiver = User(organization_id=org.id, email="recv@x.com", full_name="recv", role="recruiter")
     db.add_all([owner, receiver])
     db.commit()
     db.refresh(owner)
     db.refresh(receiver)
 
     c = Candidate(
+        organization_id=org.id,
         name="N2",
         status="applied",
         parsed_json={

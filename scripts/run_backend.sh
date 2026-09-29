@@ -37,4 +37,5 @@ if port_in_use "$BACKEND_PORT"; then
 fi
 
 echo "[mini_ats] Starting backend on http://localhost:$BACKEND_PORT"
+alembic -c backend/alembic.ini upgrade head
 exec uvicorn app.main:app --reload --port "$BACKEND_PORT" --app-dir backend

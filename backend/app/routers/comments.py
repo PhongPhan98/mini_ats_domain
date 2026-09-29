@@ -8,29 +8,18 @@ from app.database import get_db
 from app.models import Candidate, CandidateComment, User
 from app.rbac import get_current_user, require_roles
 from app.schemas import CandidateCommentCreate, CandidateCommentOut
+from app.services.candidate_access import can_access_candidate
+from app.services.candidate_workflow import append_timeline_event as _append_timeline_event
 
 router = APIRouter(prefix="/api/candidates", tags=["comments"])
 
 MENTION_RE = re.compile(r"@([a-zA-Z0-9._-]+)")
 
 
-def _can_access_candidate(user, candidate: Candidate) -> bool:
-    if getattr(user, "role", "") != "recruiter":
-        return True
-    parsed = candidate.parsed_json or {}
-    owner_id = parsed.get("owner_user_id")
-    owner_email = (parsed.get("owner_email") or "").lower()
-    collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
-    collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
-    invited_emails = {
-        str(inv.get("to_email", "")).lower()
-        for inv in parsed.get("share_invitations", [])
-        if inv.get("status") == "pending"
-    }
-    return ((owner_id is not None and int(owner_id) == int(user.id)) or (owner_email == user.email.lower()) or (int(user.id) in collab_ids) or (user.email.lower() in collab_emails) or (user.email.lower() in invited_emails))
-
-
 def _has_mention_access(db: Session, user, candidate_id: int) -> bool:
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate or getattr(candidate, "organization_id", None) != getattr(user, "organization_id", None):
+        return False
     me_email = (getattr(user, "email", "") or "").lower()
     me_local = me_email.split("@")[0] if me_email else ""
     me_name = (getattr(user, "full_name", "") or "").lower()
@@ -42,21 +31,6 @@ def _has_mention_access(db: Session, user, candidate_id: int) -> bool:
     return False
 
 
-def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
-    parsed_json = dict(candidate.parsed_json or {})
-    timeline = list(parsed_json.get("timeline", []))
-    timeline.append(
-        {
-            "type": event_type,
-            "value": value,
-            "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
-        }
-    )
-    parsed_json["timeline"] = timeline
-    parsed_json["manual_reviewed"] = True
-    candidate.parsed_json = parsed_json
-
-
 @router.get("/{candidate_id}/comments", response_model=list[CandidateCommentOut])
 def list_comments(
     candidate_id: int,
@@ -66,7 +40,7 @@ def list_comments(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(user, candidate) and not _has_mention_access(db, user, candidate_id):
+    if not can_access_candidate(user, candidate) and not _has_mention_access(db, user, candidate_id):
         raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
 
     stmt = (
@@ -75,7 +49,7 @@ def list_comments(
         .order_by(CandidateComment.created_at.desc())
     )
     comments = list(db.execute(stmt).scalars().all())
-    users = {u.id: (u.full_name or u.email.split("@")[0]) for u in db.execute(select(User)).scalars().all()}
+    users = {u.id: (u.full_name or u.email.split("@")[0]) for u in db.execute(select(User).where(User.organization_id == candidate.organization_id)).scalars().all()}
     return [
         {
             "id": x.id,
@@ -100,7 +74,7 @@ def create_comment(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not _can_access_candidate(user, candidate) and not _has_mention_access(db, user, candidate_id):
+    if not can_access_candidate(user, candidate) and not _has_mention_access(db, user, candidate_id):
         raise HTTPException(status_code=403, detail="Not allowed to access this candidate")
 
     body = (payload.body or "").strip()
@@ -110,7 +84,7 @@ def create_comment(
     mentions_raw = MENTION_RE.findall(body)
     mentions: list[str] = []
     if mentions_raw:
-        known_users = list(db.execute(select(User.email, User.full_name)).all())
+        known_users = list(db.execute(select(User.email, User.full_name).where(User.organization_id == candidate.organization_id)).all())
         name_index = {n.lower(): e for e, n in known_users if n}
         email_local_index = {e.split("@")[0].lower(): e for e, _ in known_users}
         for token in mentions_raw:
@@ -149,7 +123,7 @@ def my_mentions(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    comments = list(db.execute(select(CandidateComment).order_by(CandidateComment.created_at.desc())).scalars().all())
+    comments = list(db.execute(select(CandidateComment).join(Candidate, Candidate.id == CandidateComment.candidate_id).where(Candidate.organization_id == user.organization_id).order_by(CandidateComment.created_at.desc())).scalars().all())
     mine = []
     me_email = user.email.lower()
     me_local = me_email.split("@")[0]

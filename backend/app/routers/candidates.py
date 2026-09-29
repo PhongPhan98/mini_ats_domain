@@ -2,42 +2,52 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 import json
+import hashlib
+from time import monotonic
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-
-import httpx
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Candidate, CandidateFile, User, CandidateComment
+from app.models import Application, Candidate, CandidateAccess, CandidateFile, User, CandidateComment, InterviewSchedule, InterviewScorecard
 from app.rbac import require_roles
 from app.schemas import CandidateOut, CandidateUpdate
 from app.services.automation import run_stage_change_automations
 from app.services.parser import CVTextParser
-from app.services.rule_based import SKILL_ALIASES, parse_candidate_from_cv
+from app.services.rule_based import SKILL_ALIASES, merge_candidate_parses, parse_candidate_from_cv
 from app.services.storage import get_storage_service
 from app.services.audit import log_event
 from app.services.llm import LLMService
 from app.services.emailer import send_email
+from app.services.candidate_access import (
+    can_access_candidate as _can_access_candidate,
+    can_manage_candidate as _can_manage_candidate,
+)
+from app.services.candidate_workflow import (
+    append_timeline_event as _append_timeline_event,
+    normalize_candidate_status as normalize_status,
+)
 from app.config import settings
+from app.services.tenancy import ensure_user_organization
+from app.services.applications import change_application_stage
+from app.services.file_validation import MAX_CV_BYTES, validate_cv_file
 
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 storage = get_storage_service()
 
 ALLOWED_STATUSES = {"applied", "screening", "interview", "offer", "hired", "rejected"}
-
-
-def normalize_status(value: str | None) -> str:
-    if not value:
-        return "applied"
-    value = value.strip().lower()
-    legacy_map = {
-        "new": "applied",
-        "shortlisted": "screening",
-    }
-    return legacy_map.get(value, value)
+async def _read_cv_upload(file: UploadFile) -> tuple[str, bytes]:
+    filename = file.filename or ""
+    content = await file.read(MAX_CV_BYTES + 1)
+    try:
+        validate_cv_file(filename, content)
+    except OverflowError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
+    return filename, content
 
 
 def _ai_provider_chain() -> list[str]:
@@ -55,7 +65,9 @@ def _ai_provider_chain() -> list[str]:
         if p == "groq":
             return bool(settings.groq_api_key)
         if p == "ollama":
-            return bool(settings.ollama_base_url)
+            # The configured default URL does not prove an Ollama server is
+            # running. Only call it when it was explicitly selected.
+            return primary == "ollama" and bool(settings.ollama_base_url)
         if p == "openai":
             return bool(settings.openai_api_key)
         return False
@@ -66,102 +78,139 @@ def _parse_ai_file_with_timeout(filename: str, content: bytes, mime_type: str) -
     if not settings.parse_use_ai:
         return None
     timeout_s = max(2, int(settings.parse_ai_timeout_seconds or 10))
+    deadline = monotonic() + timeout_s
 
     for provider in _ai_provider_chain():
-        def _run():
-            return LLMService.parse_cv_file_for_provider(provider, filename, content, mime_type)
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            break
+        def _run(selected_provider=provider):
+            return LLMService.parse_cv_file_for_provider(selected_provider, filename, content, mime_type)
+        executor = ThreadPoolExecutor(max_workers=1)
         try:
-            with ThreadPoolExecutor(max_workers=1) as ex:
-                future = ex.submit(_run)
-                data = future.result(timeout=timeout_s)
+            future = executor.submit(_run)
+            data = future.result(timeout=remaining)
             if isinstance(data, dict):
                 data["ai_provider"] = provider
                 return data
         except FuturesTimeoutError:
+            future.cancel()
             continue
         except Exception:
             continue
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
     return None
 
 def _parse_ai_with_timeout(text: str) -> dict[str, Any] | None:
     if not settings.parse_use_ai:
         return None
     timeout_s = max(2, int(settings.parse_ai_timeout_seconds or 10))
+    deadline = monotonic() + timeout_s
 
     for provider in _ai_provider_chain():
-        def _run():
-            return LLMService.parse_cv_for_provider(provider, text)
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            break
+        def _run(selected_provider=provider):
+            return LLMService.parse_cv_for_provider(selected_provider, text)
+        executor = ThreadPoolExecutor(max_workers=1)
         try:
-            with ThreadPoolExecutor(max_workers=1) as ex:
-                future = ex.submit(_run)
-                data = future.result(timeout=timeout_s)
+            future = executor.submit(_run)
+            data = future.result(timeout=remaining)
             if isinstance(data, dict):
                 data["ai_provider"] = provider
                 return data
         except FuturesTimeoutError:
+            future.cancel()
             continue
         except Exception:
             continue
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
     return None
 
-def _parse_or_fallback(filename: str, content: bytes, mime_type: str = "application/octet-stream") -> dict[str, Any]:
-    text = CVTextParser.parse(filename, content)
-    if not text:
-        ai_file = _parse_ai_file_with_timeout(filename, content, mime_type)
-        if isinstance(ai_file, dict) and not ai_file.get("_ai_timeout"):
-            ai_file["ai_provider"] = settings.llm_provider
-            ai_file["ai_parse_status"] = "used_file_vision"
-            ai_file.setdefault("source", "ai_file_vision")
-            return ai_file
+def _extract_cv_text(filename: str, content: bytes) -> str:
+    try:
+        return CVTextParser.parse(filename, content)
+    except Exception:
+        return ""
 
-        fallback_name = Path(filename).stem.replace("_", " ").replace("-", " ").strip() or "Unknown Candidate"
+
+def _parse_or_fallback(
+    filename: str,
+    content: bytes,
+    mime_type: str = "application/octet-stream",
+    extracted_text: str | None = None,
+) -> dict[str, Any]:
+    text = extracted_text if extracted_text is not None else _extract_cv_text(filename, content)
+    text = (text or "").strip()
+    fallback_name = Path(filename).stem.replace("_", " ").replace("-", " ").strip() or "Unknown Candidate"
+
+    # Prefer document vision for scanned or nearly empty files. It can recover
+    # columns and image text that PDF text extractors cannot see.
+    if len(text) < 80:
+        ai_file = _parse_ai_file_with_timeout(filename, content, mime_type)
+        if isinstance(ai_file, dict):
+            provider = str(ai_file.get("ai_provider") or settings.llm_provider)
+            parsed = merge_candidate_parses({}, ai_file)
+            if not parsed.get("name"):
+                parsed["name"] = fallback_name
+            parsed["ai_provider"] = provider
+            parsed["ai_parse_status"] = "used_file_vision"
+            parsed["source"] = "ai_file_vision"
+            parsed["scanned_suspected"] = True
+            parsed["parse_warning"] = "Text extraction was limited, so document vision was used. Please verify the highlighted fields."
+            return parsed
+
+    if not text:
         return {
             "name": fallback_name,
-            "summary": "Imported with limited parsing (manual review needed).",
+            "summary": "Imported with limited parsing. Manual review is required.",
             "skills": [],
             "education": [],
             "previous_companies": [],
-            "parse_warning": "Could not extract text from CV file. This file may be scanned/image-based. Please upload a text-based PDF or DOCX, or fill fields manually.",
+            "experience_details": [],
+            "experience_timeline": [],
+            "projects": [],
+            "certifications": [],
+            "languages": [],
+            "achievements": [],
+            "domain_tags": [],
+            "parse_warning": "No readable text was found. The CV may be scanned, password protected, or damaged. Please review it manually.",
             "scanned_suspected": True,
             "confidence": {},
             "confidence_score": 0,
+            "completeness_score": 0,
+            "missing_critical_fields": ["name", "email", "phone", "skills", "current_title", "experience_details"],
+            "review_recommended": True,
+            "parser_version": "2.0",
             "source": "fallback",
-            "ai_provider": settings.llm_provider,
-            "ai_parse_status": "no_text_fallback_rule",
+            "ai_provider": "none",
+            "ai_parse_status": "no_text_fallback",
         }
 
-    parsed_rule = parse_candidate_from_cv(text)
-
-    # Try AI parsing with timeout, then fallback to rule-based if AI is slow/unavailable.
+    local_data = parse_candidate_from_cv(text)
     ai_data = _parse_ai_with_timeout(text)
-    parsed = dict(parsed_rule)
+    parsed = merge_candidate_parses(local_data, ai_data)
+
     if isinstance(ai_data, dict):
-        if ai_data.get("_ai_timeout"):
-            parsed["parse_warning"] = "AI parsing timed out. Continued with local parser." 
-            parsed["ai_parse_status"] = "timeout_fallback_rule"
-            parsed["ai_provider"] = settings.llm_provider
-        else:
-            merge_keys = [
-                "name", "email", "phone", "skills", "years_of_experience", "education",
-                "previous_companies", "summary", "linkedin_url", "github_url", "location",
-                "current_title", "certifications", "languages", "projects"
-            ]
-            for k in merge_keys:
-                v = ai_data.get(k)
-                if v not in (None, "", [], {}):
-                    parsed[k] = v
-            parsed["ai_parse_status"] = "used"
-            parsed["ai_provider"] = settings.llm_provider
-            parsed["source"] = "ai_plus_rule"
-
-    if "ai_parse_status" not in parsed:
+        parsed["ai_provider"] = str(ai_data.get("ai_provider") or settings.llm_provider)
+        parsed["ai_parse_status"] = "used"
+        parsed["source"] = "ai_plus_local"
+    else:
+        parsed["ai_provider"] = "none"
         parsed["ai_parse_status"] = "rule_only"
-    if "ai_provider" not in parsed:
-        parsed["ai_provider"] = settings.llm_provider
+        parsed["source"] = "rule_based_v2"
 
-    if len((text or "").strip()) < 160:
-        parsed["parse_warning"] = "Very little extractable text detected. CV may be scanned/image-based; AI can only parse extracted text in current mode, so please review fields manually."
+    parsed["text_character_count"] = len(text)
+    if len(text) < 160:
+        parsed["parse_warning"] = "Only a small amount of text could be read from this CV. Please verify all fields."
         parsed["scanned_suspected"] = True
+        parsed["review_recommended"] = True
+    elif parsed.get("parse_conflicts"):
+        fields = ", ".join(parsed["parse_conflicts"])
+        parsed["parse_warning"] = f"Local extraction and AI disagreed on: {fields}. The document values were kept for review."
     return parsed
 
 
@@ -170,57 +219,25 @@ async def parse_cv_preview(
     file: UploadFile = File(...),
     _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
-    ext = Path(file.filename).suffix.lower()
-    if ext not in {".pdf", ".docx"}:
-        raise HTTPException(status_code=400, detail="Only PDF/DOCX supported")
+    filename, content = await _read_cv_upload(file)
 
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Empty file")
-
-    parsed = _parse_or_fallback(file.filename, content, file.content_type or "application/octet-stream")
+    source_text = _extract_cv_text(filename, content)
+    parsed = _parse_or_fallback(
+        filename,
+        content,
+        file.content_type or "application/octet-stream",
+        extracted_text=source_text,
+    )
     parsed["owner_user_id"] = _actor.id
     parsed["owner_email"] = _actor.email
-    source_text = CVTextParser.parse(file.filename, content)
-    return {"filename": file.filename, "parsed": parsed, "source_text": source_text}
-
-
-
-def _can_manage_candidate(user, candidate: Candidate) -> bool:
-    if getattr(user, "role", "") != "recruiter":
-        return True
-    parsed = candidate.parsed_json or {}
-    owner_id = parsed.get("owner_user_id")
-    owner_email = (parsed.get("owner_email") or "").lower()
-    return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())
-
-
-def _can_access_candidate(user, candidate: Candidate) -> bool:
-    # recruiter can only access candidates they own or are shared with.
-    if getattr(user, "role", "") != "recruiter":
-        return True
-    parsed = candidate.parsed_json or {}
-    owner_id = parsed.get("owner_user_id")
-    owner_email = (parsed.get("owner_email") or "").lower()
-    collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
-    collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
-    invited_emails = {
-        str(inv.get("to_email", "")).lower()
-        for inv in parsed.get("share_invitations", [])
-        if inv.get("status") == "pending"
-    }
-
-    return (
-        (owner_id is not None and int(owner_id) == int(user.id))
-        or (owner_email and owner_email == user.email.lower())
-        or (int(user.id) in collab_ids)
-        or (user.email.lower() in collab_emails)
-        or (user.email.lower() in invited_emails)
-    )
+    return {"filename": filename, "parsed": parsed, "source_text": source_text}
 
 
 
 def _has_mention_access(db: Session, user, candidate_id: int) -> bool:
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate or getattr(candidate, "organization_id", None) != getattr(user, "organization_id", None):
+        return False
     me_email = (getattr(user, "email", "") or "").lower()
     me_local = me_email.split("@")[0] if me_email else ""
     me_name = (getattr(user, "full_name", "") or "").lower()
@@ -233,55 +250,56 @@ def _has_mention_access(db: Session, user, candidate_id: int) -> bool:
 
 def _is_candidate_deleted(candidate: Candidate) -> bool:
     parsed = candidate.parsed_json or {}
-    return bool(parsed.get("deleted"))
-
-
-def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
-    parsed_json = dict(candidate.parsed_json or {})
-    timeline = list(parsed_json.get("timeline", []))
-    timeline.append(
-        {
-            "type": event_type,
-            "value": value,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    )
-    parsed_json["timeline"] = timeline
-    parsed_json["manual_reviewed"] = True
-    candidate.parsed_json = parsed_json
+    return candidate.deleted_at is not None or bool(parsed.get("deleted"))
 
 
 @router.post("/upload", response_model=CandidateOut)
 async def upload_cv(
     file: UploadFile = File(...),
     edited_json: str | None = Form(default=None),
+    reviewed: bool = Form(default=False),
     db: Session = Depends(get_db),
     _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
-    ext = Path(file.filename).suffix.lower()
-    if ext not in {".pdf", ".docx"}:
-        raise HTTPException(status_code=400, detail="Only PDF/DOCX supported")
+    filename, content = await _read_cv_upload(file)
 
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Empty file")
-
-    parsed = _parse_or_fallback(file.filename, content, file.content_type or "application/octet-stream")
-    parsed["owner_user_id"] = _actor.id
-    parsed["owner_email"] = _actor.email
-
+    edited: dict[str, Any] | None = None
     if edited_json:
         try:
-            edited = json.loads(edited_json)
-            if isinstance(edited, dict):
-                for k, v in edited.items():
-                    parsed[k] = v
+            decoded = json.loads(edited_json)
+            if isinstance(decoded, dict):
+                edited = decoded
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid edited_json")
 
-    candidate = Candidate(
+    if reviewed and edited is not None:
+        parsed = dict(edited)
+        parsed["manual_reviewed"] = True
+        parsed.setdefault("source", "reviewed_preview")
+    else:
+        parsed = _parse_or_fallback(filename, content, file.content_type or "application/octet-stream")
+        if edited is not None:
+            parsed.update(edited)
+
+    # Ownership always comes from the authenticated actor, never client input.
+    parsed["owner_user_id"] = _actor.id
+    parsed["owner_email"] = _actor.email
+
+    org_id = ensure_user_organization(db, _actor)
+    clean_email = str(parsed.get("email") or "").strip().lower() or None
+    existing = None
+    if clean_email:
+        existing = db.execute(select(Candidate).where(
+            Candidate.organization_id == org_id,
+            Candidate.email == clean_email,
+            Candidate.deleted_at.is_(None),
+        )).scalar_one_or_none()
+
+    candidate = existing or Candidate(
+        organization_id=org_id,
+        owner_user_id=_actor.id,
         name=parsed.get("name"),
-        email=parsed.get("email"),
+        email=clean_email,
         phone=parsed.get("phone"),
         status="applied",
         skills=parsed.get("skills", []),
@@ -289,18 +307,35 @@ async def upload_cv(
         education=parsed.get("education", []),
         previous_companies=parsed.get("previous_companies", []),
         summary=parsed.get("summary"),
+        acquisition_source="direct_upload",
+        consent_status="unknown",
         parsed_json=parsed,
     )
+    if existing:
+        # A person is stored once. A newer CV enriches the same profile.
+        for key in ("name", "phone", "years_of_experience", "summary"):
+            value = parsed.get(key)
+            if value not in (None, ""):
+                setattr(candidate, key, value)
+        for key in ("skills", "education", "previous_companies"):
+            if parsed.get(key):
+                setattr(candidate, key, parsed[key])
+        candidate.parsed_json = {**(candidate.parsed_json or {}), **parsed}
     db.add(candidate)
     db.flush()
 
-    file_url = storage.save_bytes(file.filename, content)
-    candidate_file = CandidateFile(
-        candidate_id=candidate.id,
-        file_url=file_url,
-        original_filename=file.filename,
-    )
-    db.add(candidate_file)
+    digest = hashlib.sha256(content).hexdigest()
+    duplicate_file = db.execute(select(CandidateFile).where(CandidateFile.candidate_id == candidate.id, CandidateFile.content_sha256 == digest)).scalar_one_or_none()
+    if not duplicate_file:
+        file_url = storage.save_bytes(filename, content)
+        db.add(CandidateFile(
+            candidate_id=candidate.id,
+            file_url=file_url,
+            original_filename=filename,
+            content_sha256=digest,
+            content_type=file.content_type,
+            size_bytes=len(content),
+        ))
 
     _append_timeline_event(candidate, "created", "Candidate profile created")
 
@@ -320,7 +355,8 @@ def list_candidates(
     db: Session = Depends(get_db),
     _actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
-    conditions: list[Any] = []
+    org_id = ensure_user_organization(db, _actor)
+    conditions: list[Any] = [Candidate.organization_id == org_id]
 
     if min_experience is not None:
         conditions.append(Candidate.years_of_experience >= min_experience)
@@ -384,7 +420,8 @@ def get_candidate(
     db: Session = Depends(get_db),
     _actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
-    stmt = select(Candidate).options(selectinload(Candidate.files)).where(Candidate.id == candidate_id)
+    org_id = ensure_user_organization(db, _actor)
+    stmt = select(Candidate).options(selectinload(Candidate.files)).where(Candidate.id == candidate_id, Candidate.organization_id == org_id)
     candidate = db.execute(stmt).scalar_one_or_none()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -404,12 +441,17 @@ def update_candidate(
     _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
     candidate = db.get(Candidate, candidate_id)
-    if not candidate:
+    org_id = ensure_user_organization(db, _actor)
+    if not candidate or candidate.organization_id != org_id:
         raise HTTPException(status_code=404, detail="Candidate not found")
     if not _can_manage_candidate(_actor, candidate):
         raise HTTPException(status_code=403, detail="Not allowed to update this candidate")
 
     update_data = payload.model_dump(exclude_unset=True)
+    if "email" in update_data and update_data["email"]:
+        update_data["email"] = str(update_data["email"]).strip().lower()
+    if "consent_status" in update_data and update_data["consent_status"] not in {"unknown", "granted", "withdrawn"}:
+        raise HTTPException(status_code=422, detail="consent_status must be unknown, granted, or withdrawn")
 
     # Prevent privilege escalation / ownership tampering via generic PATCH payload.
     protected_fields = {
@@ -506,11 +548,9 @@ def preview_candidate_file(
     if file.file_url.startswith("suppressed://"):
         raise HTTPException(status_code=404, detail="Raw CV content is not available")
 
-    try:
-        file_response = httpx.get(file.file_url, timeout=30)
-        file_response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail="Unable to fetch CV file") from exc
+    content = storage.read_by_url(file.file_url)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Raw CV content is not available")
 
     suffix = Path(file.original_filename or "").suffix.lower()
     media_type = {
@@ -518,7 +558,7 @@ def preview_candidate_file(
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }.get(suffix, "application/octet-stream")
     return Response(
-        content=file_response.content,
+        content=content,
         media_type=media_type,
         headers={"Content-Disposition": f'inline; filename="{file.original_filename}"'},
     )
@@ -540,6 +580,7 @@ def soft_delete_candidate(
     parsed["deleted"] = True
     parsed["deleted_at"] = datetime.utcnow().isoformat()
     candidate.parsed_json = parsed
+    candidate.deleted_at = datetime.utcnow()
     _append_timeline_event(candidate, "note", "candidate_soft_deleted")
     db.commit()
     log_event(_actor.email, "candidate.soft_delete", f"candidate:{candidate_id}", {})
@@ -562,6 +603,7 @@ def restore_candidate(
     parsed["deleted"] = False
     parsed.pop("deleted_at", None)
     candidate.parsed_json = parsed
+    candidate.deleted_at = None
     _append_timeline_event(candidate, "note", "candidate_restored")
     db.commit()
     log_event(_actor.email, "candidate.restore", f"candidate:{candidate_id}", {})
@@ -586,6 +628,9 @@ def share_candidate(
         raise HTTPException(status_code=400, detail="email is required")
     if email == actor.email.lower():
         raise HTTPException(status_code=400, detail="Cannot share to yourself")
+    invited_user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if not invited_user or invited_user.organization_id != candidate.organization_id:
+        raise HTTPException(status_code=400, detail="Invite an existing user in this workspace")
 
     parsed = dict(candidate.parsed_json or {})
     invitations = list(parsed.get("share_invitations", []))
@@ -639,6 +684,9 @@ def unshare_candidate(
     user = db.query(__import__("app.models", fromlist=["User"]).User).filter_by(email=email).first()
     if user:
         collab_ids.discard(int(user.id))
+        access = db.execute(select(CandidateAccess).where(CandidateAccess.candidate_id == candidate.id, CandidateAccess.user_id == user.id)).scalar_one_or_none()
+        if access:
+            db.delete(access)
 
     parsed["collaborator_emails"] = sorted(collab_emails)
     parsed["collaborator_user_ids"] = sorted(collab_ids)
@@ -656,7 +704,8 @@ def list_share_invitations(
     db: Session = Depends(get_db),
     actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
-    candidates = list(db.execute(select(Candidate)).scalars().all())
+    org_id = ensure_user_organization(db, actor)
+    candidates = list(db.execute(select(Candidate).where(Candidate.organization_id == org_id)).scalars().all())
     out = []
     for c in candidates:
         parsed = c.parsed_json or {}
@@ -706,38 +755,18 @@ def decide_share_invitation(
 
     clone_candidate_id = None
     if decision == "approve":
-        clone_parsed = dict(candidate.parsed_json or {})
-        clone_parsed["owner_user_id"] = actor.id
-        clone_parsed["owner_email"] = actor.email.lower()
-        clone_parsed["deleted"] = False
-        clone_parsed.pop("deleted_at", None)
-        clone_parsed["source_candidate_id"] = candidate.id
-        clone_parsed.pop("collaborator_emails", None)
-        clone_parsed.pop("collaborator_user_ids", None)
-        clone_parsed.pop("share_invitations", None)
-        clone_parsed.pop("ownership_requests", None)
-
-        clone = Candidate(
-            name=candidate.name,
-            email=candidate.email,
-            phone=candidate.phone,
-            status=normalize_status(candidate.status),
-            skills=list(candidate.skills or []),
-            years_of_experience=candidate.years_of_experience,
-            education=list(candidate.education or []),
-            previous_companies=list(candidate.previous_companies or []),
-            summary=candidate.summary,
-            parsed_json=clone_parsed,
-        )
-        db.add(clone)
-        db.flush()
-        clone_candidate_id = clone.id
-
-        source_files = db.execute(select(CandidateFile).where(CandidateFile.candidate_id == candidate.id)).scalars().all()
-        for f in source_files:
-            db.add(CandidateFile(candidate_id=clone.id, file_url=f.file_url, original_filename=f.original_filename))
-
-        _append_timeline_event(clone, "created", f"cloned_from:{candidate.id}")
+        existing_access = db.execute(select(CandidateAccess).where(
+            CandidateAccess.candidate_id == candidate.id,
+            CandidateAccess.user_id == actor.id,
+        )).scalar_one_or_none()
+        if not existing_access:
+            db.add(CandidateAccess(candidate_id=candidate.id, user_id=actor.id, permission="view"))
+        collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
+        collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
+        collab_emails.add(actor.email.lower())
+        collab_ids.add(int(actor.id))
+        parsed["collaborator_emails"] = sorted(collab_emails)
+        parsed["collaborator_user_ids"] = sorted(collab_ids)
         _append_timeline_event(candidate, "share", f"share_approved_by:{actor.email.lower()}")
     else:
         _append_timeline_event(candidate, "share", f"share_rejected_by:{actor.email.lower()}")
@@ -746,6 +775,133 @@ def decide_share_invitation(
     candidate.parsed_json = parsed
     db.commit()
     return {"ok": True, "invitation": target, "clone_candidate_id": clone_candidate_id}
+
+
+@router.delete("/admin/{candidate_id}/permanent")
+def permanently_delete_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate or not _can_manage_candidate(actor, candidate):
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    for file in list(candidate.files):
+        storage.delete_by_url(file.file_url)
+    db.delete(candidate)
+    db.commit()
+    log_event(actor.email, "candidate.permanent_delete", f"candidate:{candidate_id}", {})
+    return {"ok": True}
+
+
+@router.get("/{candidate_id}/privacy-export")
+def export_candidate_privacy_data(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate or not _can_manage_candidate(actor, candidate):
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    applications = list(db.execute(select(Application).where(Application.candidate_id == candidate.id)).scalars().all())
+    return {
+        "exported_at": datetime.utcnow().isoformat(),
+        "candidate": {"id": candidate.id, "name": candidate.name, "email": candidate.email, "phone": candidate.phone, "summary": candidate.summary, "skills": candidate.skills, "education": candidate.education, "previous_companies": candidate.previous_companies, "source": candidate.acquisition_source, "consent_status": candidate.consent_status, "created_at": candidate.created_at},
+        "applications": [{"id": app.id, "job_id": app.job_id, "stage": app.stage, "source": app.source, "applied_at": app.applied_at, "rejection_reason": app.rejection_reason, "withdrawn_at": app.withdrawn_at} for app in applications],
+        "files": [{"filename": file.original_filename, "uploaded_at": file.uploaded_at} for file in candidate.files],
+    }
+
+
+@router.post("/{candidate_id}/anonymize")
+def anonymize_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin")),
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate or not _can_manage_candidate(actor, candidate):
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    for file in list(candidate.files):
+        storage.delete_by_url(file.file_url)
+        db.delete(file)
+    candidate.name = f"Anonymized candidate {candidate.id}"
+    candidate.email = None
+    candidate.phone = None
+    candidate.summary = None
+    candidate.education = []
+    candidate.previous_companies = []
+    candidate.skills = []
+    candidate.parsed_json = {"anonymized_at": datetime.utcnow().isoformat()}
+    candidate.consent_status = "withdrawn"
+    db.commit()
+    log_event(actor.email, "candidate.anonymize", f"candidate:{candidate_id}", {})
+    return {"ok": True}
+
+
+@router.post("/admin/retention/purge")
+def purge_expired_candidate_data(
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin")),
+):
+    org_id = ensure_user_organization(db, actor)
+    expired = list(db.execute(select(Candidate).where(
+        Candidate.organization_id == org_id,
+        Candidate.retention_until.is_not(None),
+        Candidate.retention_until < datetime.utcnow(),
+    )).scalars().all())
+    for candidate in expired:
+        for file in list(candidate.files):
+            storage.delete_by_url(file.file_url)
+            db.delete(file)
+        candidate.name = f"Anonymized candidate {candidate.id}"
+        candidate.email = None
+        candidate.phone = None
+        candidate.summary = None
+        candidate.education = []
+        candidate.previous_companies = []
+        candidate.skills = []
+        candidate.parsed_json = {"anonymized_at": datetime.utcnow().isoformat(), "reason": "retention_expired"}
+        candidate.consent_status = "withdrawn"
+        candidate.retention_until = None
+    db.commit()
+    log_event(actor.email, "candidate.retention.purge", "candidates", {"count": len(expired)})
+    return {"ok": True, "anonymized": len(expired)}
+
+
+@router.post("/{candidate_id}/merge")
+def merge_duplicate_candidate(
+    candidate_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
+):
+    duplicate = db.get(Candidate, candidate_id)
+    target = db.get(Candidate, int(payload.get("target_candidate_id", 0)))
+    if not duplicate or not target or duplicate.id == target.id:
+        raise HTTPException(status_code=400, detail="Choose two different candidates")
+    if duplicate.organization_id != target.organization_id or not _can_manage_candidate(actor, duplicate) or not _can_manage_candidate(actor, target):
+        raise HTTPException(status_code=403, detail="Not allowed to merge these candidates")
+    target_jobs = {app.job_id for app in db.execute(select(Application).where(Application.candidate_id == target.id)).scalars().all()}
+    for application in list(db.execute(select(Application).where(Application.candidate_id == duplicate.id)).scalars().all()):
+        if application.job_id in target_jobs:
+            db.delete(application)
+        else:
+            application.candidate_id = target.id
+    for model in (CandidateFile, CandidateComment, InterviewSchedule, InterviewScorecard):
+        for row in list(db.execute(select(model).where(model.candidate_id == duplicate.id)).scalars().all()):
+            row.candidate_id = target.id
+    target_access_users = {row.user_id for row in db.execute(select(CandidateAccess).where(CandidateAccess.candidate_id == target.id)).scalars().all()}
+    for row in list(db.execute(select(CandidateAccess).where(CandidateAccess.candidate_id == duplicate.id)).scalars().all()):
+        if row.user_id in target_access_users:
+            db.delete(row)
+        else:
+            row.candidate_id = target.id
+    target.skills = sorted(set(target.skills or []) | set(duplicate.skills or []))
+    target.parsed_json = {**(duplicate.parsed_json or {}), **(target.parsed_json or {})}
+    db.delete(duplicate)
+    db.commit()
+    log_event(actor.email, "candidate.merge", f"candidate:{target.id}", {"merged_candidate_id": candidate_id})
+    return {"ok": True, "candidate_id": target.id}
 
 @router.post("/{candidate_id}/ownership/request")
 def request_candidate_ownership(
@@ -798,7 +954,8 @@ def list_ownership_requests(
     db: Session = Depends(get_db),
     actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
 ):
-    candidates = list(db.execute(select(Candidate)).scalars().all())
+    org_id = ensure_user_organization(db, actor)
+    candidates = list(db.execute(select(Candidate).where(Candidate.organization_id == org_id)).scalars().all())
     out = []
     now = __import__("datetime").datetime.utcnow().isoformat()
     changed = False
@@ -862,6 +1019,7 @@ def decide_ownership_request(
     if decision == "approve":
         parsed["owner_user_id"] = target.get("from_user_id")
         parsed["owner_email"] = target.get("from_email")
+        candidate.owner_user_id = int(target.get("from_user_id"))
         # keep old owner as collaborator for continuity
         collab_emails = {str(x).lower() for x in parsed.get("collaborator_emails", [])}
         collab_ids = {int(x) for x in parsed.get("collaborator_user_ids", []) if str(x).isdigit()}
@@ -938,7 +1096,25 @@ def update_candidate_stage(
     if stage not in ALLOWED_STATUSES:
         raise HTTPException(status_code=400, detail=f"Invalid status '{stage}'")
 
-    if stage != normalize_status(candidate.status):
+    application_id = payload.get("application_id")
+    job_id = payload.get("job_id")
+    application = None
+    if application_id:
+        application = db.get(Application, int(application_id))
+    elif job_id:
+        application = db.execute(select(Application).where(
+            Application.candidate_id == candidate.id,
+            Application.job_id == int(job_id),
+        )).scalar_one_or_none()
+    if application:
+        if application.candidate_id != candidate.id or application.organization_id != candidate.organization_id:
+            raise HTTPException(status_code=404, detail="Application not found")
+        change_application_stage(
+            db, application, stage, actor_user_id=_actor.id,
+            note=str(payload.get("note") or "") or None,
+            rejection_reason=str(payload.get("rejection_reason") or "") or None,
+        )
+    elif stage != normalize_status(candidate.status):
         candidate.status = stage
         _append_timeline_event(candidate, "status", stage)
     db.commit()

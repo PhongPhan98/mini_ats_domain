@@ -1,34 +1,27 @@
-from __future__ import annotations
-
-from datetime import datetime
-from pathlib import Path
-import json
-
-_AUDIT_PATH = Path(__file__).resolve().parents[1] / "data" / "audit_events.jsonl"
+from app.database import SessionLocal
+from app.models import AuditEvent, User
 
 
 def log_event(actor_email: str, action: str, target: str, metadata: dict | None = None):
-    _AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    row = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "actor_email": actor_email,
-        "action": action,
-        "target": target,
-        "metadata": metadata or {},
-    }
-    with _AUDIT_PATH.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.email == actor_email.lower()).first() if actor_email != "public" else None
+        db.add(AuditEvent(
+            organization_id=user.organization_id if user else (metadata or {}).get("organization_id"),
+            actor_email=actor_email,
+            action=action,
+            target=target,
+            metadata_json=metadata or {},
+        ))
+        db.commit()
 
 
-def read_events(limit: int = 200) -> list[dict]:
-    if not _AUDIT_PATH.exists():
-        return []
-    lines = _AUDIT_PATH.read_text(encoding="utf-8").splitlines()
-    out = []
-    for line in lines[-limit:]:
-        try:
-            out.append(json.loads(line))
-        except Exception:
-            continue
-    out.reverse()
-    return out
+def read_events(limit: int = 200, organization_id: int | None = None) -> list[dict]:
+    with SessionLocal() as db:
+        query = db.query(AuditEvent)
+        if organization_id is not None:
+            query = query.filter(AuditEvent.organization_id == organization_id)
+        rows = query.order_by(AuditEvent.created_at.desc()).limit(limit).all()
+        return [{
+            "timestamp": row.created_at.isoformat(), "actor_email": row.actor_email,
+            "action": row.action, "target": row.target, "metadata": row.metadata_json or {},
+        } for row in rows]

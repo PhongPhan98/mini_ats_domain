@@ -8,6 +8,7 @@ from app.rbac import get_current_user, require_roles
 from app.schemas import UserOut
 from app.services import user_access
 from app.services.audit import log_event
+from app.services.tenancy import ensure_user_organization
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -20,9 +21,10 @@ def me(user=Depends(get_current_user)):
 @router.get("", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "hiring_manager")),
+    actor=Depends(require_roles("admin", "hiring_manager")),
 ):
-    return list(db.execute(select(User).order_by(User.created_at.desc())).scalars().all())
+    org_id = ensure_user_organization(db, actor)
+    return list(db.execute(select(User).where(User.organization_id == org_id).order_by(User.created_at.desc())).scalars().all())
 
 
 @router.patch("/{user_id}/role", response_model=UserOut)
@@ -33,7 +35,7 @@ def update_user_role(
     _admin=Depends(require_roles("admin")),
 ):
     user = db.get(User, user_id)
-    if not user:
+    if not user or user.organization_id != ensure_user_organization(db, _admin):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -57,7 +59,7 @@ def disable_user(
     _admin=Depends(require_roles("admin")),
 ):
     user = db.get(User, user_id)
-    if not user:
+    if not user or user.organization_id != ensure_user_organization(db, _admin):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -69,7 +71,9 @@ def disable_user(
 
 @router.get("/access/disabled")
 def list_disabled(
-    _admin=Depends(require_roles("admin")),
+    db: Session = Depends(get_db),
+    admin=Depends(require_roles("admin")),
 ):
-    ids = sorted(list(user_access.list_disabled_ids()))
+    org_id = ensure_user_organization(db, admin)
+    ids = [row.id for row in db.execute(select(User).where(User.organization_id == org_id, User.disabled.is_(True))).scalars().all()]
     return {"disabled_user_ids": ids}

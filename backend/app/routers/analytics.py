@@ -6,185 +6,93 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Candidate
+from app.models import Application, ApplicationStageHistory, Candidate
 from app.rbac import get_current_user, require_roles
 from app.schemas import AnalyticsSummary
+from app.services.tenancy import ensure_user_organization
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+STAGES = ["applied", "screening", "interview", "offer", "hired", "rejected"]
+FUNNEL = ["applied", "screening", "interview", "offer", "hired"]
 
 
-def normalize_status(value: str | None) -> str:
-    if not value:
-        return "applied"
-    v = value.strip().lower()
-    legacy = {"new": "applied", "shortlisted": "screening"}
-    return legacy.get(v, v)
+def build_summary(db: Session, actor) -> AnalyticsSummary:
+    org_id = ensure_user_organization(db, actor)
+    stmt = select(Application).where(Application.organization_id == org_id, Application.withdrawn_at.is_(None))
+    if actor.role == "recruiter":
+        stmt = stmt.where(Application.owner_user_id == actor.id)
+    applications = list(db.execute(stmt).scalars().all())
 
+    candidate_stmt = select(Candidate).where(Candidate.organization_id == org_id, Candidate.deleted_at.is_(None))
+    if actor.role == "recruiter":
+        candidate_stmt = candidate_stmt.where(Candidate.owner_user_id == actor.id)
+    candidates = list(db.execute(candidate_stmt).scalars().all())
+    skill_counter = Counter(skill.strip().lower() for c in candidates for skill in (c.skills or []) if skill)
+    exp_distribution = Counter()
+    for candidate in candidates:
+        years = candidate.years_of_experience or 0
+        exp_distribution["0-1 years" if years < 2 else "2-4 years" if years < 5 else "5-7 years" if years < 8 else "8+ years"] += 1
 
-def _candidate_source(candidate: Candidate) -> str:
-    source = (candidate.parsed_json or {}).get("source")
-    if source:
-        return str(source).strip().lower()
-    return "direct"
+    status_counter = Counter(app.stage for app in applications)
+    source_counter = Counter((app.source or "direct").strip().lower() for app in applications)
+    source_hired = Counter((app.source or "direct").strip().lower() for app in applications if app.stage == "hired")
 
+    application_ids = [app.id for app in applications]
+    history = list(db.execute(select(ApplicationStageHistory).where(ApplicationStageHistory.application_id.in_(application_ids))).scalars().all()) if application_ids else []
+    history_by_application = defaultdict(list)
+    for event in history:
+        history_by_application[event.application_id].append(event)
 
-def _first_timeline_ts(candidate: Candidate, event_type: str, contains_value: str | None = None):
-    timeline = (candidate.parsed_json or {}).get("timeline", [])
-    for ev in timeline:
-        if str(ev.get("type", "")).lower() != event_type:
-            continue
-        if contains_value and contains_value.lower() not in str(ev.get("value", "")).lower():
-            continue
-        ts = ev.get("timestamp")
-        if ts:
-            try:
-                return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-            except Exception:
-                pass
-    return None
+    reached = Counter()
+    time_to_hire = []
+    weekly_hires = Counter()
+    for app in applications:
+        reached_stages = {"applied", app.stage} | {event.to_stage for event in history_by_application[app.id]}
+        for stage in FUNNEL:
+            if stage in reached_stages:
+                reached[stage] += 1
+        hired_events = [event for event in history_by_application[app.id] if event.to_stage == "hired"]
+        if hired_events:
+            hired_at = min(event.changed_at for event in hired_events)
+            time_to_hire.append((hired_at - app.applied_at).total_seconds() / 86400)
+            week = (hired_at - timedelta(days=hired_at.weekday())).date().isoformat()
+            weekly_hires[week] += 1
+
+    conversion_rates = []
+    for previous, current in zip(FUNNEL, FUNNEL[1:]):
+        conversion_rates.append({"stage": f"{previous}_to_{current}", "rate_pct": round(reached[current] * 100 / max(reached[previous], 1), 2)})
+
+    now = datetime.utcnow()
+    stage_ages = defaultdict(list)
+    for app in applications:
+        stage_ages[app.stage].append((now - (app.stage_changed_at or app.applied_at)).total_seconds() / 86400)
+
+    weekly_buckets = {}
+    for offset in range(7, -1, -1):
+        week_start = (now - timedelta(days=now.weekday()) - timedelta(weeks=offset)).date().isoformat()
+        weekly_buckets[week_start] = weekly_hires.get(week_start, 0)
+
+    total_applications = len(applications) or 1
+    return AnalyticsSummary(
+        top_skills=[{"skill": name, "count": count} for name, count in skill_counter.most_common(10)],
+        experience_distribution=[{"range": name, "count": count} for name, count in exp_distribution.items()],
+        status_distribution=[{"status": stage, "count": status_counter.get(stage, 0)} for stage in STAGES],
+        source_effectiveness=[{"source": source, "count": count, "share_pct": round(count * 100 / total_applications, 2)} for source, count in source_counter.most_common()],
+        conversion_rates=conversion_rates,
+        avg_time_to_hire_days=round(sum(time_to_hire) / len(time_to_hire), 2) if time_to_hire else 0.0,
+        hired_count=status_counter.get("hired", 0),
+        total_candidates=len(candidates),
+        stage_age_summary=[{"status": stage, "count": len(stage_ages[stage]), "avg_days_in_stage": round(sum(stage_ages[stage]) / max(len(stage_ages[stage]), 1), 2)} for stage in STAGES],
+        source_hire_effectiveness=[{"source": source, "total": count, "hired": source_hired.get(source, 0), "hire_rate_pct": round(source_hired.get(source, 0) * 100 / max(count, 1), 2)} for source, count in source_counter.most_common()],
+        hiring_trend=[{"week_start": week, "hired_count": count} for week, count in weekly_buckets.items()],
+        funnel_counts=[{"stage": stage, "count": reached.get(stage, 0)} for stage in FUNNEL],
+    )
 
 
 @router.get("/summary", response_model=AnalyticsSummary)
 def summary(
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+    _role=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
     actor=Depends(get_current_user),
 ):
-    candidates = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted")]
-
-    # Personal management mode for recruiters: only candidates they own.
-    if getattr(actor, "role", "") == "recruiter":
-        owned = []
-        for c in candidates:
-            parsed = c.parsed_json or {}
-            owner_id = parsed.get("owner_user_id")
-            owner_email = str(parsed.get("owner_email") or "").lower()
-            if (owner_id is not None and int(owner_id) == int(actor.id)) or (owner_email and owner_email == actor.email.lower()):
-                owned.append(c)
-        candidates = owned
-
-    skill_counter = Counter()
-    exp_distribution = Counter()
-    status_distribution = Counter()
-    source_counter = Counter()
-    source_hired_counter = Counter()
-    stage_age_days: dict[str, list[float]] = defaultdict(list)
-
-    for c in candidates:
-        for skill in c.skills or []:
-            if skill:
-                skill_counter[skill.strip().lower()] += 1
-
-        bucket = c.years_of_experience or 0
-        if bucket < 2:
-            exp_distribution["0-1 years"] += 1
-        elif bucket < 5:
-            exp_distribution["2-4 years"] += 1
-        elif bucket < 8:
-            exp_distribution["5-7 years"] += 1
-        else:
-            exp_distribution["8+ years"] += 1
-
-        normalized_status = normalize_status(c.status)
-        status_distribution[normalized_status] += 1
-
-        source = _candidate_source(c)
-        source_counter[source] += 1
-        if normalized_status == "hired":
-            source_hired_counter[source] += 1
-
-        if c.created_at:
-            stage_age_days[normalized_status].append((datetime.utcnow() - c.created_at).total_seconds() / 86400)
-
-    top_skills = [{"skill": k, "count": v} for k, v in skill_counter.most_common(10)]
-    experience_distribution = [{"range": k, "count": v} for k, v in exp_distribution.items()]
-    status_order = ["applied", "screening", "interview", "offer", "hired", "rejected"]
-    status_summary = [{"status": s, "count": status_distribution.get(s, 0)} for s in status_order]
-
-    total = len(candidates) or 1
-    source_effectiveness = [
-        {"source": s, "count": c, "share_pct": round(c * 100 / total, 2)}
-        for s, c in source_counter.most_common()
-    ]
-
-    applied = status_distribution.get("applied", 0) or 1
-    screening = status_distribution.get("screening", 0)
-    interview = status_distribution.get("interview", 0)
-    offer = status_distribution.get("offer", 0)
-    hired = status_distribution.get("hired", 0)
-
-    funnel_counts = [
-        {"stage": "applied", "count": applied},
-        {"stage": "screening", "count": screening},
-        {"stage": "interview", "count": interview},
-        {"stage": "offer", "count": offer},
-        {"stage": "hired", "count": hired},
-    ]
-
-    conversion_rates = [
-        {"stage": "applied_to_screening", "rate_pct": round(screening * 100 / applied, 2)},
-        {"stage": "screening_to_interview", "rate_pct": round(interview * 100 / max(screening, 1), 2)},
-        {"stage": "interview_to_offer", "rate_pct": round(offer * 100 / max(interview, 1), 2)},
-        {"stage": "offer_to_hired", "rate_pct": round(hired * 100 / max(offer, 1), 2)},
-    ]
-
-    tth_days = []
-    for c in candidates:
-        if normalize_status(c.status) != "hired":
-            continue
-        start = c.created_at
-        hired_ts = _first_timeline_ts(c, "status", "hired")
-        if start and hired_ts:
-            tth_days.append((hired_ts - start).total_seconds() / 86400)
-
-    avg_time_to_hire_days = round(sum(tth_days) / len(tth_days), 2) if tth_days else 0.0
-
-    stage_age_summary = [
-        {
-            "status": s,
-            "count": len(stage_age_days.get(s, [])),
-            "avg_days_in_stage": round(sum(stage_age_days.get(s, [])) / max(len(stage_age_days.get(s, [])), 1), 2),
-        }
-        for s in status_order
-    ]
-
-    source_hire_effectiveness = [
-        {
-            "source": s,
-            "total": source_counter.get(s, 0),
-            "hired": source_hired_counter.get(s, 0),
-            "hire_rate_pct": round(source_hired_counter.get(s, 0) * 100 / max(source_counter.get(s, 1), 1), 2),
-        }
-        for s, _ in source_counter.most_common()
-    ]
-
-    now = datetime.utcnow()
-    weekly_buckets: dict[str, int] = {}
-    for i in range(7, -1, -1):
-        week_start = (now - timedelta(days=now.weekday())) - timedelta(weeks=i)
-        key = week_start.date().isoformat()
-        weekly_buckets[key] = 0
-
-    for c in candidates:
-        if normalize_status(c.status) != "hired" or not c.created_at:
-            continue
-        week_start = (c.created_at - timedelta(days=c.created_at.weekday())).date().isoformat()
-        if week_start in weekly_buckets:
-            weekly_buckets[week_start] += 1
-
-    hiring_trend = [{"week_start": k, "hired_count": v} for k, v in weekly_buckets.items()]
-
-    return AnalyticsSummary(
-        top_skills=top_skills,
-        experience_distribution=experience_distribution,
-        status_distribution=status_summary,
-        source_effectiveness=source_effectiveness,
-        conversion_rates=conversion_rates,
-        avg_time_to_hire_days=avg_time_to_hire_days,
-        hired_count=status_distribution.get("hired", 0),
-        total_candidates=len(candidates),
-        stage_age_summary=stage_age_summary,
-        source_hire_effectiveness=source_hire_effectiveness,
-        hiring_trend=hiring_trend,
-        funnel_counts=funnel_counts,
-    )
+    return build_summary(db, actor)

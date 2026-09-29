@@ -21,6 +21,7 @@ type Draft = {
     location: string;
     linkedin_url: string;
     github_url: string;
+    portfolio_urls_text: string;
     certifications_text: string;
     languages_text: string;
     projects_text: string;
@@ -52,6 +53,7 @@ function fromParsed(file: File, parsed: any, sourceText = ""): Draft {
       location: parsed?.location || "",
       linkedin_url: parsed?.linkedin_url || "",
       github_url: parsed?.github_url || "",
+      portfolio_urls_text: (parsed?.portfolio_urls || []).join(", "),
       certifications_text: (parsed?.certifications || []).join(", "),
       languages_text: (parsed?.languages || []).join(", "),
       projects_text: (parsed?.projects || []).join(" | "),
@@ -68,6 +70,13 @@ function fromParsed(file: File, parsed: any, sourceText = ""): Draft {
 
 function isDocx(filename: string) {
   return filename.toLowerCase().endsWith(".docx");
+}
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function confidenceClass(v?: string) {
@@ -87,6 +96,8 @@ export default function UploadPage() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [parseProgress, setParseProgress] = useState({ done: 0, total: 0 });
   const [bulkSaving, setBulkSaving] = useState(false);
   const [idx, setIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -100,6 +111,28 @@ export default function UploadPage() {
   const [cvPreviewUrl, setCvPreviewUrl] = useState("");
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [activeField, setActiveField] = useState<string>("");
+
+  const addFiles = (incoming: File[]) => {
+    const valid: File[] = [];
+    const rejected: string[] = [];
+    for (const file of incoming) {
+      const ext = file.name.toLowerCase().split(".").pop();
+      if (ext !== "pdf" && ext !== "docx") rejected.push(`${file.name}: unsupported format`);
+      else if (file.size > MAX_FILE_SIZE) rejected.push(`${file.name}: larger than 20 MB`);
+      else if (!file.size) rejected.push(`${file.name}: empty file`);
+      else valid.push(file);
+    }
+    setFiles((previous) => {
+      const unique = new Map(previous.map((file) => [`${file.name}-${file.size}-${file.lastModified}`, file]));
+      valid.forEach((file) => unique.set(`${file.name}-${file.size}-${file.lastModified}`, file));
+      return Array.from(unique.values());
+    });
+    if (rejected.length) {
+      const message = rejected.slice(0, 3).join("; ");
+      setError(message);
+      notify(message, "error");
+    } else setError("");
+  };
 
   useEffect(() => {
     if (!current?.file) {
@@ -124,7 +157,7 @@ export default function UploadPage() {
     if (current.editing.current_title) pts += 10;
     if (current.editing.education_text) pts += 10;
     if (current.editing.experience_text) pts += 10;
-    return pts;
+    return Math.min(100, pts);
   }, [current]);
 
   const onParseOnly = async () => {
@@ -132,17 +165,26 @@ export default function UploadPage() {
     setStep(2);
     setLoading(true);
     setError("");
-    const next: Draft[] = [];
-    let failed = 0;
-
-    for (const f of files) {
-      try {
-        const res = await parseCandidatePreview(f);
-        next.push(fromParsed(f, res.parsed, res.source_text));
-      } catch {
-        failed += 1;
+    setParseProgress({ done: 0, total: files.length });
+    const results: Array<Draft | null> = new Array(files.length).fill(null);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < files.length) {
+        const currentIndex = cursor++;
+        const file = files[currentIndex];
+        try {
+          const res = await parseCandidatePreview(file);
+          results[currentIndex] = fromParsed(file, res.parsed, res.source_text);
+        } catch {
+          results[currentIndex] = null;
+        } finally {
+          setParseProgress((progress) => ({ ...progress, done: progress.done + 1 }));
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, files.length) }, worker));
+    const next = results.filter((draft): draft is Draft => draft !== null);
+    const failed = results.length - next.length;
 
     setDrafts(next);
     if (next.length) setStep(3);
@@ -176,6 +218,19 @@ export default function UploadPage() {
   };
 
   const buildEditedPayload = (d: Draft) => ({
+    confidence: d.data?.confidence || {},
+    confidence_score: d.data?.confidence_score ?? null,
+    completeness_score: d.data?.completeness_score ?? null,
+    missing_critical_fields: d.data?.missing_critical_fields || [],
+    review_recommended: Boolean(d.data?.review_recommended),
+    field_sources: d.data?.field_sources || {},
+    parse_conflicts: d.data?.parse_conflicts || [],
+    parser_version: d.data?.parser_version || "2.0",
+    source: d.data?.source || "reviewed_preview",
+    ai_provider: d.data?.ai_provider || "local",
+    ai_parse_status: d.data?.ai_parse_status || "rule_only",
+    parse_warning: d.data?.parse_warning || null,
+    scanned_suspected: Boolean(d.data?.scanned_suspected),
     name: d.editing.name || null,
     email: d.editing.email || null,
     phone: d.editing.phone || null,
@@ -191,6 +246,10 @@ export default function UploadPage() {
     location: d.editing.location || null,
     linkedin_url: d.editing.linkedin_url || null,
     github_url: d.editing.github_url || null,
+    portfolio_urls: d.editing.portfolio_urls_text
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean),
     certifications: d.editing.certifications_text
       .split(",")
       .map((x) => x.trim())
@@ -225,6 +284,7 @@ export default function UploadPage() {
       .filter(Boolean),
     preferred_location: d.editing.preferred_location || null,
     notice_period: d.editing.notice_period || null,
+    experience_timeline: d.data?.experience_timeline || [],
   });
 
   const saveCurrent = async () => {
@@ -261,29 +321,22 @@ export default function UploadPage() {
     setBulkSaving(true);
     let ok = 0;
     let fail = 0;
-
-    for (const { d, i } of pending) {
-      setDrafts((prev) =>
-        prev.map((x, idx) => (idx === i ? { ...x, saving: true } : x)),
-      );
-      try {
-        const saved = await uploadCandidateReviewed(
-          d.file,
-          buildEditedPayload(d),
-        );
-        ok += 1;
-        setDrafts((prev) =>
-          prev.map((x, idx) =>
-            idx === i ? { ...x, saving: false, savedCandidateId: saved.id } : x,
-          ),
-        );
-      } catch {
-        fail += 1;
-        setDrafts((prev) =>
-          prev.map((x, idx) => (idx === i ? { ...x, saving: false } : x)),
-        );
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < pending.length) {
+        const { d, i } = pending[cursor++];
+        setDrafts((prev) => prev.map((x, idx) => idx === i ? { ...x, saving: true } : x));
+        try {
+          const saved = await uploadCandidateReviewed(d.file, buildEditedPayload(d));
+          ok += 1;
+          setDrafts((prev) => prev.map((x, idx) => idx === i ? { ...x, saving: false, savedCandidateId: saved.id } : x));
+        } catch {
+          fail += 1;
+          setDrafts((prev) => prev.map((x, idx) => idx === i ? { ...x, saving: false } : x));
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
 
     setBulkSaving(false);
     if (ok) notify(`Imported ${ok} CV(s)`, "success");
@@ -292,57 +345,86 @@ export default function UploadPage() {
 
   return (
     <div className="grid">
-      <div className="card upload-steps">
-        <div className="chip-wrap">
-          <span className={`chip ${step >= 1 ? "step-on" : ""}`}>
-            1. Upload
-          </span>
-          <span className={`chip ${step >= 2 ? "step-on" : ""}`}>
-            2. AI Parsing
-          </span>
-          <span className={`chip ${step >= 3 ? "step-on" : ""}`}>
-            3. Review
-          </span>
-          <span className={`chip ${step >= 4 ? "step-on" : ""}`}>4. Save</span>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">Candidate intake</span>
+          <h1>{t("upload_title")}</h1>
+          <p>Add several resumes at once. Candidate details are extracted so you only review what needs attention.</p>
         </div>
+        <Link className="btn-secondary" href="/candidates">View candidates</Link>
       </div>
 
-      <div className="card">
-        <h2>{t("upload_title")}</h2>
+      <div className="card upload-card">
+        <div className="upload-steps" aria-label="Import progress">
+          {["Choose files", "Extract details", "Review", "Import"].map((label, index) => (
+            <div key={label} className={`upload-step ${step >= index + 1 ? "step-on" : ""}`}>
+              <span>{index + 1}</span><strong>{label}</strong>
+            </div>
+          ))}
+        </div>
         <small>
           {t("upload_supported")} — parse only first, then review and save to
           import.
         </small>
-        <div style={{ marginTop: 12 }}>
+        <div
+          className={`drop-zone ${dragActive ? "drop-zone-active" : ""}`}
+          onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => { event.preventDefault(); setDragActive(false); }}
+          onDrop={(event) => { event.preventDefault(); setDragActive(false); addFiles(Array.from(event.dataTransfer.files)); }}
+          onClick={() => inputRef.current?.click()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") inputRef.current?.click(); }}
+        >
+          <div className="drop-zone-icon" aria-hidden="true">+</div>
+          <h2>Drop CVs here</h2>
+          <p>or click to choose files from your computer</p>
+          <span>PDF or DOCX, up to 20 MB each</span>
           <input
+            className="visually-hidden"
             ref={inputRef}
             type="file"
             multiple
             accept=".pdf,.docx"
-            onChange={(e) => setFiles(Array.from(e.target.files || []))}
+            onChange={(e) => addFiles(Array.from(e.target.files || []))}
           />
         </div>
-        <div className="toolbar" style={{ marginTop: 12 }}>
-          <small>
-            {files.length
-              ? `${files.length} ${t("files_selected")}`
-              : t("no_files_selected")}
-          </small>
+        {!!files.length && (
+          <div className="upload-queue">
+            <div className="toolbar">
+              <div><strong>{files.length} CV{files.length === 1 ? "" : "s"} ready</strong><small>Duplicates are removed automatically.</small></div>
+              <button className="text-button" type="button" onClick={() => { setFiles([]); setError(""); }}>Clear all</button>
+            </div>
+            <div className="file-list">
+              {files.map((file, fileIndex) => (
+                <div className="file-row" key={`${file.name}-${file.size}-${file.lastModified}`}>
+                  <span className="file-type">{isDocx(file.name) ? "DOCX" : "PDF"}</span>
+                  <span className="file-name"><strong>{file.name}</strong><small>{formatBytes(file.size)}</small></span>
+                  <button type="button" className="file-remove" aria-label={`Remove ${file.name}`} onClick={() => setFiles((items) => items.filter((_, index) => index !== fileIndex))}>Remove</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="upload-action-bar">
+          <small>{files.length ? "Your files stay in review until you choose to import them." : t("no_files_selected")}</small>
           <button
-            style={{ width: "auto" }}
+            className="btn-large"
             onClick={onParseOnly}
             disabled={!files.length || loading}
           >
-            {loading ? t("uploading") : "Parse with AI (Review First)"}
+            {loading ? `Reading CVs (${parseProgress.done}/${parseProgress.total})` : `Extract candidate details${files.length ? ` from ${files.length} CV${files.length === 1 ? "" : "s"}` : ""}`}
           </button>
         </div>
-        {error && <p style={{ color: "#ef4444" }}>{error}</p>}
+        {error && <div className="inline-alert" role="alert">{error}</div>}
       </div>
 
       {loading ? (
         <div className="card processing-overlay">
-          <div className="spinner" /> <strong>Processing CV with AI...</strong>
-          <small>This can take a few seconds.</small>
+          <div className="spinner" />
+          <div><strong>Extracting candidate details</strong><small>{parseProgress.done} of {parseProgress.total} complete. You can review each result before importing.</small></div>
+          <div className="progress-track"><span style={{ width: `${parseProgress.total ? (parseProgress.done / parseProgress.total) * 100 : 0}%` }} /></div>
         </div>
       ) : null}
 
@@ -459,6 +541,12 @@ export default function UploadPage() {
               <div className="chip-wrap" style={{ marginTop: 8 }}>
                 <span className="chip">AI Provider: {aiProvider}</span>
                 <span className="chip">AI Status: {aiStatus}</span>
+                <span className="chip">
+                  Extracted: {current.data?.completeness_score ?? 0}%
+                </span>
+                <span className="chip">
+                  Parser v{current.data?.parser_version || "2.0"}
+                </span>
               </div>
 
               {parseWarning || scannedSuspected ? (
@@ -593,6 +681,16 @@ export default function UploadPage() {
                   <input
                     value={current.editing.github_url}
                     onChange={(e) => update("github_url", e.target.value)}
+                  />
+                </div>
+                <div className="grid-column-full">
+                  <label>Portfolio websites (comma-separated)</label>
+                  <input
+                    value={current.editing.portfolio_urls_text}
+                    onChange={(e) =>
+                      update("portfolio_urls_text", e.target.value)
+                    }
+                    placeholder="https://portfolio.example.com"
                   />
                 </div>
               </div>

@@ -1,317 +1,232 @@
+import re
+import hashlib
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Candidate, Job
+from app.models import Application, Candidate, Job
 from app.rbac import require_roles
 from app.schemas import JobCreate, JobOut, MatchItem, MatchResponse
-from app.services.rule_based import match_candidate_rule_based
+from app.services.applications import create_application
 from app.services.audit import log_event
+from app.services.candidate_access import can_manage_candidate
 from app.services.llm import LLMService
-from pathlib import Path
-import json
+from app.services.rule_based import match_candidate_rule_based
+from app.services.tenancy import ensure_user_organization
+from app.config import settings
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 
-_TRASH_PATH = Path(__file__).resolve().parents[1] / "data" / "jobs_deleted.json"
-
-_SETTINGS_PATH = Path(__file__).resolve().parents[1] / "data" / "jobs_settings.json"
-
-
-def _load_job_settings() -> dict[str, dict]:
-    try:
-        data = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+def _slugify(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-") or "job"
 
 
-def _save_job_settings(data: dict[str, dict]):
-    _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _SETTINGS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-
-
-def _job_owner_meta(job_id: int) -> dict:
-    return _load_job_settings().get(str(job_id), {})
-
-
-def _set_job_owner(job_id: int, user_id: int, email: str):
-    settings = _load_job_settings()
-    cur = settings.get(str(job_id), {})
-    cur["owner_user_id"] = int(user_id)
-    cur["owner_email"] = str(email).lower()
-    settings[str(job_id)] = cur
-    _save_job_settings(settings)
+def _unique_slug(db: Session, title: str, job_id: int | None = None) -> str:
+    root = _slugify(title)
+    slug = root
+    suffix = 2
+    while True:
+        match = db.execute(select(Job).where(Job.slug == slug)).scalar_one_or_none()
+        if not match or (job_id is not None and match.id == job_id):
+            return slug
+        slug = f"{root}-{suffix}"
+        suffix += 1
 
 
 def _can_access_job(user, job_or_id, settings: dict | None = None) -> bool:
+    """Compatibility friendly job access check used by routes and older tests."""
     job_id = int(getattr(job_or_id, "id", job_or_id))
     if getattr(user, "role", "") != "recruiter":
-        return True
-    meta = ((settings or {}).get(str(job_id), {}) if settings is not None else _job_owner_meta(job_id))
-    owner_id = meta.get("owner_user_id")
-    owner_email = str(meta.get("owner_email") or "").lower()
-    return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())
-
-def _job_threshold(job_id: int) -> int:
-    cfg = _load_job_settings().get(str(job_id), {})
-    v = cfg.get("threshold", 50)
-    try:
-        iv = int(v)
-    except Exception:
-        iv = 50
-    return max(0, min(100, iv))
+        actor_org = getattr(user, "organization_id", None)
+        job_org = getattr(job_or_id, "organization_id", actor_org)
+        return actor_org is None or job_org is None or int(actor_org) == int(job_org)
+    if settings is not None:
+        meta = settings.get(str(job_id), {})
+        return meta.get("owner_user_id") == getattr(user, "id", None) or str(meta.get("owner_email") or "").lower() == str(getattr(user, "email", "")).lower()
+    owner_id = getattr(job_or_id, "owner_user_id", None)
+    return owner_id is not None and int(owner_id) == int(getattr(user, "id", 0))
 
 
-
-def _load_deleted_ids() -> set[int]:
-    try:
-        data = json.loads(_TRASH_PATH.read_text(encoding="utf-8"))
-        return {int(x) for x in (data or [])}
-    except Exception:
-        return set()
-
-
-def _save_deleted_ids(ids: set[int]):
-    _TRASH_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _TRASH_PATH.write_text(json.dumps(sorted(list(ids))), encoding="utf-8")
+def _require_job(db: Session, job_id: int, actor) -> Job:
+    job = db.get(Job, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if not _can_access_job(actor, job):
+        raise HTTPException(status_code=403, detail="Not allowed to access this job")
+    return job
 
 
+def _apply_payload(job: Job, payload: JobCreate) -> None:
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        if isinstance(value, str):
+            value = value.strip()
+        setattr(job, key, value)
+    if not job.status:
+        job.status = "draft"
+    if not job.pipeline_stages:
+        job.pipeline_stages = ["applied", "screening", "interview", "offer", "hired", "rejected"]
+    if job.status == "published" and not job.published_at:
+        job.published_at = datetime.utcnow()
+    if len(job.title) < 2 or len(job.requirements) < 2:
+        raise HTTPException(status_code=422, detail="Job title and requirements are required")
+    if job.salary_min is not None and job.salary_max is not None and job.salary_min > job.salary_max:
+        raise HTTPException(status_code=422, detail="salary_min cannot be greater than salary_max")
+    allowed_stages = {"applied", "screening", "interview", "offer", "hired", "rejected"}
+    if not job.pipeline_stages or any(stage not in allowed_stages for stage in job.pipeline_stages):
+        raise HTTPException(status_code=422, detail="pipeline_stages contains an unsupported stage")
+    job.pipeline_stages = list(dict.fromkeys(job.pipeline_stages))
 
-
-def _can_manage_candidate_for_job(user, candidate: Candidate) -> bool:
-    if getattr(user, "role", "") != "recruiter":
-        return True
-    parsed = candidate.parsed_json or {}
-    owner_id = parsed.get("owner_user_id")
-    owner_email = str(parsed.get("owner_email") or "").lower()
-    return (owner_id is not None and int(owner_id) == int(user.id)) or (owner_email and owner_email == user.email.lower())
 
 def _to_candidate_payload(c: Candidate) -> dict:
     parsed = c.parsed_json or {}
     return {
-        "name": c.name,
-        "email": c.email,
-        "phone": c.phone,
-        "skills": c.skills or [],
-        "years_of_experience": c.years_of_experience,
-        "education": c.education or [],
-        "previous_companies": c.previous_companies or [],
-        "summary": c.summary,
-        "current_title": parsed.get("current_title"),
-        "projects": parsed.get("projects", []),
-        "certifications": parsed.get("certifications", []),
-        "languages": parsed.get("languages", []),
+        "name": c.name, "email": c.email, "phone": c.phone, "skills": c.skills or [],
+        "years_of_experience": c.years_of_experience, "education": c.education or [],
+        "previous_companies": c.previous_companies or [], "summary": c.summary,
+        "current_title": parsed.get("current_title"), "projects": parsed.get("projects", []),
+        "certifications": parsed.get("certifications", []), "languages": parsed.get("languages", []),
     }
 
 
 @router.post("", response_model=JobOut)
-def create_job(
-    payload: JobCreate,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
-):
-    job = Job(title=payload.title, requirements=payload.requirements)
+def create_job(payload: JobCreate, db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    org_id = ensure_user_organization(db, actor)
+    job = Job(organization_id=org_id, owner_user_id=actor.id, title=payload.title, requirements=payload.requirements)
+    _apply_payload(job, payload)
+    job.slug = _unique_slug(db, job.title)
     db.add(job)
     db.commit()
     db.refresh(job)
-    _set_job_owner(job.id, _actor.id, _actor.email)
-    log_event(_actor.email, "job.create", f"job:{job.id}", {"title": job.title})
+    log_event(actor.email, "job.create", f"job:{job.id}", {"title": job.title, "organization_id": org_id})
     return job
 
 
 @router.get("", response_model=list[JobOut])
-def list_jobs(
-    include_deleted: bool = Query(default=False),
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
-):
-    jobs = list(db.execute(select(Job).order_by(Job.created_at.desc())).scalars().all())
-    deleted = _load_deleted_ids()
-    if include_deleted:
-        jobs = [j for j in jobs if j.id in deleted]
-    else:
-        jobs = [j for j in jobs if j.id not in deleted]
-
-    jobs = [j for j in jobs if _can_access_job(_actor, j.id)]
-    return jobs
+def list_jobs(include_deleted: bool = Query(default=False), db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager"))):
+    org_id = ensure_user_organization(db, actor)
+    stmt = select(Job).where(Job.organization_id == org_id)
+    stmt = stmt.where(Job.deleted_at.is_not(None) if include_deleted else Job.deleted_at.is_(None))
+    jobs = list(db.execute(stmt.order_by(Job.created_at.desc())).scalars().all())
+    return [j for j in jobs if _can_access_job(actor, j)]
 
 
 @router.post("/{job_id}/match", response_model=MatchResponse)
-def match_candidates(
-    job_id: int,
-    threshold: int | None = Query(default=None),
-    lang: str = Query(default="en"),
-    use_ai: bool = Query(default=False),
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
-):
-    job = db.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not _can_access_job(_actor, job.id):
-        raise HTTPException(status_code=403, detail="Not allowed to access this job")
-
-    candidates = [c for c in list(db.execute(select(Candidate)).scalars().all()) if not (c.parsed_json or {}).get("deleted") and _can_manage_candidate_for_job(_actor, c)]
-    min_threshold = max(0, min(100, int(threshold))) if threshold is not None else _job_threshold(job_id)
+def match_candidates(job_id: int, threshold: int | None = Query(default=None), lang: str = Query(default="en"), use_ai: bool = Query(default=False), db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    job = _require_job(db, job_id, actor)
+    candidates = list(db.execute(select(Candidate).where(Candidate.organization_id == job.organization_id, Candidate.deleted_at.is_(None))).scalars().all())
+    candidates = [c for c in candidates if can_manage_candidate(actor, c)]
+    minimum = max(0, min(100, int(threshold if threshold is not None else job.match_threshold)))
     results = []
-    for c in candidates:
-        payload = _to_candidate_payload(c)
-        m = None
+    for candidate in candidates:
+        matched = None
+        method = "rule"
         if use_ai:
             try:
-                m_ai = LLMService.match_candidate(job.title, job.requirements, payload)
-                m = {
-                    "match_score": int(m_ai.get("match_score", 0)),
-                    "explanation": "[AI] " + (m_ai.get("explanation") or "AI matching"),
-                }
+                ai = LLMService.match_candidate(job.title, job.requirements, _to_candidate_payload(candidate))
+                matched = {"match_score": int(ai.get("match_score", 0)), "explanation": "[AI] " + (ai.get("explanation") or "AI matching")}
+                method = "ai"
             except Exception:
-                m = None
-        if m is None:
-            m = match_candidate_rule_based(job.title, job.requirements, payload, lang=lang)
-
-        if m["match_score"] >= min_threshold:
-            results.append(
-                MatchItem(
-                    candidate_id=c.id,
-                    candidate_name=c.name,
-                    match_score=m["match_score"],
-                    explanation=m["explanation"],
-                )
-            )
-
-    results.sort(key=lambda x: x.match_score, reverse=True)
-
-    return MatchResponse(
-        job_id=job.id,
-        job_title=job.title,
-        results=results,
-    )
+                pass
+        if matched is None:
+            matched = match_candidate_rule_based(job.title, job.requirements, _to_candidate_payload(candidate), lang=lang)
+        if matched["match_score"] >= minimum:
+            results.append(MatchItem(candidate_id=candidate.id, candidate_name=candidate.name, match_score=matched["match_score"], explanation=matched["explanation"]))
+            application = db.execute(select(Application).where(Application.job_id == job.id, Application.candidate_id == candidate.id)).scalar_one_or_none()
+            if application:
+                application.match_score = matched["match_score"]
+                application.match_explanation = matched["explanation"]
+                application.match_metadata = {
+                    "method": method,
+                    "provider": settings.llm_provider if method == "ai" else "local_rule_engine",
+                    "model": getattr(settings, f"{settings.llm_provider}_model", None) if method == "ai" else "rule-v1",
+                    "matched_at": datetime.utcnow().isoformat(),
+                    "threshold": minimum,
+                    "job_input_sha256": hashlib.sha256(f"{job.title}\n{job.requirements}".encode()).hexdigest(),
+                    "human_reviewed": False,
+                }
+    db.commit()
+    results.sort(key=lambda item: item.match_score, reverse=True)
+    return MatchResponse(job_id=job.id, job_title=job.title, results=results)
 
 
 @router.patch("/{job_id}", response_model=JobOut)
-def update_job(
-    job_id: int,
-    payload: JobCreate,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
-):
-    job = db.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not _can_access_job(_actor, job.id):
-        raise HTTPException(status_code=403, detail="Not allowed to update this job")
-    job.title = payload.title
-    job.requirements = payload.requirements
+def update_job(job_id: int, payload: JobCreate, db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    job = _require_job(db, job_id, actor)
+    _apply_payload(job, payload)
+    job.slug = _unique_slug(db, job.title, job.id)
     db.commit()
     db.refresh(job)
-    _set_job_owner(job.id, _actor.id, _actor.email)
     return job
 
 
 @router.delete("/{job_id}")
-def soft_delete_job(
-    job_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
-):
-    job = db.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not _can_access_job(_actor, job.id):
-        raise HTTPException(status_code=403, detail="Not allowed to delete this job")
-    deleted = _load_deleted_ids()
-    deleted.add(job_id)
-    _save_deleted_ids(deleted)
-    log_event(_actor.email, "job.soft_delete", f"job:{job_id}", {})
+def soft_delete_job(job_id: int, db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    job = _require_job(db, job_id, actor)
+    job.deleted_at = datetime.utcnow()
+    job.status = "closed"
+    db.commit()
+    log_event(actor.email, "job.soft_delete", f"job:{job_id}", {})
     return {"ok": True}
 
 
 @router.post("/{job_id}/restore")
-def restore_job(
-    job_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
-):
-    job = db.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not _can_access_job(_actor, job.id):
-        raise HTTPException(status_code=403, detail="Not allowed to restore this job")
-    deleted = _load_deleted_ids()
-    if job_id in deleted:
-        deleted.remove(job_id)
-        _save_deleted_ids(deleted)
-    log_event(_actor.email, "job.restore", f"job:{job_id}", {})
+def restore_job(job_id: int, db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    job = _require_job(db, job_id, actor)
+    job.deleted_at = None
+    job.status = "draft"
+    db.commit()
     return {"ok": True}
 
 
 @router.get("/{job_id}/settings")
-def get_job_settings(
-    job_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
-):
-    job = db.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not _can_access_job(_actor, job.id):
-        raise HTTPException(status_code=403, detail="Not allowed to access this job")
-    threshold = _job_threshold(job_id)
-    return {"job_id": job_id, "threshold": threshold}
+def get_job_settings(job_id: int, db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    job = _require_job(db, job_id, actor)
+    return {"job_id": job_id, "threshold": job.match_threshold}
 
 
 @router.patch("/{job_id}/settings")
-def update_job_settings(
-    job_id: int,
-    payload: dict,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager")),
-):
-    job = db.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not _can_access_job(_actor, job.id):
-        raise HTTPException(status_code=403, detail="Not allowed to update this job")
+def update_job_settings(job_id: int, payload: dict, db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    job = _require_job(db, job_id, actor)
+    job.match_threshold = max(0, min(100, int(payload.get("threshold", 50))))
+    db.commit()
+    return {"job_id": job_id, "threshold": job.match_threshold}
 
-    threshold = int(payload.get("threshold", 50))
-    threshold = max(0, min(100, threshold))
 
-    settings = _load_job_settings()
-    cur = settings.get(str(job_id), {})
-    cur["threshold"] = threshold
-    cur.setdefault("owner_user_id", _job_owner_meta(job_id).get("owner_user_id"))
-    cur.setdefault("owner_email", _job_owner_meta(job_id).get("owner_email"))
-    settings[str(job_id)] = cur
-    _save_job_settings(settings)
-    return {"job_id": job_id, "threshold": threshold}
+@router.post("/{job_id}/applications")
+def add_candidate_to_job(job_id: int, payload: dict, db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+    job = _require_job(db, job_id, actor)
+    candidate = db.get(Candidate, int(payload.get("candidate_id", 0)))
+    if not candidate or candidate.organization_id != job.organization_id or not can_manage_candidate(actor, candidate):
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    application = create_application(db, candidate=candidate, job=job, owner_user_id=actor.id, source=str(payload.get("source") or candidate.acquisition_source))
+    if payload.get("match_score") is not None:
+        application.match_score = max(0, min(100, int(payload["match_score"])))
+        application.match_explanation = str(payload.get("match_explanation") or "")[:5000] or None
+        method = "ai" if str(application.match_explanation or "").startswith("[AI]") else "rule"
+        application.match_metadata = {
+            "method": method,
+            "provider": settings.llm_provider if method == "ai" else "local_rule_engine",
+            "model": getattr(settings, f"{settings.llm_provider}_model", None) if method == "ai" else "rule-v1",
+            "matched_at": datetime.utcnow().isoformat(),
+            "job_input_sha256": hashlib.sha256(f"{job.title}\n{job.requirements}".encode()).hexdigest(),
+            "human_reviewed": True,
+            "reviewed_by_user_id": actor.id,
+        }
+    db.commit()
+    db.refresh(application)
+    return {"id": application.id, "candidate_id": candidate.id, "job_id": job.id, "stage": application.stage}
 
 
 @router.get("/{job_id}/candidates")
-def list_job_candidates(
-    job_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_roles("admin", "recruiter", "hiring_manager", "interviewer")),
-):
-    job = db.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not _can_access_job(_actor, job.id):
-        raise HTTPException(status_code=403, detail="Not allowed to access this job")
-
-    items = []
-    for c in list(db.execute(select(Candidate)).scalars().all()):
-        parsed = c.parsed_json or {}
-        if parsed.get("deleted"):
-            continue
-        if not _can_manage_candidate_for_job(_actor, c):
-            continue
-        applied_job_id = parsed.get("applied_job_id")
-        shortlisted_job_ids = set(parsed.get("shortlisted_job_ids") or [])
-        if (applied_job_id is not None and int(applied_job_id) == int(job_id)) or (int(job_id) in {int(x) for x in shortlisted_job_ids if str(x).isdigit()}):
-            items.append(c)
-    return {"job_id": job_id, "candidates": [{"id": c.id, "name": c.name, "status": c.status, "email": c.email} for c in items]}
+def list_job_candidates(job_id: int, db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager", "interviewer"))):
+    job = _require_job(db, job_id, actor)
+    rows = db.execute(select(Application, Candidate).join(Candidate, Candidate.id == Application.candidate_id).where(Application.job_id == job.id)).all()
+    return {"job_id": job_id, "candidates": [
+        {"id": c.id, "application_id": app.id, "name": c.name, "status": app.stage, "email": c.email, "source": app.source, "match_score": app.match_score, "applied_at": app.applied_at, "stage_changed_at": app.stage_changed_at}
+        for app, c in rows if c.deleted_at is None
+    ]}

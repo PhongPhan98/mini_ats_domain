@@ -12,7 +12,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      if (pathname === "/login") {
+      if (pathname === "/login" || pathname === "/privacy" || pathname === "/careers" || pathname.startsWith("/jobs/")) {
         if (active) setReady(true);
         return;
       }

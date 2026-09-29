@@ -6,13 +6,17 @@ import { apiDelete, apiGet, apiPatch, apiPost } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
 import { notify } from "../../lib/toast";
 
-type Job = { id: number; title: string; requirements: string; created_at?: string; owner_user_id?: number; owner_email?: string };
+type Job = { id: number; title: string; requirements: string; description?: string; department?: string; location?: string; employment_type?: string; status: "draft" | "published" | "closed"; slug?: string; created_at?: string; owner_user_id?: number; owner_email?: string };
 type MatchItem = { candidate_id: number; candidate_name?: string; match_score: number; explanation: string };
 type MatchResponse = { job_id: number; job_title: string; results: MatchItem[] };
 
 export default function JobsPage() {
   const [title, setTitle] = useState("");
   const [requirements, setRequirements] = useState("");
+  const [description, setDescription] = useState("");
+  const [department, setDepartment] = useState("");
+  const [location, setLocation] = useState("");
+  const [employmentType, setEmploymentType] = useState("full_time");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [match, setMatch] = useState<MatchResponse | null>(null);
   const [loadingMatchId, setLoadingMatchId] = useState<number | null>(null);
@@ -50,9 +54,12 @@ export default function JobsPage() {
 
   const createJob = async () => {
     if (!title || !requirements) return;
-    await apiPost<Job>("/api/jobs", { title, requirements });
+    await apiPost<Job>("/api/jobs", { title, requirements, description, department, location, employment_type: employmentType, status: "draft" });
     setTitle("");
     setRequirements("");
+    setDescription("");
+    setDepartment("");
+    setLocation("");
     await loadJobs();
     notify("Job created", "success");
   };
@@ -61,7 +68,7 @@ export default function JobsPage() {
     setLoadingMatchId(jobId);
     try {
       const threshold = thresholdByJob[jobId] ?? 50;
-      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match?threshold=${threshold}&lang=${lang}`, {});
+      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match?threshold=${threshold}&lang=${lang}&use_ai=${useAiMatch}`, {});
       setMatch(data);
     } finally {
       setLoadingMatchId(null);
@@ -122,8 +129,17 @@ export default function JobsPage() {
   const scoreBand = (v: number) => (v >= 80 ? "score-high" : v >= 60 ? "score-mid" : "score-low");
 
   const shortlistFromMatch = async (candidateId: number) => {
-    await apiPatch(`/api/candidates/${candidateId}`, { status: "screening" });
+    if (!match) return;
+    const result = match.results.find((item) => item.candidate_id === candidateId);
+    const application = await apiPost<{ id: number }>(`/api/jobs/${match.job_id}/applications`, { candidate_id: candidateId, source: "talent_pool", match_score: result?.match_score, match_explanation: result?.explanation });
+    await apiPatch(`/api/applications/${application.id}/stage`, { stage: "screening" });
     notify("Candidate moved to screening", "success");
+  };
+
+  const setJobStatus = async (job: Job, status: Job["status"]) => {
+    await apiPatch(`/api/jobs/${job.id}`, { title: job.title, requirements: job.requirements, status });
+    await loadJobs();
+    notify(status === "published" ? "Job published" : "Job status updated", "success");
   };
 
   const restore = async (id: number) => {
@@ -172,6 +188,9 @@ export default function JobsPage() {
           {showCreateJob ? (
             <div className="grid" style={{ marginTop: 8 }}>
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("job_title")} />
+              <div className="form-grid-2"><input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Department" /><input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location or remote" /></div>
+              <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value)}><option value="full_time">Full time</option><option value="part_time">Part time</option><option value="contract">Contract</option><option value="internship">Internship</option></select>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Role summary and team context" />
               <textarea
                 style={{ minHeight: 120 }}
                 value={requirements}
@@ -190,8 +209,9 @@ export default function JobsPage() {
           {jobs.map((job) => (
             <div key={job.id} className="job-item">
               <div>
-                <div className="job-title">{job.title}</div>
+                <div className="toolbar-actions"><div className="job-title">{job.title}</div><span className={`chip ${job.status === "published" ? "ai-on" : ""}`}>{job.status}</span></div>
                 <small>{job.created_at ? new Date(job.created_at).toLocaleString() : "-"}</small>
+                {job.slug && job.status === "published" ? <div><Link href={`/jobs/${job.slug}`} target="_blank">View public job ↗</Link></div> : null}
               </div>
               <div className="toolbar-actions">
                 {!showTrash && editingId !== job.id && (
@@ -209,6 +229,7 @@ export default function JobsPage() {
                       {loadingMatchId === job.id ? t("running") : `${t("run_matching")} (≥${thresholdByJob[job.id] ?? 50}%)`}
                     </button>
                     <button className="btn-outline" style={{ width: "auto" }} onClick={() => startEdit(job)}>Edit</button>
+                    {job.status !== "published" ? <button style={{ width: "auto" }} onClick={() => setJobStatus(job, "published")}>Publish</button> : <button className="btn-outline" style={{ width: "auto" }} onClick={() => setJobStatus(job, "closed")}>Close</button>}
                   </>
                 )}
                 {!showTrash ? (

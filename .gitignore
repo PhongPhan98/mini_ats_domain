@@ -6,6 +6,7 @@ __pycache__/
 # Node
 node_modules/
 .next/
+*.tsbuildinfo
 
 # Env
 .env
@@ -13,6 +14,9 @@ node_modules/
 
 # Runtime
 uploads/
+*.db
+*.db-shm
+*.db-wal
 
 # runtime data artifacts
 backend/app/data/*.json

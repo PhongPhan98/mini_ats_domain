@@ -9,6 +9,16 @@ from app.prompts import CV_PARSING_PROMPT, MATCHING_PROMPT
 
 class LLMService:
     @staticmethod
+    def _cv_payload(cv_text: str, limit: int = 30000) -> str:
+        text = (cv_text or "").strip()
+        if len(text) <= limit:
+            return text
+        # Contact and summary are usually at the top; education, certifications,
+        # and older roles are frequently near the end.
+        head_size = int(limit * 0.68)
+        return f"{text[:head_size]}\n\n[...middle shortened...]\n\n{text[-(limit - head_size):]}"
+
+    @staticmethod
     def _openai_compatible_parse_cv(*, api_key: str, model: str, base_url: str | None, cv_text: str, provider_name: str) -> dict:
         if not api_key:
             raise RuntimeError(f"{provider_name} api key is empty.")
@@ -19,7 +29,7 @@ class LLMService:
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": CV_PARSING_PROMPT},
-                {"role": "user", "content": cv_text[:12000]},
+                {"role": "user", "content": LLMService._cv_payload(cv_text)},
             ],
         )
         content = response.choices[0].message.content or "{}"
@@ -88,7 +98,7 @@ class LLMService:
         full_prompt = (
             f"{prompt}\n\n"
             "Return ONLY valid JSON object. No markdown, no extra text.\n\n"
-            f"INPUT:\n{payload[:12000]}"
+            f"INPUT:\n{LLMService._cv_payload(payload)}"
         )
         response = model.generate_content(full_prompt)
         text = (response.text or "{}").strip()

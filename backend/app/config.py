@@ -10,7 +10,7 @@ ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(ENV_FILE), extra="ignore")
 
-    database_url: str = Field(alias="DATABASE_URL")
+    database_url: str = Field(default="sqlite:///./mini_ats.db", alias="DATABASE_URL")
 
     llm_provider: str = Field(default="gemini", alias="LLM_PROVIDER")
 
@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
     smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
     smtp_from_email: str = Field(default="", alias="SMTP_FROM_EMAIL")
+    email_scheduler_interval_seconds: int = Field(default=60, alias="EMAIL_SCHEDULER_INTERVAL_SECONDS")
 
     webhook_signing_secret: str = Field(default="", alias="WEBHOOK_SIGNING_SECRET")
 

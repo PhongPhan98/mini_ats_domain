@@ -21,10 +21,17 @@ export type TimelineEvent = {
 
 export type Candidate = {
   id: number;
+  owner_user_id?: number;
+  application_id?: number;
+  applied_at?: string;
+  stage_changed_at?: string;
   name?: string;
   email?: string;
   phone?: string;
   status: CandidateStatus;
+  acquisition_source?: string;
+  consent_status?: "unknown" | "granted" | "withdrawn";
+  retention_until?: string;
   skills: string[];
   years_of_experience?: number;
   education: string[];
@@ -43,6 +50,20 @@ export type Candidate = {
   };
   files: CandidateFile[];
   created_at: string;
+};
+
+export type Application = {
+  id: number;
+  candidate_id: number;
+  job_id: number;
+  stage: CandidateStatus;
+  source: string;
+  match_score?: number;
+  match_explanation?: string;
+  rejection_reason?: string;
+  withdrawn_at?: string;
+  applied_at: string;
+  stage_changed_at: string;
 };
 
 export type Analytics = {

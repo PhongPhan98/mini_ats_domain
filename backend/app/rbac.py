@@ -5,6 +5,7 @@ import jwt
 from app.config import settings
 from app.database import get_db
 from app.models import User
+from app.services.tenancy import ensure_user_organization
 
 ALLOWED_ROLES = {"admin", "recruiter", "interviewer", "hiring_manager"}
 
@@ -16,6 +17,9 @@ def _get_user_by_email(db: Session, email: str, fallback_role: str = "recruiter"
         db.add(user)
         db.commit()
         db.refresh(user)
+    ensure_user_organization(db, user)
+    db.commit()
+    db.refresh(user)
     return user
 
 
@@ -32,6 +36,10 @@ def get_current_user(
             uid = int(payload.get("sub", 0))
             user = db.query(User).filter(User.id == uid).first()
             if user:
+                if not user.organization_id:
+                    ensure_user_organization(db, user)
+                    db.commit()
+                    db.refresh(user)
                 return user
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid auth session")

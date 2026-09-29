@@ -7,14 +7,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, updateCandidateStage, getJobCandidates } from "../../lib/api";
 import { notify } from "../../lib/toast";
 import { useAppLanguage } from "../../lib/language";
+import { CANDIDATE_STATUSES, formatCandidateStatus } from "../../lib/candidates";
 import type { Candidate, CandidateStatus } from "../../components/types";
 
-const STAGES: CandidateStatus[] = ["applied", "screening", "interview", "offer", "hired", "rejected"];
+const STAGES = CANDIDATE_STATUSES;
 type JobLite = { id: number; title: string };
 const VISIBLE_STEP = 30;
 
 function label(s: CandidateStatus) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return formatCandidateStatus(s);
 }
 
 export default function PipelinePage() {
@@ -43,9 +44,9 @@ export default function PipelinePage() {
   }, [candidates, keyword]);
 
   const avgTimeToHire = useMemo(() => {
-    const hired = candidates.filter((c) => (c.status || "") === "hired" && c.created_at);
+    const hired = candidates.filter((c) => (c.status || "") === "hired" && (c.applied_at || c.created_at));
     if (!hired.length) return 0;
-    const days = hired.map((c:any) => (Date.now() - new Date(c.created_at).getTime()) / 86400000);
+    const days = hired.map((c:any) => (new Date(c.stage_changed_at || Date.now()).getTime() - new Date(c.applied_at || c.created_at).getTime()) / 86400000);
     return Math.round((days.reduce((a,b)=>a+b,0)/days.length)*10)/10;
   }, [candidates]);
 
@@ -69,20 +70,24 @@ export default function PipelinePage() {
   }, [candidates.length]);
 
   const stageMutation = useMutation({
-    mutationFn: ({ candidateId, stage }: { candidateId: number; stage: CandidateStatus }) => updateCandidateStage(candidateId, stage),
+    mutationFn: ({ candidateId, stage, applicationId }: { candidateId: number; stage: CandidateStatus; applicationId?: number }) => updateCandidateStage(candidateId, stage, applicationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline-candidates"] }),
   });
 
   const onDropToStage = async (stage: CandidateStatus) => {
     if (!dragId) return;
-    await stageMutation.mutateAsync({ candidateId: dragId, stage });
+    if (!selectedJobId) { notify("Select a job before moving an application", "error"); setDragId(null); return; }
+    const candidate = candidates.find((item) => item.id === dragId);
+    await stageMutation.mutateAsync({ candidateId: dragId, stage, applicationId: candidate?.application_id });
     setDragId(null);
     setOverStage(null);
     notify(`Candidate moved to ${label(stage)}`, "success");
   };
 
   const moveToStage = async (candidateId: number, stage: CandidateStatus) => {
-    await stageMutation.mutateAsync({ candidateId, stage });
+    if (!selectedJobId) return notify("Select a job before moving an application", "error");
+    const candidate = candidates.find((item) => item.id === candidateId);
+    await stageMutation.mutateAsync({ candidateId, stage, applicationId: candidate?.application_id });
     notify(`Candidate moved to ${label(stage)}`, "success");
   };
 

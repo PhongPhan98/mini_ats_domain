@@ -1,7 +1,6 @@
-version: '3.9'
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine
     environment:
       POSTGRES_DB: mini_ats
       POSTGRES_USER: postgres
@@ -10,6 +9,52 @@ services:
       - "5432:5432"
     volumes:
       - mini_ats_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mini_ats"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/mini_ats
+      FRONTEND_BASE_URL: http://localhost:3000
+      PUBLIC_BASE_URL: http://localhost:8000
+      CORS_ORIGINS: http://localhost:3000
+      AUTH_ALLOW_DEV_HEADERS: "true"
+      AUTH_JWT_SECRET: local-development-only
+      STORAGE_MODE: local
+      UPLOAD_DIR: /data/uploads
+      PARSE_USE_AI: "${PARSE_USE_AI:-false}"
+      PARSE_AI_TIMEOUT_SECONDS: "${PARSE_AI_TIMEOUT_SECONDS:-10}"
+      LLM_PROVIDER: "${LLM_PROVIDER:-gemini}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-}"
+    ports:
+      - "8000:8000"
+    volumes:
+      - mini_ats_uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
 
 volumes:
   mini_ats_db:
+  mini_ats_uploads:

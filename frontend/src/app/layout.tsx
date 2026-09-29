@@ -5,17 +5,25 @@ import AuthGate from "../components/AuthGate";
 import AppQueryProvider from "../components/QueryProvider";
 import ToastHost from "../components/ToastHost";
 import EmailSuggestEnhancer from "../components/EmailSuggestEnhancer";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Mini ATS | Recruiting workspace",
+  description: "A focused workspace for candidates, jobs and hiring pipelines.",
+};
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
         <AppQueryProvider>
-          <div className="container page-enter">
+          <div className="app-shell page-enter">
             <NavBar />
             <ToastHost />
             <EmailSuggestEnhancer />
-            <AuthGate>{children}</AuthGate>
+            <main className="app-content">
+              <AuthGate>{children}</AuthGate>
+            </main>
           </div>
         </AppQueryProvider>
       </body>

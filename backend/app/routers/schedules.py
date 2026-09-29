@@ -1,42 +1,32 @@
 from datetime import datetime
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Candidate, InterviewSchedule
+from app.models import Application, Candidate, InterviewSchedule
 from app.rbac import get_current_user, require_roles
 from app.schemas import InterviewScheduleCreate, InterviewScheduleOut
 from app.services.automation import append_event, run_stage_change_automations
+from app.services.candidate_workflow import append_timeline_event as _append_timeline_event
+from app.services.candidate_access import can_access_candidate, can_manage_candidate
 
 router = APIRouter(prefix="/api/candidates", tags=["schedules"])
-
-
-def _append_timeline_event(candidate: Candidate, event_type: str, value: str):
-    parsed_json = dict(candidate.parsed_json or {})
-    timeline = list(parsed_json.get("timeline", []))
-    timeline.append(
-        {
-            "type": event_type,
-            "value": value,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    )
-    parsed_json["timeline"] = timeline
-    parsed_json["manual_reviewed"] = True
-    candidate.parsed_json = parsed_json
 
 
 @router.get("/{candidate_id}/schedules", response_model=list[InterviewScheduleOut])
 def list_schedules(
     candidate_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+    actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
 ):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not can_access_candidate(actor, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed")
 
     stmt = (
         select(InterviewSchedule)
@@ -57,9 +47,17 @@ def create_schedule(
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    if not can_manage_candidate(user, candidate):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", payload.interviewer_email.strip().lower()):
+        raise HTTPException(status_code=422, detail="Enter a valid interviewer email")
+    application = db.get(Application, payload.application_id) if payload.application_id else None
+    if application and application.candidate_id != candidate.id:
+        raise HTTPException(status_code=400, detail="Application does not belong to candidate")
 
     schedule = InterviewSchedule(
         candidate_id=candidate_id,
+        application_id=application.id if application else None,
         organizer_user_id=user.id,
         interviewer_email=payload.interviewer_email,
         scheduled_at=payload.scheduled_at,

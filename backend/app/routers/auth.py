@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import logging
+import secrets
 from urllib.parse import urlencode
 
 import httpx
@@ -12,6 +13,8 @@ from app.config import settings
 from app.database import get_db
 from app.models import User
 from app.services import user_access
+from app.services.tenancy import ensure_user_organization
+from app.rbac import get_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -55,11 +58,23 @@ def _set_auth_cookie(resp: Response, token: str):
     )
 
 
+@router.get("/config")
+def auth_config():
+    """Return only the public settings needed to render the sign-in screen."""
+    return {
+        "google_enabled": bool(
+            settings.google_client_id and settings.google_client_secret
+        ),
+        "allowed_domain": settings.google_allowed_domain or None,
+    }
+
+
 @router.get("/google/login")
 def google_login():
     if not settings.google_client_id:
         raise HTTPException(status_code=400, detail="Google OAuth is not configured")
 
+    state = secrets.token_urlsafe(32)
     query = {
         "client_id": settings.google_client_id,
         "redirect_uri": settings.google_redirect_uri,
@@ -67,14 +82,24 @@ def google_login():
         "scope": "openid email profile",
         "access_type": "online",
         "prompt": "select_account",
+        "state": state,
     }
-    return RedirectResponse(f"{GOOGLE_AUTH_URL}?{urlencode(query)}")
+    response = RedirectResponse(f"{GOOGLE_AUTH_URL}?{urlencode(query)}")
+    response.set_cookie(
+        "miniats_oauth_state", state, httponly=True,
+        secure=settings.frontend_base_url.lower().startswith("https://"),
+        samesite="lax", max_age=600, path="/api/auth/google/callback",
+    )
+    return response
 
 
 @router.get("/google/callback")
-async def google_callback(code: str, db: Session = Depends(get_db)):
+async def google_callback(code: str, state: str, request: Request, db: Session = Depends(get_db)):
     if not settings.google_client_id or not settings.google_client_secret:
         raise HTTPException(status_code=400, detail="Google OAuth is not configured")
+    expected_state = request.cookies.get("miniats_oauth_state")
+    if not expected_state or not secrets.compare_digest(expected_state, state):
+        raise HTTPException(status_code=400, detail="Invalid OAuth state")
 
     async with httpx.AsyncClient(timeout=15) as client:
         token_resp = await client.post(
@@ -122,11 +147,16 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
 
+    if not user.organization_id:
+        ensure_user_organization(db, user)
+        db.commit()
+        db.refresh(user)
+
     if user_access.is_disabled(user.id, user.email):
         raise HTTPException(status_code=403, detail="User is disabled")
 
     token = _issue_token(user)
-    redirect_url = f"{settings.frontend_base_url.rstrip('/')}/pipeline"
+    redirect_url = f"{settings.frontend_base_url.rstrip('/')}/dashboard"
     logger.info(
         "Google OAuth success user_id=%s frontend_base_url=%s redirect_url=%s",
         user.id,
@@ -134,24 +164,13 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         redirect_url,
     )
     resp = RedirectResponse(url=redirect_url)
+    resp.delete_cookie("miniats_oauth_state", path="/api/auth/google/callback")
     _set_auth_cookie(resp, token)
     return resp
 
 
 @router.get("/me")
-def me(request: Request, db: Session = Depends(get_db)):
-    token = request.cookies.get(settings.auth_cookie_name)
-    if not token:
-        raise HTTPException(status_code=401, detail="Not logged in")
-
-    try:
-        payload = jwt.decode(token, settings.auth_jwt_secret, algorithms=["HS256"])
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid session")
-
-    user = db.query(User).filter(User.id == int(payload.get("sub", 0))).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+def me(user=Depends(get_current_user)):
     if user_access.is_disabled(user.id, user.email):
         raise HTTPException(status_code=403, detail="User is disabled")
 
@@ -161,6 +180,7 @@ def me(request: Request, db: Session = Depends(get_db)):
         "email": user.email,
         "full_name": user.full_name,
         "role": user.role,
+        "organization_id": user.organization_id,
     }
 
 

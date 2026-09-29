@@ -1,6 +1,8 @@
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import quote
+from uuid import uuid4
+import re
 
 import httpx
 from fastapi import UploadFile
@@ -19,10 +21,11 @@ class LocalStorageService:
 
     def save_bytes(self, filename: str, content: bytes) -> str:
         suffix = Path(filename).suffix.lower()
-        safe_name = f"{datetime.utcnow().timestamp():.0f}_{Path(filename).stem}{suffix}"
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(filename or "cv").stem).strip("-._") or "cv"
+        safe_name = f"{uuid4().hex}_{stem[:80]}{suffix}"
         target = self.base_dir / safe_name
         target.write_bytes(content)
-        return f"{settings.public_base_url}/uploads/{safe_name}"
+        return f"local://{safe_name}"
 
     def delete_by_url(self, file_url: str) -> bool:
         try:
@@ -34,6 +37,13 @@ class LocalStorageService:
         except Exception:
             return False
         return False
+
+    def read_by_url(self, file_url: str) -> bytes | None:
+        name = Path(file_url.rstrip("/").split("/")[-1]).name
+        target = (self.base_dir / name).resolve()
+        if target.parent != self.base_dir.resolve() or not target.is_file():
+            return None
+        return target.read_bytes()
 
 
 class NoRawStorageService:
@@ -51,6 +61,9 @@ class NoRawStorageService:
 
     def delete_by_url(self, file_url: str) -> bool:
         return True
+
+    def read_by_url(self, file_url: str) -> bytes | None:
+        return None
 
 
 class SupabaseStorageService:
@@ -72,7 +85,7 @@ class SupabaseStorageService:
     def save_bytes(self, filename: str, content: bytes, content_type: str | None = None) -> str:
         suffix = Path(filename or "cv").suffix.lower()
         name = Path(filename or "cv").stem.replace(" ", "-")
-        path = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{name}{suffix}"
+        path = f"{uuid4().hex}_{name[:80]}{suffix}"
         url = f"{self.base_url}/storage/v1/object/{quote(self.bucket)}/{quote(path)}"
         response = httpx.put(
             url,
@@ -81,16 +94,32 @@ class SupabaseStorageService:
             timeout=30,
         )
         response.raise_for_status()
-        return f"{self.base_url}/storage/v1/object/public/{quote(self.bucket)}/{quote(path)}"
+        return f"supabase://{self.bucket}/{path}"
 
     def delete_by_url(self, file_url: str) -> bool:
         prefix = f"{self.base_url}/storage/v1/object/public/{self.bucket}/"
-        if not file_url.startswith(prefix):
+        marker = f"supabase://{self.bucket}/"
+        if file_url.startswith(marker):
+            path = file_url[len(marker):]
+        elif file_url.startswith(prefix):
+            path = file_url[len(prefix):]
+        else:
             return False
-        path = file_url[len(prefix):]
         url = f"{self.base_url}/storage/v1/object/{quote(self.bucket)}/{path}"
         response = httpx.delete(url, headers=self._headers(), timeout=30)
         return response.is_success
+
+    def read_by_url(self, file_url: str) -> bytes | None:
+        prefix = f"{self.base_url}/storage/v1/object/public/{self.bucket}/"
+        marker = f"supabase://{self.bucket}/"
+        if file_url.startswith(marker):
+            path = file_url[len(marker):]
+        elif file_url.startswith(prefix):
+            path = file_url[len(prefix):]
+        else:
+            return None
+        response = httpx.get(f"{self.base_url}/storage/v1/object/{quote(self.bucket)}/{path}", headers=self._headers(), timeout=30)
+        return response.content if response.is_success else None
 
 
 def get_storage_service():

@@ -4,7 +4,28 @@ A production-oriented **Applicant Tracking System (ATS)** built for recruiter te
 
 This project supports end-to-end hiring operations: CV ingestion, parsing, candidate management, collaboration, interview workflow, job matching, automation, analytics, reporting, and role-based access.
 
-## Latest Implementation Updates (May 2026)
+## Latest Implementation Updates (September 2026)
+
+- **Recruiter workspace redesigned**:
+  - consistent responsive navigation, forms, tables, cards, dialogs, empty states, and dark mode across all pages
+  - dashboard is now the default landing page and daily actions are easier to reach
+- **Faster CV intake**:
+  - drag-and-drop multi-file queue with duplicate filtering and PDF/DOCX validation
+  - up to three CVs parse concurrently, with progress and per-file review before import
+  - client and API enforce a 20 MB limit per CV
+- **Dependency maintenance**:
+  - upgraded to Next.js 16.3.7 and verified a zero-vulnerability npm audit
+- **Application-centered hiring model**:
+  - one candidate can apply to multiple jobs with an independent stage, source, owner, match result, rejection reason, and stage history for each application
+  - pipeline, interviews, scorecards, offers, analytics, and reports now use the job application record
+- **Public careers flow repaired**:
+  - published jobs are available without employee authentication
+  - applications require consent and validate email, PDF/DOCX type, duplicate submissions, and the 20 MB limit
+- **Organization isolation and database persistence**:
+  - candidates, jobs, applications, reports, automation, schedules, audit events, and users are scoped to an organization
+  - Alembic migrations replace startup table creation; legacy job settings and application links are migrated
+- **Offer workflow added**:
+  - draft, approval, sent, accepted, and declined states with hiring manager approval
 
 - **Storage privacy mode added**: `STORAGE_MODE=none` enables metadata-only CV handling (no raw CV file persisted to disk).
 - **Email Scheduler upgraded to DB persistence**:
@@ -45,7 +66,7 @@ This project supports end-to-end hiring operations: CV ingestion, parsing, candi
 
 ## 1.2 Candidate Management
 
-- Recruiters manage candidates through ATS stages:
+- Recruiters manage each job application through ATS stages:
   - applied → screening → interview → offer → hired/rejected
 - Soft delete + restore via Trash.
 - Candidate detail includes:
@@ -71,7 +92,7 @@ Current collaboration flows:
 2. **Share invitation**:
    - HR A invites HR B
    - HR B approves/rejects in notifications
-   - On approve, system clones candidate record and assigns owner=HR B
+   - On approval, the recipient receives a view access record for the same candidate; no duplicate profile is created
 3. **Ownership request**:
    - HR can request ownership transfer
    - owner/admin approves/rejects
@@ -85,7 +106,7 @@ View-only behavior:
 
 ## 1.4 Job & Matching Flow
 
-1. HR creates job title + requirements.
+1. HR creates a structured job and publishes it when ready.
 2. Configure threshold per job.
 3. Run matching to get ranked candidates + explanations.
 4. Shortlist directly from match result.
@@ -132,7 +153,7 @@ Matching evolution:
 
 ## 2.1 Stack
 
-- **Frontend**: Next.js 14 (App Router), React, TypeScript
+- **Frontend**: Next.js 16 (App Router), React, TypeScript
 - **Backend**: FastAPI, SQLAlchemy
 - **Database**: PostgreSQL
 - **Storage**: Local filesystem (`uploads/`) by default
@@ -231,12 +252,22 @@ Matching evolution:
 
 ## 4.1 Prerequisites
 
-- Python 3.11+
-- Node.js 18+
+- Python 3.11 or 3.12
+- Node.js 20.9+
 - PostgreSQL 14+
 - (Optional OCR) `tesseract-ocr`, `poppler-utils`
 
 ## 4.2 Quick Run (scripts)
+
+The simplest local setup runs the complete stack and creates a local demo admin automatically:
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:3000`. The API is available at `http://localhost:8000`.
+
+For a native setup, run the scripts below from the project root:
 
 From project root:
 
@@ -246,6 +277,22 @@ From project root:
 # or run both
 ./scripts/run_all.sh
 ```
+
+On Windows PowerShell, use two terminals from the project root:
+
+```powershell
+# One-time prerequisite when Python 3.12 is not installed
+winget install -e --id Python.Python.3.12
+
+# Terminal 1: creates .venv, installs packages, creates SQLite DB, starts API
+.\scripts\run_backend.ps1
+
+# Terminal 2: installs frontend packages when needed and starts the UI
+.\scripts\run_frontend.ps1
+```
+
+The Windows native setup uses SQLite, local demo authentication, and local CV
+parsing by default. PostgreSQL, Docker, Google OAuth, and AI keys are not needed.
 
 Useful overrides:
 
@@ -259,12 +306,12 @@ MINI_ATS_AUTO_KILL=0 ./scripts/run_all.sh
 ## 4.3 Manual Backend Setup
 
 ```bash
-cd backend
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --reload --port 8000
+pip install -r backend/requirements.txt
+cp backend/.env.example backend/.env
+alembic -c backend/alembic.ini upgrade head
+uvicorn app.main:app --reload --port 8000 --app-dir backend
 ```
 
 ---
@@ -280,20 +327,28 @@ npm run dev
 
 ---
 
-## 4.5 Database Setup `
+## 4.5 Optional PostgreSQL Setup
 
-Using docker compose:
+SQLite is the default for local development. To use PostgreSQL instead, install
+PostgreSQL and update `DATABASE_URL` in `backend/.env`. Docker users can start
+only PostgreSQL with:
 
 ```bash
 docker compose up -d db
 ```
 
-The app uses SQLAlchemy table creation on startup (`Base.metadata.create_all`).
+Apply versioned database migrations before starting the API:
+
+```bash
+alembic -c backend/alembic.ini upgrade head
+```
+
+`scripts/run_backend.sh` runs this migration command automatically.
 
 Default sample connection in `backend/.env`:
 
 ```env
-DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/mini_ats
+DATABASE_URL=sqlite:///./mini_ats.db
 ```
 
 ---
@@ -304,7 +359,7 @@ DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/mini_ats
 
 ```env
 AUTH_JWT_SECRET=change-me
-AUTH_ALLOW_DEV_HEADERS=false
+AUTH_ALLOW_DEV_HEADERS=true # use false outside local development
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google/callback
@@ -318,6 +373,22 @@ AUTH_BOOTSTRAP_ADMIN_EMAIL=
 MATCHING_ENABLE_EMBEDDINGS=false
 MATCHING_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ```
+
+## CV parsing
+
+The local parser works without an AI key. OCR is included in the Docker image;
+native installations need Tesseract and Poppler for scanned PDFs. To add
+validated AI enrichment, set one provider and its key:
+
+```env
+PARSE_USE_AI=true
+PARSE_AI_TIMEOUT_SECONDS=10
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your_key
+```
+
+The parser keeps document extracted contact details when AI disagrees and marks
+the conflict for HR review.
 
 ## OCR dependencies (Phase 1 parsing enhancements)
 
@@ -429,7 +500,7 @@ sequenceDiagram
   BE-->>FE: Candidate created
 ```
 
-### 9.2 Share Invitation -> Approve -> Clone Ownership
+### 9.2 Share Invitation and Access Approval
 
 ```mermaid
 sequenceDiagram
@@ -447,11 +518,11 @@ sequenceDiagram
   FE->>BE: GET /api/candidates/share/invitations?scope=inbox
   BE-->>FE: Pending invitation list
 
-  B->>FE: Approve & Clone
+  B->>FE: Approve access
   FE->>BE: POST /api/candidates/{id}/share/invitations/{invite_id}/decision
-  BE->>DB: Clone candidate + files (owner=HR B)
-  BE-->>FE: clone_candidate_id
-  FE-->>B: Redirect to cloned candidate page
+  BE->>DB: Add view access to the existing candidate
+  BE-->>FE: Invitation approved
+  FE-->>B: Open shared candidate page
 ```
 
 ### 9.3 Job Matching Run

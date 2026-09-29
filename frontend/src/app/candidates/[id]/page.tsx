@@ -11,11 +11,16 @@ import {
   createInterview,
 } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
+import {
+  CANDIDATE_STATUSES,
+  formatCandidateStatus,
+} from "../../../lib/candidates";
 import { useMe } from "../../../lib/me";
 import { notify } from "../../../lib/toast";
 import CandidateTabs from "../../../components/CandidateTabs";
 import InterviewForm from "../../../components/InterviewForm";
 import type {
+  Application,
   Candidate,
   CandidateStatus,
   TimelineEvent,
@@ -26,6 +31,9 @@ type CandidateForm = {
   email: string;
   phone: string;
   status: CandidateStatus;
+  acquisition_source: string;
+  consent_status: "unknown" | "granted" | "withdrawn";
+  retention_until: string;
   years_of_experience: string;
   skills_text: string;
   education_text: string;
@@ -51,6 +59,7 @@ type CandidateComment = {
 type InterviewScorecard = {
   id: number;
   candidate_id: number;
+  application_id?: number;
   interviewer_user_id: number;
   interview_stage: string;
   criteria_scores: Record<string, number>;
@@ -63,6 +72,7 @@ type InterviewScorecard = {
 type InterviewSchedule = {
   id: number;
   candidate_id: number;
+  application_id?: number;
   organizer_user_id: number;
   interviewer_email: string;
   scheduled_at: string;
@@ -72,25 +82,15 @@ type InterviewSchedule = {
   created_at: string;
 };
 
-const STATUS_OPTIONS: CandidateStatus[] = [
-  "applied",
-  "screening",
-  "interview",
-  "offer",
-  "hired",
-  "rejected",
-];
-
-function formatStatus(status: string) {
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
 function toForm(c: Candidate): CandidateForm {
   return {
     name: c.name || "",
     email: c.email || "",
     phone: c.phone || "",
     status: c.status || "applied",
+    acquisition_source: c.acquisition_source || "direct",
+    consent_status: c.consent_status || "unknown",
+    retention_until: c.retention_until ? c.retention_until.slice(0, 10) : "",
     years_of_experience: c.years_of_experience?.toString() || "",
     skills_text: (c.skills || []).join(", "),
     education_text: (c.education || []).join("\n"),
@@ -222,6 +222,10 @@ export default function CandidateDetailPage({
   const [scoreComm, setScoreComm] = useState("3");
   const [scoreProblem, setScoreProblem] = useState("3");
   const [schedules, setSchedules] = useState<InterviewSchedule[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [applicationJobs, setApplicationJobs] = useState<Record<number, string>>({});
+  const [selectedApplicationId, setSelectedApplicationId] = useState<number | undefined>();
+  const [pendingStage, setPendingStage] = useState<CandidateStatus>("applied");
   const [schedInterviewer, setSchedInterviewer] = useState("");
   const [schedAt, setSchedAt] = useState("");
   const [schedDuration, setSchedDuration] = useState("60");
@@ -264,6 +268,17 @@ export default function CandidateDetailPage({
     setSchedules(data);
   };
 
+  const loadApplications = async (id: string) => {
+    const [apps, jobs] = await Promise.all([
+      apiGet<Application[]>(`/api/applications?candidate_id=${id}`),
+      apiGet<{ id: number; title: string }[]>("/api/jobs"),
+    ]);
+    setApplications(apps);
+    setApplicationJobs(Object.fromEntries(jobs.map((job) => [job.id, job.title])));
+    setSelectedApplicationId((current) => current || apps[0]?.id);
+    setPendingStage((apps.find((app) => app.id === selectedApplicationId) || apps[0])?.stage || "applied");
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -280,6 +295,7 @@ export default function CandidateDetailPage({
           loadComments(resolved.id),
           loadScorecards(resolved.id),
           loadSchedules(resolved.id),
+          loadApplications(resolved.id),
         ]);
       } catch (e: any) {
         if (!cancelled) setError(e.message || "Failed to load candidate");
@@ -298,7 +314,7 @@ export default function CandidateDetailPage({
     (candidate?.parsed_json as any)?.owner_email || "",
   ).toLowerCase();
   const ownerUserId = Number(
-    (candidate?.parsed_json as any)?.owner_user_id || 0,
+    candidate?.owner_user_id || (candidate?.parsed_json as any)?.owner_user_id || 0,
   );
   const isOwner =
     (!!meEmail && !!ownerEmail && ownerEmail === meEmail) ||
@@ -324,7 +340,6 @@ export default function CandidateDetailPage({
         name: form.name || null,
         email: form.email || null,
         phone: form.phone || null,
-        status: form.status,
         years_of_experience: form.years_of_experience
           ? Number(form.years_of_experience)
           : null,
@@ -332,6 +347,9 @@ export default function CandidateDetailPage({
         education: normalizeLineList(form.education_text),
         previous_companies: normalizeLineList(form.previous_companies_text),
         summary: form.summary || null,
+        acquisition_source: form.acquisition_source || "direct",
+        consent_status: form.consent_status,
+        retention_until: form.retention_until ? new Date(`${form.retention_until}T00:00:00`).toISOString() : null,
         domain_tags: normalizeCommaList(form.domain_tags_text),
         notice_period: form.notice_period || null,
         preferred_location: form.preferred_location || null,
@@ -374,6 +392,7 @@ export default function CandidateDetailPage({
   const onAddScorecard = async () => {
     if (!candidateId) return;
     await apiPost(`/api/candidates/${candidateId}/scorecards`, {
+      application_id: selectedApplicationId,
       interview_stage: "interview",
       criteria_scores: {
         technical: Number(scoreTech),
@@ -438,6 +457,7 @@ export default function CandidateDetailPage({
       return;
     }
     await createInterview(Number(candidateId), {
+      application_id: selectedApplicationId,
       interviewer_email: schedInterviewer,
       scheduled_at: new Date(schedAt).toISOString(),
       duration_minutes: Number(schedDuration || 60),
@@ -450,6 +470,27 @@ export default function CandidateDetailPage({
     notify(t("schedule_success"), "success");
     const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
     setCandidate(updated);
+  };
+
+  const moveApplicationStage = async () => {
+    if (!selectedApplicationId) return notify("Select a job application first", "error");
+    await apiPatch(`/api/applications/${selectedApplicationId}/stage`, { stage: pendingStage });
+    await Promise.all([loadApplications(candidateId), apiGet<Candidate>(`/api/candidates/${candidateId}`).then(setCandidate)]);
+    notify(`Application moved to ${formatCandidateStatus(pendingStage)}`, "success");
+  };
+
+  const exportPrivacyData = async () => {
+    const data = await apiGet(`/api/candidates/${candidateId}/privacy-export`);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = `candidate-${candidateId}-data.json`; link.click(); URL.revokeObjectURL(url);
+  };
+
+  const anonymizeCandidate = async () => {
+    if (!window.confirm("Permanently remove this candidate's personal details and CV files?")) return;
+    await apiPost(`/api/candidates/${candidateId}/anonymize`, {});
+    const updated = await apiGet<Candidate>(`/api/candidates/${candidateId}`);
+    setCandidate(updated); setForm(toForm(updated)); notify("Candidate data anonymized", "success");
   };
 
   const onDeleteFile = async (fileId: number) => {
@@ -504,7 +545,7 @@ export default function CandidateDetailPage({
           <span
             className={`status-badge status-${candidate.status || "applied"}`}
           >
-            {formatStatus(candidate.status || "applied")}
+            {formatCandidateStatus(candidate.status || "applied")}
           </span>
           {!isOwner ? (
             <div className="toolbar-actions">
@@ -553,23 +594,24 @@ export default function CandidateDetailPage({
             </small>
           </div>
           <div className="toolbar-actions">
+            {applications.length ? <select value={selectedApplicationId || ""} onChange={(e) => { const id = Number(e.target.value); setSelectedApplicationId(id); setPendingStage(applications.find((app) => app.id === id)?.stage || "applied"); }} style={{ width: "auto" }}>{applications.map((application) => <option key={application.id} value={application.id}>{applicationJobs[application.job_id] || `Job #${application.job_id}`}</option>)}</select> : null}
             <select
-              value={form.status}
-              onChange={(e) => updateField("status", e.target.value)}
-              disabled={isViewOnly}
+              value={pendingStage}
+              onChange={(e) => setPendingStage(e.target.value as CandidateStatus)}
+              disabled={isViewOnly || !applications.length}
               style={{ width: "auto" }}
             >
-              {STATUS_OPTIONS.map((s) => (
+              {CANDIDATE_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {formatStatus(s)}
+                  {formatCandidateStatus(s)}
                 </option>
               ))}
             </select>
             {!isViewOnly ? (
               <button
                 style={{ width: "auto" }}
-                onClick={onSave}
-                disabled={!canSave || !isOwner}
+                onClick={moveApplicationStage}
+                disabled={!isOwner || !selectedApplicationId}
               >
                 {saving ? t("saving") : "Move Stage"}
               </button>
@@ -625,7 +667,7 @@ export default function CandidateDetailPage({
                 className="btn-outline"
                 style={{ width: "auto" }}
                 onClick={() => {
-                  updateField("status", "rejected");
+                  setPendingStage("rejected");
                 }}
               >
                 Reject
@@ -771,6 +813,12 @@ export default function CandidateDetailPage({
               />
             </div>
           </div>
+          <div className="grid grid-3" style={{ marginTop: 12 }}>
+            <div><label>Acquisition source</label><input value={form.acquisition_source} onChange={(e) => updateField("acquisition_source", e.target.value)} disabled={isViewOnly} /></div>
+            <div><label>Processing consent</label><select value={form.consent_status} onChange={(e) => updateField("consent_status", e.target.value)} disabled={isViewOnly}><option value="unknown">Unknown</option><option value="granted">Granted</option><option value="withdrawn">Withdrawn</option></select></div>
+            <div><label>Retain until</label><input type="date" value={form.retention_until} onChange={(e) => updateField("retention_until", e.target.value)} disabled={isViewOnly} /></div>
+          </div>
+          {!isViewOnly && <div className="toolbar-actions" style={{ marginTop: 12 }}><button type="button" className="btn-outline" style={{ width: "auto" }} onClick={exportPrivacyData}>Export candidate data</button>{me?.role === "admin" && <button type="button" className="btn-outline danger-action" style={{ width: "auto" }} onClick={anonymizeCandidate}>Anonymize personal data</button>}</div>}
           <div style={{ marginTop: 12 }}>
             <label>{t("skills_csv")}</label>
             <input
@@ -903,6 +951,14 @@ export default function CandidateDetailPage({
 
       {activeTab === "interviews" && !isViewOnly && (
         <div id="sec-interview" className="grid grid-2">
+          <div className="card" style={{ gridColumn: "1 / -1" }}>
+            <label>Application context</label>
+            <select value={selectedApplicationId || ""} onChange={(event) => { const id = Number(event.target.value) || undefined; setSelectedApplicationId(id); setPendingStage(applications.find((application) => application.id === id)?.stage || "applied"); }}>
+              <option value="">General candidate interview</option>
+              {applications.map((application) => <option key={application.id} value={application.id}>{applicationJobs[application.job_id] || `Job #${application.job_id}`} · {formatCandidateStatus(application.stage)}</option>)}
+            </select>
+            <small>Schedules and scorecards are linked to the selected job application.</small>
+          </div>
           <div className="card">
             <h3>{t("interview_scheduling")}</h3>
             <InterviewForm
@@ -933,6 +989,7 @@ export default function CandidateDetailPage({
                     <small>
                       {s.duration_minutes} {t("mins_label")}
                     </small>
+                    <div><a href={apiUrl(`/api/interviews/${s.id}/calendar.ics`)}>Add to calendar</a></div>
                   </div>
                 </div>
               ))}

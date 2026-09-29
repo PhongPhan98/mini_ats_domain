@@ -79,6 +79,7 @@ export async function uploadCandidateReviewed(
   const form = new FormData();
   form.append("file", file);
   form.append("edited_json", JSON.stringify(edited));
+  form.append("reviewed", "true");
 
   const res = await fetch(`${API_BASE}/api/candidates/upload`, {
     method: "POST",
@@ -104,6 +105,9 @@ export async function getJobCandidates(jobId: number) {
     job_id: number;
     candidates: {
       id: number;
+      application_id?: number;
+      applied_at?: string;
+      stage_changed_at?: string;
       name?: string;
       status?: string;
       email?: string;
@@ -111,7 +115,8 @@ export async function getJobCandidates(jobId: number) {
   }>(`/api/jobs/${jobId}/candidates`);
 }
 
-export async function updateCandidateStage(candidateId: number, stage: string) {
+export async function updateCandidateStage(candidateId: number, stage: string, applicationId?: number) {
+  if (applicationId) return apiPatch(`/api/applications/${applicationId}/stage`, { stage });
   return apiPatch(`/api/candidates/${candidateId}/stage`, { stage });
 }
 
