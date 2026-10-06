@@ -27,8 +27,6 @@ export default function JobsPage() {
   const [thresholdByJob, setThresholdByJob] = useState<Record<number, number>>({});
   const [modalFullscreen, setModalFullscreen] = useState(false);
   const [expandedExplain, setExpandedExplain] = useState<Record<number, boolean>>({});
-  const [useAiMatch, setUseAiMatch] = useState(false);
-  const [matchingBusy, setMatchingBusy] = useState(false);
   const [showCreateJob, setShowCreateJob] = useState(false);
   const { t, lang } = useAppLanguage();
 
@@ -68,8 +66,10 @@ export default function JobsPage() {
     setLoadingMatchId(jobId);
     try {
       const threshold = thresholdByJob[jobId] ?? 50;
-      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match?threshold=${threshold}&lang=${lang}&use_ai=${useAiMatch}`, {});
+      const data = await apiPost<MatchResponse>(`/api/jobs/${jobId}/match?threshold=${threshold}&lang=${lang}`, {});
       setMatch(data);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not match candidates", "error");
     } finally {
       setLoadingMatchId(null);
     }
@@ -157,8 +157,6 @@ export default function JobsPage() {
             <small>{t("jobs_hint")}</small>
           </div>
           <div className="toolbar-actions">
-            <label className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><input type="checkbox" checked={useAiMatch} onChange={(e) => setUseAiMatch(e.target.checked)} /> Use AI match</label>
-            <span className={`chip ${useAiMatch ? "ai-on" : "ai-off"}`}>{useAiMatch ? "AI mode ON" : "Rule mode"}</span>
             <button className="btn-outline" style={{ width: "auto" }} onClick={() => setShowTrash((v) => !v)}>{showTrash ? "Back to Active" : "Trash"}</button>
           </div>
         </div>
@@ -168,7 +166,7 @@ export default function JobsPage() {
         <div className="toolbar">
           <div>
             <h3 style={{ margin: 0 }}>How matching works</h3>
-            <small>Pick threshold, choose AI mode, run matching, then shortlist best-fit candidates.</small>
+            <small>Set a minimum score, run matching, and review skills, experience, and title fit before shortlisting.</small>
           </div>
           <div className="chip-wrap">
             <span className="chip">1) Configure threshold</span>
@@ -209,7 +207,7 @@ export default function JobsPage() {
           {jobs.map((job) => (
             <div key={job.id} className="job-item">
               <div>
-                <div className="toolbar-actions"><div className="job-title">{job.title}</div><span className={`chip ${job.status === "published" ? "ai-on" : ""}`}>{job.status}</span></div>
+                <div className="toolbar-actions"><div className="job-title">{job.title}</div><span className={`chip ${job.status === "published" ? "status-positive" : ""}`}>{job.status}</span></div>
                 <small>{job.created_at ? new Date(job.created_at).toLocaleString() : "-"}</small>
                 {job.slug && job.status === "published" ? <div><Link href={`/jobs/${job.slug}`} target="_blank">View public job ↗</Link></div> : null}
               </div>
@@ -225,7 +223,7 @@ export default function JobsPage() {
                       style={{ width: 82 }}
                     />
                     <button className="btn-outline" style={{ width: "auto" }} onClick={() => saveThreshold(job.id)}>Save threshold</button>
-                    <button className="btn-outline" style={{ width: "auto" }} onClick={() => runMatch(job.id)}>
+                    <button className="btn-outline" disabled={loadingMatchId !== null} style={{ width: "auto" }} onClick={() => runMatch(job.id)}>
                       {loadingMatchId === job.id ? t("running") : `${t("run_matching")} (≥${thresholdByJob[job.id] ?? 50}%)`}
                     </button>
                     <button className="btn-outline" style={{ width: "auto" }} onClick={() => startEdit(job)}>Edit</button>
@@ -240,7 +238,7 @@ export default function JobsPage() {
               </div>
             </div>
           ))}
-          {!jobs.length && <div className="empty-state"><strong>{showTrash ? "Trash is empty." : "No data yet"}</strong><small>{showTrash ? "No deleted jobs to restore." : "Start by creating your first job, then run AI matching to shortlist candidates."}</small>{!showTrash ? <button style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>Create first job</button> : null}</div>}
+          {!jobs.length && <div className="empty-state"><strong>{showTrash ? "Trash is empty." : "No data yet"}</strong><small>{showTrash ? "No deleted jobs to restore." : "Start by creating your first job, then run matching to shortlist candidates."}</small>{!showTrash ? <button style={{ width: "auto" }} onClick={() => setShowCreateJob(true)}>Create first job</button> : null}</div>}
         </div>
       </div>
 
@@ -278,7 +276,7 @@ export default function JobsPage() {
         </div>
       )}
 
-      {matchingBusy ? <div className="card match-processing"><div className="spinner" /><div><strong>Matching in progress...</strong><small>Calculating best candidates for this job.</small></div></div> : null}
+      {loadingMatchId !== null ? <div className="card match-processing"><div className="spinner" /><div><strong>Matching in progress...</strong><small>Calculating best candidates for this job.</small></div></div> : null}
 
       {match && (
         <div className="card">
@@ -286,7 +284,6 @@ export default function JobsPage() {
             <div>
               <h3 style={{ margin: 0 }}>{t("match_results")}: {match.job_title}</h3>
               <small>Only candidates above selected threshold are shown. Use explanations to compare fit quality quickly.</small>
-              <div className="chip-wrap" style={{ marginTop: 6 }}><span className={`chip ${useAiMatch ? "ai-on" : "ai-off"}`}>{useAiMatch ? "Expected: AI + fallback" : "Expected: Rule-based"}</span></div>
             </div>
             <button className="btn-outline" style={{ width: "auto" }} onClick={() => setMatch(null)}>Close</button>
           </div>
@@ -298,7 +295,6 @@ export default function JobsPage() {
                     <strong>{r.candidate_name || `#${r.candidate_id}`}</strong>
                     <span className={`chip match-score ${scoreBand(r.match_score)}`}>{r.match_score}%</span>
                     <div className="score-bar"><span style={{ width: `${Math.max(2, Math.min(100, r.match_score))}%` }} /></div>
-                    <span className={`chip ${String(r.explanation || "").startsWith("[AI]") ? "ai-on" : "ai-off"}`}>{String(r.explanation || "").startsWith("[AI]") ? "AI" : "Rule"}</span>
                   </div>
                   <div className="toolbar-actions">
                     <Link className="chip" href={`/candidates/${r.candidate_id}`}>View</Link>

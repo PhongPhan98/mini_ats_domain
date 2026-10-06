@@ -1,6 +1,14 @@
 from datetime import datetime
 
-from app.services.rule_based import merge_candidate_parses, parse_candidate_from_cv
+from io import BytesIO
+
+from docx import Document
+from reportlab.pdfgen import canvas
+
+from app.services.cv_parsing import clean_reviewed_profile, parse_cv_document
+from app.services.rule_based import parse_candidate_from_cv
+from app.services.parser import CVTextParser
+from app.services import cv_fields
 
 
 SAMPLE_CV = """
@@ -56,24 +64,19 @@ def test_parser_extracts_full_candidate_profile():
     assert parsed["missing_critical_fields"] == []
 
 
-def test_ai_merge_keeps_document_contact_when_model_disagrees():
-    local = parse_candidate_from_cv(SAMPLE_CV)
-    merged = merge_candidate_parses(
-        local,
-        {
-            "email": "incorrect@example.net",
-            "current_title": "Staff Backend Engineer",
-            "skills": ["Apache Kafka", "Python"],
-            "years_of_experience": 7,
-            "gender": "unsupported sensitive field",
-        },
-    )
-
-    assert merged["email"] == "an.nguyen@example.com"
-    assert merged["current_title"] == "Staff Backend Engineer"
-    assert "email" in merged["parse_conflicts"]
-    assert "gender" not in merged
-    assert merged["review_recommended"] is True
+def test_reviewed_profile_preserves_preferences_without_provider_metadata():
+    parsed = clean_reviewed_profile({
+        "name": "Alice Nguyen", "preferred_location": "  Da Nang  ",
+        "notice_period": "30 days", "skills": ["Python", "Python"],
+        "rich_text": {"summary": '<p onclick="bad()"><strong>Good</strong><script>alert(1)</script></p>', "owner": "bad"},
+        "ai_provider": "old-provider", "gender": "unsupported field",
+    })
+    assert parsed["preferred_location"] == "Da Nang"
+    assert parsed["notice_period"] == "30 days"
+    assert parsed["skills"] == ["Python"]
+    assert "ai_provider" not in parsed
+    assert "gender" not in parsed
+    assert parsed["rich_text"] == {"summary": "<p><strong>Good</strong></p>"}
 
 
 def test_overlapping_roles_are_not_double_counted():
@@ -91,3 +94,106 @@ def test_overlapping_roles_are_not_double_counted():
 
     # The second role sits inside the first interval.
     assert parsed["years_of_experience"] == datetime.now().year - 2020
+
+
+def test_vietnamese_and_multiline_preferences_are_extracted():
+    parsed = parse_candidate_from_cv("""
+        NGUYỄN THỊ LINH
+        Địa điểm làm việc mong muốn:
+        Đà Nẵng, Hà Nội
+        Thời gian báo trước: 30 ngày
+        """)
+    assert parsed["preferred_location"] == "Đà Nẵng, Hà Nội"
+    assert parsed["notice_period"] == "30 ngày"
+    assert parsed["confidence"]["notice_period"] == "high"
+
+
+def test_inline_preferences_and_notice_do_not_swallow_each_other():
+    parsed = parse_candidate_from_cv("Preferred location: Singapore | Notice period: 2 weeks")
+    assert parsed["preferred_location"] == "Singapore"
+    assert parsed["notice_period"] == "2 weeks"
+
+
+def test_unknown_preferences_stay_empty_without_using_home_address():
+    parsed = parse_candidate_from_cv("LE THI BINH\nLocation: Hanoi\nSoftware Engineer\nEducation\nUniversity 2015 - 2019")
+    assert parsed["preferred_location"] is None
+    assert parsed["notice_period"] is None
+    assert parsed["years_of_experience"] is None
+
+
+def test_numeric_month_dates_count_only_professional_experience():
+    parsed = parse_candidate_from_cv("""
+        LE THI BINH
+        Software Engineer
+        Age: 30 years
+        Work experience
+        Engineer | Company A
+        01/2020 - 12/2022
+        Engineer | Company B
+        2021/06 - 2023/12
+        Education
+        University 2010 - 2019
+        """)
+    assert parsed["experience_months"] == 48
+    assert parsed["years_of_experience"] == 4
+    assert parsed["previous_companies"] == ["Company A", "Company B"]
+
+
+def test_docx_tables_keep_order_and_local_preferences():
+    document = Document()
+    document.add_paragraph("TRAN VAN NAM")
+    document.add_paragraph("Work experience")
+    table = document.add_table(rows=2, cols=1)
+    table.cell(0, 0).text = "Engineer | Acme Ltd\nJan 2020 - Dec 2022"
+    table.cell(1, 0).text = "Improved response time by 40%."
+    document.add_paragraph("Education")
+    document.add_paragraph("Bachelor of Computer Science")
+    document.add_paragraph("Preferred location: Da Nang")
+    document.add_paragraph("Available immediately")
+    buffer = BytesIO()
+    document.save(buffer)
+    parsed, text = parse_cv_document("cv.docx", buffer.getvalue())
+    assert text.index("Acme Ltd") < text.index("Education")
+    assert parsed["previous_companies"] == ["Acme Ltd"]
+    assert parsed["preferred_location"] == "Da Nang"
+    assert parsed["notice_period"] == "Immediately"
+    assert parsed["source"] == "local_cv_parser"
+    assert "ai_provider" not in parsed
+
+
+def test_notice_duration_in_sentence_is_explicitly_extracted():
+    parsed = parse_candidate_from_cv("LE THI BINH\nI am required to give 30 days notice before joining.")
+    assert parsed["notice_period"] == "30 days"
+
+
+def test_future_roles_do_not_create_negative_experience(monkeypatch):
+    class FixedTime:
+        @staticmethod
+        def now():
+            return datetime(2026, 1, 10)
+    monkeypatch.setattr(cv_fields, "datetime", FixedTime)
+    assert cv_fields.employment_months("Aug 2026 - Dec 2026") is None
+
+
+def test_mixed_pdf_extracts_scanned_page_and_hidden_profile_link(monkeypatch):
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer)
+    for index, line in enumerate([
+        "LE THI BINH", "Software Engineer", "binh@example.com", "Skills: Python FastAPI",
+        "Summary: " + "Software platform experience " * 15,
+    ]):
+        pdf.drawString(30, 800 - 20 * index, line)
+    pdf.linkURL("https://linkedin.com/in/le-thi-binh", (30, 600, 130, 615))
+    pdf.showPage()
+    pdf.showPage()
+    pdf.save()
+    ocr_pages = []
+    def local_ocr(_content, page_number):
+        ocr_pages.append(page_number)
+        return "Preferred location: Singapore\nNotice period: 2 weeks"
+    monkeypatch.setattr(CVTextParser, "_parse_pdf_with_ocr", local_ocr)
+    parsed, _ = parse_cv_document("cv.pdf", buffer.getvalue())
+    assert ocr_pages == [2]
+    assert parsed["preferred_location"] == "Singapore"
+    assert parsed["notice_period"] == "2 weeks"
+    assert parsed["linkedin_url"] == "https://linkedin.com/in/le-thi-binh"

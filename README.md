@@ -113,12 +113,11 @@ View-only behavior:
 
 Matching evolution:
 
-- **Phase 1/2/3 hybrid rule engine** now includes:
+- **Local rule engine** includes:
   - required skills overlap
   - experience fit
   - title normalization + fuzzy title similarity
   - keyword/context relevance
-  - optional embedding-based semantic relevance (feature flag)
 
 ---
 
@@ -157,7 +156,7 @@ Matching evolution:
 - **Backend**: FastAPI, SQLAlchemy
 - **Database**: PostgreSQL
 - **Storage**: Local filesystem (`uploads/`) by default
-- **Optional AI**: OpenAI/Gemini for other services; matching/parsing core runs locally
+- **CV parsing and matching**: local rules, skill aliases, dates, and fuzzy title comparison; no API keys or downloaded models
 
 ## 2.2 Key Backend Modules
 
@@ -169,7 +168,7 @@ Matching evolution:
 - `app/services/`:
   - `parser.py` (PDF/DOCX extraction + OCR fallback)
   - `rule_based.py` (parse + matching logic)
-  - `storage.py`, `audit.py`, `automation.py`, `llm.py`
+  - `cv_fields.py`, `cv_parsing.py`, `storage.py`, `audit.py`, `automation.py`
 
 ## 2.3 Frontend Main Pages
 
@@ -367,33 +366,27 @@ GOOGLE_ALLOWED_DOMAIN=
 AUTH_BOOTSTRAP_ADMIN_EMAIL=
 ```
 
-## Matching Phase 3 (optional semantic rerank)
+## Local matching
 
-```env
-MATCHING_ENABLE_EMBEDDINGS=false
-MATCHING_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-```
+Scores use skills (45%), experience (20%), title similarity (20%), and keyword
+overlap (15%). Explanations show matching skills and gaps for HR to review.
+No external services or embedding models are used.
 
 ## CV parsing
 
-The local parser works without an AI key. OCR is included in the Docker image;
-native installations need Tesseract and Poppler for scanned PDFs. To add
-validated AI enrichment, set one provider and its key:
+CV parsing runs entirely locally using document extraction, English/Vietnamese
+rules, a skill catalog, employment dates, and optional local OCR. It never calls
+an AI provider. OCR is included in the Docker image; native installations need
+Tesseract and Poppler for scanned PDFs.
 
-```env
-PARSE_USE_AI=true
-PARSE_AI_TIMEOUT_SECONDS=10
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=your_key
-```
-
-The parser keeps document extracted contact details when AI disagrees and marks
-the conflict for HR review.
+Preferred location and notice period are extracted only when the CV states them.
+Blank values mean they were not found; HR can enter them during review. Reviewed
+values and structured experience are preserved when importing the profile.
 
 ## OCR dependencies (Phase 1 parsing enhancements)
 
 Python packages are in `requirements.txt`.
-System tools for OCR are optional and only needed if you explicitly enable OCR fallback.
+System tools for OCR are optional and used automatically for PDF pages with too little readable text.
 
 ---
 
@@ -540,9 +533,6 @@ sequenceDiagram
   BE->>DB: Load job + visible candidates
   BE->>RM: Score each candidate
   RM->>RM: skills + exp + title fuzzy + keyword
-  opt embeddings enabled
-    RM->>RM: semantic similarity (sentence-transformers)
-  end
   RM-->>BE: score + explanation
   BE-->>FE: ranked candidates above threshold
 ```
@@ -636,12 +626,10 @@ erDiagram
 
 Default install is now kept lean.
 
-Not installed by default:
-
-- OCR-heavy stack (`pdf2image`, `pytesseract`, Pillow + OS packages)
-- embedding-heavy stack (`sentence-transformers`)
-
-The code remains adaptive: if optional libs are missing, ATS falls back to lightweight parsing/matching paths.
+Provider SDKs and embedding models are not included. PDF/DOCX extraction and
+matching work locally. Python OCR packages are included; Tesseract and Poppler
+system tools are needed only for scanned PDFs. Without them, the upload review
+shows a warning when too little text can be read.
 
 ## Raw CV retention modes
 

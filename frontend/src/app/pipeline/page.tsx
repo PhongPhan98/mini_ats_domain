@@ -1,163 +1,107 @@
 "use client";
 
 import Link from "next/link";
-import PipelineColumn from "../../components/PipelineColumn";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiGet, updateCandidateStage, getJobCandidates } from "../../lib/api";
+import PipelineColumn from "../../components/PipelineColumn";
+import { apiGet, updateCandidateStage } from "../../lib/api";
 import { notify } from "../../lib/toast";
-import { useAppLanguage } from "../../lib/language";
 import { CANDIDATE_STATUSES, formatCandidateStatus } from "../../lib/candidates";
 import type { Candidate, CandidateStatus } from "../../components/types";
 
-const STAGES = CANDIDATE_STATUSES;
-type JobLite = { id: number; title: string };
+type JobLite = { id: number; title: string; department?: string; location?: string };
 const VISIBLE_STEP = 30;
-
-function label(s: CandidateStatus) {
-  return formatCandidateStatus(s);
-}
+const normalizeSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase();
 
 export default function PipelinePage() {
-  const [dragId, setDragId] = useState<number | null>(null);
+  const [dragKey, setDragKey] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
+  const [jobSearch, setJobSearch] = useState("");
   const [overStage, setOverStage] = useState<CandidateStatus | null>(null);
-  const [selectedJobId, setSelectedJobId] = useState<number>(0);
+  const [selectedJobId, setSelectedJobId] = useState(0);
   const [visibleByStage, setVisibleByStage] = useState<Record<string, number>>({});
-  const { t } = useAppLanguage();
-
   const qc = useQueryClient();
-  const { data: jobs = [] } = useQuery({ queryKey: ["pipeline-jobs"], queryFn: () => apiGet<JobLite[]>("/api/jobs") });
-  const { data: candidates = [] } = useQuery({ queryKey: ["pipeline-candidates", selectedJobId], queryFn: async () => {
-    if (!selectedJobId) return apiGet<Candidate[]>("/api/candidates");
-    const data = await getJobCandidates(selectedJobId);
-    return (data.candidates || []) as Candidate[];
-  } });
-
+  const jobsQuery = useQuery({ queryKey: ["pipeline-jobs"], queryFn: () => apiGet<JobLite[]>("/api/jobs") });
+  const jobs = jobsQuery.data || [];
+  const boardQuery = useQuery({
+    queryKey: ["pipeline-candidates", selectedJobId],
+    queryFn: () => apiGet<Candidate[]>(`/api/candidates/pipeline${selectedJobId ? `?job_id=${selectedJobId}` : ""}`),
+  });
+  const candidates = boardQuery.data || [];
+  const filteredJobs = jobs.filter((job) => job.id === selectedJobId || normalizeSearch(`${job.title} ${job.department || ""} ${job.location || ""}`).includes(normalizeSearch(jobSearch.trim())));
+  const selectedJob = jobs.find((job) => job.id === selectedJobId);
   const filtered = useMemo(() => {
-    const q = keyword.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter((c) => {
-      const txt = `${c.name || ""} ${c.email || ""} ${(c.skills || []).join(" ")}`.toLowerCase();
-      return txt.includes(q);
+    const terms = normalizeSearch(keyword.trim()).split(/\s+/).filter(Boolean);
+    return candidates.filter((candidate) => {
+      const text = normalizeSearch(`${candidate.name || ""} ${candidate.email || ""} ${(candidate.skills || []).join(" ")} ${candidate.parsed_json?.current_title || ""} ${candidate.job_title || ""}`);
+      return terms.every((term) => text.includes(term));
     });
   }, [candidates, keyword]);
+  const byStage = useMemo(() => Object.fromEntries(CANDIDATE_STATUSES.map((stage) => [stage, filtered.filter((candidate) => (candidate.status || "applied") === stage)])) as Record<CandidateStatus, Candidate[]>, [filtered]);
+  useEffect(() => { setVisibleByStage({}); setDragKey(null); setOverStage(null); }, [selectedJobId, keyword]);
 
-  const avgTimeToHire = useMemo(() => {
-    const hired = candidates.filter((c) => (c.status || "") === "hired" && (c.applied_at || c.created_at));
-    if (!hired.length) return 0;
-    const days = hired.map((c:any) => (new Date(c.stage_changed_at || Date.now()).getTime() - new Date(c.applied_at || c.created_at).getTime()) / 86400000);
-    return Math.round((days.reduce((a,b)=>a+b,0)/days.length)*10)/10;
-  }, [candidates]);
-
-  const byStage = useMemo(() => {
-    const map: Record<string, Candidate[]> = {};
-    for (const s of STAGES) map[s] = [];
-    for (const c of filtered) {
-      const s = STAGES.includes(c.status) ? c.status : "applied";
-      map[s].push(c);
-    }
-    return map;
-  }, [filtered]);
-
-
-  useEffect(() => {
-    setVisibleByStage((prev) => {
-      const next = { ...prev };
-      for (const st of STAGES) { if (!next[st]) next[st] = VISIBLE_STEP; }
-      return next;
-    });
-  }, [candidates.length]);
-
-  const stageMutation = useMutation({
-    mutationFn: ({ candidateId, stage, applicationId }: { candidateId: number; stage: CandidateStatus; applicationId?: number }) => updateCandidateStage(candidateId, stage, applicationId),
+  const mutation = useMutation({
+    mutationFn: ({ candidate, stage }: { candidate: Candidate; stage: CandidateStatus }) => updateCandidateStage(candidate.id, stage, candidate.application_id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline-candidates"] }),
   });
-
-  const onDropToStage = async (stage: CandidateStatus) => {
-    if (!dragId) return;
-    if (!selectedJobId) { notify("Select a job before moving an application", "error"); setDragId(null); return; }
-    const candidate = candidates.find((item) => item.id === dragId);
-    await stageMutation.mutateAsync({ candidateId: dragId, stage, applicationId: candidate?.application_id });
-    setDragId(null);
-    setOverStage(null);
-    notify(`Candidate moved to ${label(stage)}`, "success");
-  };
-
-  const moveToStage = async (candidateId: number, stage: CandidateStatus) => {
-    if (!selectedJobId) return notify("Select a job before moving an application", "error");
-    const candidate = candidates.find((item) => item.id === candidateId);
-    await stageMutation.mutateAsync({ candidateId, stage, applicationId: candidate?.application_id });
-    notify(`Candidate moved to ${label(stage)}`, "success");
+  const moveToStage = async (key: string, stage: CandidateStatus) => {
+    const candidate = candidates.find((item) => item.board_key === key);
+    if (!candidate || candidate.status === stage || mutation.isPending || !candidate.can_move) return;
+    try {
+      await mutation.mutateAsync({ candidate, stage });
+      notify(`${candidate.name || "Candidate"} moved to ${formatCandidateStatus(stage)}`, "success");
+    } catch {
+      notify("Could not move this card. Refresh the board and check your access.", "error");
+    } finally { setDragKey(null); setOverStage(null); }
   };
 
   return (
     <div className="grid page-enter">
-      <div className="card">
-        <div className="toolbar">
-          <div>
-            <h2 style={{ margin: 0 }}>{t("pipeline_title")}</h2>
-            <small>{t("pipeline_hint")}</small>
-            <small>Time-to-hire (selection): {avgTimeToHire} days</small>
-          </div>
-          <div className="toolbar-actions">
-            <select value={selectedJobId} onChange={(e) => setSelectedJobId(Number(e.target.value || 0))} style={{ width: "auto" }}>
-              <option value={0}>All Jobs</option>
-              {jobs.map((j) => <option key={j.id} value={j.id}>{j.title}</option>)}
+      <div className="page-heading">
+        <div><span className="eyebrow">Hiring workspace</span><h1>Candidate pipeline</h1><p>Move each application forward and keep every hiring decision in view.</p></div>
+        <div className="toolbar-actions"><Link className="btn-secondary" href="/jobs">Manage jobs</Link><Link className="btn-secondary nav-link-primary" href="/upload">+ Upload CV</Link></div>
+      </div>
+      <section className="card pipeline-filter-card" aria-label="Pipeline filters">
+        <div className="pipeline-filter-heading"><div><strong>Find your candidates</strong><small>Choose a job or search across the entire pipeline.</small></div><span className="chip">{filtered.length} {filtered.length === 1 ? "card" : "cards"}</span></div>
+        <div className="pipeline-filter-grid">
+          <div className="pipeline-job-filter">
+            <label htmlFor="pipeline-job">Job</label>
+            <select id="pipeline-job" value={selectedJobId} onChange={(event) => setSelectedJobId(Number(event.target.value))} disabled={jobsQuery.isPending}>
+              <option value={0}>All jobs &amp; unassigned candidates</option>
+              {filteredJobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
             </select>
-            <input
-              style={{ maxWidth: 320 }}
-              placeholder={t("search_placeholder")}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-            />
+            {jobs.length > 5 && <input className="pipeline-job-search" aria-label="Find a job" placeholder="Filter job titles…" value={jobSearch} onChange={(event) => setJobSearch(event.target.value)} />}
           </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="toolbar">
-          <div>
-            <h3 style={{ margin: 0 }}>Pipeline workflow</h3>
-            <small>Drag candidates across stages or use quick Move to actions.</small>
+          <div className="pipeline-candidate-filter">
+            <label htmlFor="pipeline-search">Search candidates</label>
+            <div className="pipeline-search-input">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+              <input id="pipeline-search" type="search" placeholder="Name, email, skill or job title" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+            </div>
+            <small>Try “Python” or a candidate’s name. Multiple words narrow the results.</small>
           </div>
-          <div className="toolbar-actions">
-            <Link className="chip" href="/jobs">Create Job</Link>
-            <Link className="chip" href="/upload">Upload CV</Link>
-          </div>
+          <button className="btn-outline pipeline-filter-reset" disabled={!keyword && !selectedJobId && !jobSearch} onClick={() => { setKeyword(""); setJobSearch(""); setSelectedJobId(0); }}>Reset filters</button>
         </div>
+        <div className="pipeline-filter-summary" aria-live="polite"><span>{selectedJob?.title || "All jobs"}{keyword.trim() ? ` · “${keyword.trim()}”` : ""}</span><small>Drag a card or use its stage menu. Each job application moves independently.</small></div>
+      </section>
+      <div className="pipeline-stage-summary" aria-label="Stage totals">
+        {CANDIDATE_STATUSES.map((stage) => <div key={stage}><span className={`status-badge status-${stage}`}>{formatCandidateStatus(stage)}</span><strong>{byStage[stage].length}</strong></div>)}
       </div>
-
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Job Funnel Snapshot</h3>
-        <div className="grid" style={{ gap: 8 }}>
-          {STAGES.map((s) => {
-            const c = byStage[s].length;
-            const total = Math.max(1, candidates.length);
-            const pct = Math.max(2, Math.min(100, Math.round((c * 100) / total)));
-            return <div key={`funnel-${s}`}><small>{label(s)} • {c}</small><div className="score-bar" style={{ width: "100%" }}><span style={{ width: `${pct}%` }} /></div></div>;
-          })}
+      {(boardQuery.isError || jobsQuery.isError) && <div className="inline-alert" role="alert">Could not load the pipeline. <button className="text-button" onClick={() => { boardQuery.refetch(); jobsQuery.refetch(); }}>Try again</button></div>}
+      {boardQuery.isPending ? <div className="empty-state" role="status">Loading pipeline…</div> : <>
+        {!filtered.length && <div className="empty-state"><strong>No matching candidates</strong><small>{candidates.length ? "Try another name, skill, or job filter." : "Upload a CV or add candidates to a job to get started."}</small></div>}
+        <div className="kanban-board" aria-busy={mutation.isPending}>
+          {CANDIDATE_STATUSES.map((stage) => <PipelineColumn
+            key={stage} stage={stage} items={byStage[stage]} count={byStage[stage].length}
+            visible={visibleByStage[stage] || VISIBLE_STEP} active={overStage === stage} moving={mutation.isPending}
+            onDragOver={(event) => { event.preventDefault(); if (dragKey && !mutation.isPending) setOverStage(stage); }}
+            onDragLeave={() => setOverStage((current) => current === stage ? null : current)}
+            onDrop={() => { const key = dragKey; setDragKey(null); setOverStage(null); if (key) void moveToStage(key, stage); }}
+            onMove={moveToStage} onDragStart={setDragKey} onDragEnd={() => { setDragKey(null); setOverStage(null); }}
+            onLoadMore={() => setVisibleByStage((previous) => ({ ...previous, [stage]: (previous[stage] || VISIBLE_STEP) + VISIBLE_STEP }))}
+          />)}
         </div>
-      </div>
-
-      <div className="kanban-board">
-        {STAGES.map((stage) => (
-          <PipelineColumn
-            key={stage}
-            stage={stage}
-            items={byStage[stage]}
-            count={byStage[stage].length}
-            visible={visibleByStage[stage] || VISIBLE_STEP}
-            active={overStage === stage}
-            onDragOver={(e) => { e.preventDefault(); setOverStage(stage); }}
-            onDragLeave={() => setOverStage((prev) => (prev === stage ? null : prev))}
-            onDrop={() => onDropToStage(stage)}
-            onMove={moveToStage}
-            onLoadMore={() => setVisibleByStage((prev) => ({ ...prev, [stage]: (prev[stage] || VISIBLE_STEP) + VISIBLE_STEP }))}
-            onDragStart={(id) => setDragId(id)}
-          />
-        ))}
-      </div>
+      </>}
     </div>
   );
 }

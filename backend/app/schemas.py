@@ -145,6 +145,7 @@ class CandidateUpdate(BaseModel):
     notice_period: str | None = None
     preferred_location: str | None = None
     achievements: list[str] | None = None
+    rich_text: dict[str, str] | None = None
     notes: str | None = None
     acquisition_source: str | None = None
     consent_status: str | None = None

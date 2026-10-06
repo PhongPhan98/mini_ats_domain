@@ -12,23 +12,6 @@ class Settings(BaseSettings):
 
     database_url: str = Field(default="sqlite:///./mini_ats.db", alias="DATABASE_URL")
 
-    llm_provider: str = Field(default="gemini", alias="LLM_PROVIDER")
-
-    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
-
-    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-2.0-flash-lite", alias="GEMINI_MODEL")
-
-    openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
-    openrouter_model: str = Field(default="meta-llama/llama-3.1-8b-instruct", alias="OPENROUTER_MODEL")
-
-    groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
-    groq_model: str = Field(default="llama-3.1-8b-instant", alias="GROQ_MODEL")
-
-    ollama_base_url: str = Field(default="http://localhost:11434/v1", alias="OLLAMA_BASE_URL")
-    ollama_model: str = Field(default="qwen2.5:7b", alias="OLLAMA_MODEL")
-
     storage_mode: str = Field(default="local", alias="STORAGE_MODE")
     upload_dir: str = Field(default="./uploads", alias="UPLOAD_DIR")
     public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
@@ -60,11 +43,6 @@ class Settings(BaseSettings):
     auth_allow_dev_headers: bool = Field(default=False, alias="AUTH_ALLOW_DEV_HEADERS")
     auth_bootstrap_admin_email: str = Field(default="", alias="AUTH_BOOTSTRAP_ADMIN_EMAIL")
 
-    parse_use_ai: bool = Field(default=True, alias="PARSE_USE_AI")
-    parse_ai_timeout_seconds: int = Field(default=10, alias="PARSE_AI_TIMEOUT_SECONDS")
-
-    matching_enable_embeddings: bool = Field(default=False, alias="MATCHING_ENABLE_EMBEDDINGS")
-    matching_embedding_model: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", alias="MATCHING_EMBEDDING_MODEL")
 
 
 settings = Settings()

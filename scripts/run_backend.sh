@@ -21,7 +21,7 @@ source .venv/bin/activate
 
 if [[ ! -f "backend/.env" ]]; then
   cp backend/.env.example backend/.env
-  echo "[mini_ats] Created backend/.env from example. Please edit OPENAI_API_KEY + DATABASE_URL"
+  echo "[mini_ats] Created backend/.env from example. SQLite and local CV parsing are ready."
 fi
 
 if port_in_use "$BACKEND_PORT"; then

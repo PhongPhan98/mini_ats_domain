@@ -27,14 +27,6 @@ services:
       AUTH_JWT_SECRET: local-development-only
       STORAGE_MODE: local
       UPLOAD_DIR: /data/uploads
-      PARSE_USE_AI: "${PARSE_USE_AI:-false}"
-      PARSE_AI_TIMEOUT_SECONDS: "${PARSE_AI_TIMEOUT_SECONDS:-10}"
-      LLM_PROVIDER: "${LLM_PROVIDER:-gemini}"
-      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
-      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
-      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
-      GROQ_API_KEY: "${GROQ_API_KEY:-}"
-      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-}"
     ports:
       - "8000:8000"
     volumes:

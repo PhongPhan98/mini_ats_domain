@@ -19,6 +19,7 @@ import { useMe } from "../../../lib/me";
 import { notify } from "../../../lib/toast";
 import CandidateTabs from "../../../components/CandidateTabs";
 import InterviewForm from "../../../components/InterviewForm";
+import RichTextField from "../../../components/RichTextField";
 import type {
   Application,
   Candidate,
@@ -44,6 +45,7 @@ type CandidateForm = {
   notice_period: string;
   preferred_location: string;
   achievements_text: string;
+  rich_text: Record<string, string>;
   note: string;
 };
 
@@ -107,6 +109,7 @@ function toForm(c: Candidate): CandidateForm {
       (c.parsed_json as any)?.preferred_location || "",
     ),
     achievements_text: ((c.parsed_json as any)?.achievements || []).join("\n"),
+    rich_text: { ...((c.parsed_json as any)?.rich_text || {}) },
     note: "",
   };
 }
@@ -330,6 +333,29 @@ export default function CandidateDetailPage({
   const updateField = (key: keyof CandidateForm, value: string) =>
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
 
+  const saveRichField = async (
+    field: "summary" | "education" | "experience_details" | "achievements",
+    editingKey: "summary" | "education_text" | "experience_details_text" | "achievements_text",
+    plainText: string,
+    html: string,
+  ) => {
+    if (!candidateId || !form || isViewOnly) return;
+    const richText = { ...form.rich_text, [field]: html };
+    setForm((previous) => previous ? { ...previous, [editingKey]: plainText, rich_text: richText } : previous);
+    const fieldValue = field === "summary" ? plainText || null : normalizeLineList(plainText);
+    try {
+      const updated = await apiPatch<Candidate>(`/api/candidates/${candidateId}`, {
+        [field]: fieldValue,
+        rich_text: richText,
+      });
+      setCandidate(updated);
+      notify(`${field.replace("_", " ")} saved`, "success");
+    } catch (saveError: any) {
+      setError(saveError.message || t("save_failed"));
+      notify(t("save_failed"), "error");
+    }
+  };
+
   const onSave = async () => {
     if (!form || !candidateId) return;
     setSaving(true);
@@ -355,6 +381,7 @@ export default function CandidateDetailPage({
         preferred_location: form.preferred_location || null,
         experience_details: normalizeLineList(form.experience_details_text),
         achievements: normalizeLineList(form.achievements_text),
+        rich_text: form.rich_text,
         notes: form.note || null,
       };
       const updated = await apiPatch<Candidate>(
@@ -841,14 +868,7 @@ export default function CandidateDetailPage({
             </div>
           </div>
           <div style={{ marginTop: 12 }}>
-            <label>{t("education")}</label>
-            <textarea
-              rows={4}
-              value={form.education_text}
-              onChange={(e) => updateField("education_text", e.target.value)}
-              readOnly={isViewOnly}
-              disabled={isViewOnly}
-            />
+            <RichTextField label={t("education")} value={form.education_text} html={form.rich_text.education} listMode readOnly={isViewOnly} onSave={(plain, html) => saveRichField("education", "education_text", plain, html)} />
           </div>
           <div style={{ marginTop: 12 }}>
             <label>{t("previous_companies")}</label>
@@ -863,14 +883,7 @@ export default function CandidateDetailPage({
             />
           </div>
           <div style={{ marginTop: 12 }}>
-            <label>{t("summary")}</label>
-            <textarea
-              rows={6}
-              value={form.summary}
-              onChange={(e) => updateField("summary", e.target.value)}
-              readOnly={isViewOnly}
-              disabled={isViewOnly}
-            />
+            <RichTextField label={t("summary")} value={form.summary} html={form.rich_text.summary} readOnly={isViewOnly} onSave={(plain, html) => saveRichField("summary", "summary", plain, html)} />
           </div>
           <div className="grid grid-2" style={{ marginTop: 12 }}>
             <div>
@@ -888,6 +901,7 @@ export default function CandidateDetailPage({
               <label>Notice period</label>
               <input
                 value={form.notice_period || ""}
+                placeholder="Not stated in CV"
                 onChange={(e) => updateField("notice_period", e.target.value)}
                 readOnly={isViewOnly}
                 disabled={isViewOnly}
@@ -897,6 +911,7 @@ export default function CandidateDetailPage({
               <label>Preferred location</label>
               <input
                 value={form.preferred_location || ""}
+                placeholder="Not stated in CV"
                 onChange={(e) =>
                   updateField("preferred_location", e.target.value)
                 }
@@ -906,26 +921,10 @@ export default function CandidateDetailPage({
             </div>
           </div>
           <div style={{ marginTop: 12 }}>
-            <label>Experience details</label>
-            <textarea
-              rows={4}
-              value={form.experience_details_text || ""}
-              onChange={(e) =>
-                updateField("experience_details_text", e.target.value)
-              }
-              readOnly={isViewOnly}
-              disabled={isViewOnly}
-            />
+            <RichTextField label="Experience details" value={form.experience_details_text} html={form.rich_text.experience_details} listMode readOnly={isViewOnly} onSave={(plain, html) => saveRichField("experience_details", "experience_details_text", plain, html)} />
           </div>
           <div style={{ marginTop: 12 }}>
-            <label>Achievements</label>
-            <textarea
-              rows={4}
-              value={form.achievements_text}
-              onChange={(e) => updateField("achievements_text", e.target.value)}
-              readOnly={isViewOnly}
-              disabled={isViewOnly}
-            />
+            <RichTextField label="Achievements" value={form.achievements_text} html={form.rich_text.achievements} listMode readOnly={isViewOnly} onSave={(plain, html) => saveRichField("achievements", "achievements_text", plain, html)} />
           </div>
           <div style={{ marginTop: 12 }}>
             <label>{t("add_note_update")}</label>

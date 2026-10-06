@@ -1,12 +1,11 @@
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 import json
 import hashlib
-from time import monotonic
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from starlette.concurrency import run_in_threadpool
+from app.services.cv_parsing import parse_cv_document, clean_reviewed_profile
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -15,11 +14,9 @@ from app.models import Application, Candidate, CandidateAccess, CandidateFile, U
 from app.rbac import require_roles
 from app.schemas import CandidateOut, CandidateUpdate
 from app.services.automation import run_stage_change_automations
-from app.services.parser import CVTextParser
-from app.services.rule_based import SKILL_ALIASES, merge_candidate_parses, parse_candidate_from_cv
+from app.services.rule_based import SKILL_ALIASES
 from app.services.storage import get_storage_service
 from app.services.audit import log_event
-from app.services.llm import LLMService
 from app.services.emailer import send_email
 from app.services.candidate_access import (
     can_access_candidate as _can_access_candidate,
@@ -29,10 +26,10 @@ from app.services.candidate_workflow import (
     append_timeline_event as _append_timeline_event,
     normalize_candidate_status as normalize_status,
 )
-from app.config import settings
 from app.services.tenancy import ensure_user_organization
 from app.services.applications import change_application_stage
 from app.services.file_validation import MAX_CV_BYTES, validate_cv_file
+from app.services.rich_text import clean_rich_text
 
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 storage = get_storage_service()
@@ -50,170 +47,6 @@ async def _read_cv_upload(file: UploadFile) -> tuple[str, bytes]:
     return filename, content
 
 
-def _ai_provider_chain() -> list[str]:
-    primary = (settings.llm_provider or "").strip().lower() or "openrouter"
-    ordered = [primary]
-    for p in ["openrouter", "gemini", "groq", "ollama", "openai"]:
-        if p not in ordered:
-            ordered.append(p)
-
-    def enabled(p: str) -> bool:
-        if p == "openrouter":
-            return bool(settings.openrouter_api_key)
-        if p == "gemini":
-            return bool(settings.gemini_api_key)
-        if p == "groq":
-            return bool(settings.groq_api_key)
-        if p == "ollama":
-            # The configured default URL does not prove an Ollama server is
-            # running. Only call it when it was explicitly selected.
-            return primary == "ollama" and bool(settings.ollama_base_url)
-        if p == "openai":
-            return bool(settings.openai_api_key)
-        return False
-
-    return [p for p in ordered if enabled(p)]
-
-def _parse_ai_file_with_timeout(filename: str, content: bytes, mime_type: str) -> dict[str, Any] | None:
-    if not settings.parse_use_ai:
-        return None
-    timeout_s = max(2, int(settings.parse_ai_timeout_seconds or 10))
-    deadline = monotonic() + timeout_s
-
-    for provider in _ai_provider_chain():
-        remaining = deadline - monotonic()
-        if remaining <= 0:
-            break
-        def _run(selected_provider=provider):
-            return LLMService.parse_cv_file_for_provider(selected_provider, filename, content, mime_type)
-        executor = ThreadPoolExecutor(max_workers=1)
-        try:
-            future = executor.submit(_run)
-            data = future.result(timeout=remaining)
-            if isinstance(data, dict):
-                data["ai_provider"] = provider
-                return data
-        except FuturesTimeoutError:
-            future.cancel()
-            continue
-        except Exception:
-            continue
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
-    return None
-
-def _parse_ai_with_timeout(text: str) -> dict[str, Any] | None:
-    if not settings.parse_use_ai:
-        return None
-    timeout_s = max(2, int(settings.parse_ai_timeout_seconds or 10))
-    deadline = monotonic() + timeout_s
-
-    for provider in _ai_provider_chain():
-        remaining = deadline - monotonic()
-        if remaining <= 0:
-            break
-        def _run(selected_provider=provider):
-            return LLMService.parse_cv_for_provider(selected_provider, text)
-        executor = ThreadPoolExecutor(max_workers=1)
-        try:
-            future = executor.submit(_run)
-            data = future.result(timeout=remaining)
-            if isinstance(data, dict):
-                data["ai_provider"] = provider
-                return data
-        except FuturesTimeoutError:
-            future.cancel()
-            continue
-        except Exception:
-            continue
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
-    return None
-
-def _extract_cv_text(filename: str, content: bytes) -> str:
-    try:
-        return CVTextParser.parse(filename, content)
-    except Exception:
-        return ""
-
-
-def _parse_or_fallback(
-    filename: str,
-    content: bytes,
-    mime_type: str = "application/octet-stream",
-    extracted_text: str | None = None,
-) -> dict[str, Any]:
-    text = extracted_text if extracted_text is not None else _extract_cv_text(filename, content)
-    text = (text or "").strip()
-    fallback_name = Path(filename).stem.replace("_", " ").replace("-", " ").strip() or "Unknown Candidate"
-
-    # Prefer document vision for scanned or nearly empty files. It can recover
-    # columns and image text that PDF text extractors cannot see.
-    if len(text) < 80:
-        ai_file = _parse_ai_file_with_timeout(filename, content, mime_type)
-        if isinstance(ai_file, dict):
-            provider = str(ai_file.get("ai_provider") or settings.llm_provider)
-            parsed = merge_candidate_parses({}, ai_file)
-            if not parsed.get("name"):
-                parsed["name"] = fallback_name
-            parsed["ai_provider"] = provider
-            parsed["ai_parse_status"] = "used_file_vision"
-            parsed["source"] = "ai_file_vision"
-            parsed["scanned_suspected"] = True
-            parsed["parse_warning"] = "Text extraction was limited, so document vision was used. Please verify the highlighted fields."
-            return parsed
-
-    if not text:
-        return {
-            "name": fallback_name,
-            "summary": "Imported with limited parsing. Manual review is required.",
-            "skills": [],
-            "education": [],
-            "previous_companies": [],
-            "experience_details": [],
-            "experience_timeline": [],
-            "projects": [],
-            "certifications": [],
-            "languages": [],
-            "achievements": [],
-            "domain_tags": [],
-            "parse_warning": "No readable text was found. The CV may be scanned, password protected, or damaged. Please review it manually.",
-            "scanned_suspected": True,
-            "confidence": {},
-            "confidence_score": 0,
-            "completeness_score": 0,
-            "missing_critical_fields": ["name", "email", "phone", "skills", "current_title", "experience_details"],
-            "review_recommended": True,
-            "parser_version": "2.0",
-            "source": "fallback",
-            "ai_provider": "none",
-            "ai_parse_status": "no_text_fallback",
-        }
-
-    local_data = parse_candidate_from_cv(text)
-    ai_data = _parse_ai_with_timeout(text)
-    parsed = merge_candidate_parses(local_data, ai_data)
-
-    if isinstance(ai_data, dict):
-        parsed["ai_provider"] = str(ai_data.get("ai_provider") or settings.llm_provider)
-        parsed["ai_parse_status"] = "used"
-        parsed["source"] = "ai_plus_local"
-    else:
-        parsed["ai_provider"] = "none"
-        parsed["ai_parse_status"] = "rule_only"
-        parsed["source"] = "rule_based_v2"
-
-    parsed["text_character_count"] = len(text)
-    if len(text) < 160:
-        parsed["parse_warning"] = "Only a small amount of text could be read from this CV. Please verify all fields."
-        parsed["scanned_suspected"] = True
-        parsed["review_recommended"] = True
-    elif parsed.get("parse_conflicts"):
-        fields = ", ".join(parsed["parse_conflicts"])
-        parsed["parse_warning"] = f"Local extraction and AI disagreed on: {fields}. The document values were kept for review."
-    return parsed
-
-
 @router.post("/parse")
 async def parse_cv_preview(
     file: UploadFile = File(...),
@@ -221,13 +54,7 @@ async def parse_cv_preview(
 ):
     filename, content = await _read_cv_upload(file)
 
-    source_text = _extract_cv_text(filename, content)
-    parsed = _parse_or_fallback(
-        filename,
-        content,
-        file.content_type or "application/octet-stream",
-        extracted_text=source_text,
-    )
+    parsed, source_text = await run_in_threadpool(parse_cv_document, filename, content)
     parsed["owner_user_id"] = _actor.id
     parsed["owner_email"] = _actor.email
     return {"filename": filename, "parsed": parsed, "source_text": source_text}
@@ -273,13 +100,13 @@ async def upload_cv(
             raise HTTPException(status_code=400, detail="Invalid edited_json")
 
     if reviewed and edited is not None:
-        parsed = dict(edited)
+        parsed = clean_reviewed_profile(edited)
         parsed["manual_reviewed"] = True
         parsed.setdefault("source", "reviewed_preview")
     else:
-        parsed = _parse_or_fallback(filename, content, file.content_type or "application/octet-stream")
+        parsed, _ = await run_in_threadpool(parse_cv_document, filename, content)
         if edited is not None:
-            parsed.update(edited)
+            parsed.update(clean_reviewed_profile(edited))
 
     # Ownership always comes from the authenticated actor, never client input.
     parsed["owner_user_id"] = _actor.id
@@ -313,6 +140,8 @@ async def upload_cv(
     )
     if existing:
         # A person is stored once. A newer CV enriches the same profile.
+        if not _can_manage_candidate(_actor, existing):
+            raise HTTPException(status_code=403, detail="Not allowed to update this candidate")
         for key in ("name", "phone", "years_of_experience", "summary"):
             value = parsed.get(key)
             if value not in (None, ""):
@@ -320,7 +149,10 @@ async def upload_cv(
         for key in ("skills", "education", "previous_companies"):
             if parsed.get(key):
                 setattr(candidate, key, parsed[key])
-        candidate.parsed_json = {**(candidate.parsed_json or {}), **parsed}
+        previous = dict(candidate.parsed_json or {})
+        enrichment = {key: value for key, value in parsed.items()
+            if value not in (None, "", []) and key not in {"owner_user_id", "owner_email"}}
+        candidate.parsed_json = {**previous, **enrichment}
     db.add(candidate)
     db.flush()
 
@@ -337,7 +169,7 @@ async def upload_cv(
             size_bytes=len(content),
         ))
 
-    _append_timeline_event(candidate, "created", "Candidate profile created")
+    _append_timeline_event(candidate, "note" if existing else "created", "CV imported" if existing else "Candidate profile created")
 
     db.commit()
 
@@ -414,6 +246,55 @@ def get_skill_catalog():
     }
 
 
+@router.get("/pipeline")
+def list_pipeline(
+    job_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    actor=Depends(require_roles("admin", "recruiter", "interviewer", "hiring_manager")),
+):
+    """Return a distinct card for every application, including in All jobs."""
+    org_id = ensure_user_organization(db, actor)
+    candidates = list(db.execute(
+        select(Candidate).options(selectinload(Candidate.files)).where(
+            Candidate.organization_id == org_id,
+            Candidate.deleted_at.is_(None),
+        )
+    ).scalars())
+    from app.models import Job
+    applications = db.execute(
+        select(Application, Job.title, Job.deleted_at).join(Job, Job.id == Application.job_id).where(
+            Application.organization_id == org_id,
+            Job.organization_id == org_id,
+        ).order_by(Application.applied_at.desc())
+    ).all()
+    by_candidate: dict[int, list] = {}
+    for application, title, deleted_at in applications:
+        by_candidate.setdefault(application.candidate_id, []).append((application, title, deleted_at))
+
+    cards = []
+    for candidate in candidates:
+        if _is_candidate_deleted(candidate) or not _can_access_candidate(actor, candidate):
+            continue
+        profile = CandidateOut.model_validate(candidate).model_dump(mode="json")
+        entries = by_candidate.get(candidate.id, [])
+        if not entries and not job_id:
+            cards.append({**profile, "board_key": f"candidate:{candidate.id}", "job_title": None,
+                "can_move": actor.role != "interviewer" and _can_manage_candidate(actor, candidate)})
+        for application, title, deleted_at in entries:
+            if deleted_at or application.withdrawn_at or (job_id and application.job_id != job_id):
+                continue
+            if actor.role == "recruiter" and application.owner_user_id != actor.id:
+                continue
+            cards.append({**profile,
+                "board_key": f"application:{application.id}",
+                "application_id": application.id, "job_id": application.job_id,
+                "job_title": title, "status": application.stage,
+                "applied_at": application.applied_at, "stage_changed_at": application.stage_changed_at,
+                "match_score": application.match_score, "can_move": actor.role != "interviewer",
+            })
+    return cards
+
+
 @router.get("/{candidate_id}", response_model=CandidateOut)
 def get_candidate(
     candidate_id: int,
@@ -448,6 +329,8 @@ def update_candidate(
         raise HTTPException(status_code=403, detail="Not allowed to update this candidate")
 
     update_data = payload.model_dump(exclude_unset=True)
+    if "rich_text" in update_data:
+        update_data["rich_text"] = clean_rich_text(update_data["rich_text"])
     if "email" in update_data and update_data["email"]:
         update_data["email"] = str(update_data["email"]).strip().lower()
     if "consent_status" in update_data and update_data["consent_status"] not in {"unknown", "granted", "withdrawn"}:
@@ -1106,6 +989,12 @@ def update_candidate_stage(
             Application.candidate_id == candidate.id,
             Application.job_id == int(job_id),
         )).scalar_one_or_none()
+    if (application_id or job_id) and not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if not application and db.execute(select(Application.id).where(
+        Application.candidate_id == candidate.id,
+    ).limit(1)).scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="This candidate has job applications. Refresh the pipeline and move the relevant application card.")
     if application:
         if application.candidate_id != candidate.id or application.organization_id != candidate.organization_id:
             raise HTTPException(status_code=404, detail="Application not found")

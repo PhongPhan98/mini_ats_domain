@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { parseCandidatePreview, uploadCandidateReviewed } from "../../lib/api";
 import { useAppLanguage } from "../../lib/language";
 import { notify } from "../../lib/toast";
+import RichTextField from "../../components/RichTextField";
 
 type Draft = {
   file: File;
@@ -106,8 +107,6 @@ export default function UploadPage() {
   const current = drafts[idx];
   const parseWarning = String(current?.data?.parse_warning || "");
   const scannedSuspected = Boolean(current?.data?.scanned_suspected);
-  const aiStatus = String(current?.data?.ai_parse_status || "rule_only");
-  const aiProvider = String(current?.data?.ai_provider || "local");
   const [cvPreviewUrl, setCvPreviewUrl] = useState("");
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [activeField, setActiveField] = useState<string>("");
@@ -208,6 +207,14 @@ export default function UploadPage() {
     );
   };
 
+  const updateRich = (field: "summary" | "education" | "experience_details" | "achievements", editingKey: keyof Draft["editing"], plainText: string, html: string) => {
+    setDrafts((previous) => previous.map((draft, draftIndex) => draftIndex === idx ? {
+      ...draft,
+      editing: { ...draft.editing, [editingKey]: plainText },
+      data: { ...draft.data, rich_text: { ...(draft.data?.rich_text || {}), [field]: html } },
+    } : draft));
+  };
+
   const removeCurrent = () => {
     setDrafts((prev) => {
       const arr = prev.filter((_, i) => i !== idx);
@@ -224,12 +231,13 @@ export default function UploadPage() {
     missing_critical_fields: d.data?.missing_critical_fields || [],
     review_recommended: Boolean(d.data?.review_recommended),
     field_sources: d.data?.field_sources || {},
-    parse_conflicts: d.data?.parse_conflicts || [],
-    parser_version: d.data?.parser_version || "2.0",
+    field_evidence: d.data?.field_evidence || {},
+    experience_months: d.data?.experience_months ?? null,
+    experience_calculation: d.data?.experience_calculation || null,
+    parser_version: d.data?.parser_version || "3.0",
     source: d.data?.source || "reviewed_preview",
-    ai_provider: d.data?.ai_provider || "local",
-    ai_parse_status: d.data?.ai_parse_status || "rule_only",
     parse_warning: d.data?.parse_warning || null,
+    rich_text: d.data?.rich_text || {},
     scanned_suspected: Boolean(d.data?.scanned_suspected),
     name: d.editing.name || null,
     email: d.editing.email || null,
@@ -530,22 +538,16 @@ export default function UploadPage() {
 
             <div className="card" style={{ marginBottom: 0 }}>
               <h3 style={{ marginTop: 0 }}>HR Review Form</h3>
-              <div className="chip-wrap" style={{ marginBottom: 8 }}>
-                <span className="chip conf-high">Email High</span>
-                <span className="chip conf-medium">Phone Medium</span>
-                <span className="chip conf-low">Skills Low</span>
-              </div>
               <small className="low-hint">
                 Red fields are low-confidence and still empty.
               </small>
               <div className="chip-wrap" style={{ marginTop: 8 }}>
-                <span className="chip">AI Provider: {aiProvider}</span>
-                <span className="chip">AI Status: {aiStatus}</span>
+                <span className="chip">Local CV extraction</span>
                 <span className="chip">
-                  Extracted: {current.data?.completeness_score ?? 0}%
+                  Profile completeness: {current.data?.completeness_score ?? 0}%
                 </span>
                 <span className="chip">
-                  Parser v{current.data?.parser_version || "2.0"}
+                  Parser v{current.data?.parser_version || "3.0"}
                 </span>
               </div>
 
@@ -742,31 +744,21 @@ export default function UploadPage() {
                     onChange={(e) => update("projects_text", e.target.value)}
                   />
                 </div>
-                <div>
-                  <label>{t("summary")}</label>
-                  <textarea
-                    className={
-                      isLow(
-                        current.data?.confidence?.summary,
-                        current.editing.summary,
-                      )
-                        ? "field-low"
-                        : ""
-                    }
-                    rows={5}
-                    value={current.editing.summary}
-                    onChange={(e) => update("summary", e.target.value)}
-                  />
-                </div>
+                <RichTextField
+                  label={t("summary")}
+                  value={current.editing.summary}
+                  html={current.data?.rich_text?.summary}
+                  className={isLow(current.data?.confidence?.summary, current.editing.summary) ? "field-low" : ""}
+                  onSave={(plain, html) => updateRich("summary", "summary", plain, html)}
+                />
 
-                <div>
-                  <label>Education details (one per line)</label>
-                  <textarea
-                    rows={4}
-                    value={current.editing.education_text}
-                    onChange={(e) => update("education_text", e.target.value)}
-                  />
-                </div>
+                <RichTextField
+                  label="Education details"
+                  value={current.editing.education_text}
+                  html={current.data?.rich_text?.education}
+                  listMode
+                  onSave={(plain, html) => updateRich("education", "education_text", plain, html)}
+                />
                 <div>
                   <label>Previous companies (CSV)</label>
                   <input
@@ -776,24 +768,20 @@ export default function UploadPage() {
                     }
                   />
                 </div>
-                <div>
-                  <label>Experience details (one bullet per line)</label>
-                  <textarea
-                    rows={5}
-                    value={current.editing.experience_text}
-                    onChange={(e) => update("experience_text", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label>Achievements (one per line)</label>
-                  <textarea
-                    rows={4}
-                    value={current.editing.achievements_text}
-                    onChange={(e) =>
-                      update("achievements_text", e.target.value)
-                    }
-                  />
-                </div>
+                <RichTextField
+                  label="Experience details"
+                  value={current.editing.experience_text}
+                  html={current.data?.rich_text?.experience_details}
+                  listMode
+                  onSave={(plain, html) => updateRich("experience_details", "experience_text", plain, html)}
+                />
+                <RichTextField
+                  label="Achievements"
+                  value={current.editing.achievements_text}
+                  html={current.data?.rich_text?.achievements}
+                  listMode
+                  onSave={(plain, html) => updateRich("achievements", "achievements_text", plain, html)}
+                />
                 <div>
                   <label>Domain tags (CSV)</label>
                   <input
@@ -801,10 +789,12 @@ export default function UploadPage() {
                     onChange={(e) => update("domain_tags_text", e.target.value)}
                   />
                 </div>
+                <small>Preferences and availability are filled only when stated in the CV. Confirm these with the candidate if blank.</small>
                 <div className="grid grid-2">
                   <div>
                     <label>Preferred location</label>
                     <input
+                      placeholder="Not stated in CV"
                       value={current.editing.preferred_location}
                       onChange={(e) =>
                         update("preferred_location", e.target.value)
@@ -814,6 +804,7 @@ export default function UploadPage() {
                   <div>
                     <label>Notice period</label>
                     <input
+                      placeholder="Not stated in CV"
                       value={current.editing.notice_period}
                       onChange={(e) => update("notice_period", e.target.value)}
                     />

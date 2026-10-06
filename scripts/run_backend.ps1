@@ -14,7 +14,7 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
 }
 if (-not (Test-Path "backend\.env")) {
     Copy-Item "backend\.env.example" "backend\.env"
-    Write-Host "Created backend\.env with SQLite, local login, and AI disabled."
+    Write-Host "Created backend\.env with SQLite, local login, and local CV parsing."
 }
 
 & ".venv\Scripts\alembic.exe" -c "backend\alembic.ini" upgrade head

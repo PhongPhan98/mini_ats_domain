@@ -23,6 +23,11 @@ export type Candidate = {
   id: number;
   owner_user_id?: number;
   application_id?: number;
+  board_key?: string;
+  job_id?: number;
+  job_title?: string | null;
+  match_score?: number | null;
+  can_move?: boolean;
   applied_at?: string;
   stage_changed_at?: string;
   name?: string;

@@ -302,6 +302,33 @@ thead .btn-outline { min-height: auto; padding: 2px; color: inherit; background:
 .score-bar { width: 90px; }
 
 .kanban-board { display: grid; grid-template-columns: repeat(6, minmax(245px, 1fr)); gap: 12px; overflow-x: auto; padding: 1px 1px 12px; }
+.pipeline-filter-card { padding: 24px; }
+.pipeline-filter-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; }
+.pipeline-filter-heading strong { font-size: 16px; }
+.pipeline-filter-heading small { margin-top: 3px; }
+.pipeline-filter-grid { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(280px, 1.5fr) auto; gap: 16px; align-items: start; }
+.pipeline-filter-grid label { margin-bottom: 8px; color: var(--text); font-size: 13px; }
+.pipeline-filter-grid input, .pipeline-filter-grid select { min-height: 48px; border-color: var(--border); border-radius: 11px; }
+.pipeline-job-filter select { text-overflow: ellipsis; padding-right: 24px; }
+.pipeline-candidate-filter small { font-size: 11px; margin-top: 7px; }
+.pipeline-search-input { position: relative; }
+.pipeline-search-input svg { position: absolute; width: 19px; height: 19px; left: 15px; top: 15px; color: var(--muted); fill: none; stroke: currentColor; stroke-width: 1.7; pointer-events: none; }
+.pipeline-search-input input { padding-left: 44px; }
+.pipeline-filter-reset { margin-top: 27px; min-height: 48px; white-space: nowrap; }
+.pipeline-job-filter .pipeline-job-search { margin-top: 8px; min-height: 36px; font-size: 12px; }
+.pipeline-filter-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.pipeline-filter-summary > span { color: var(--primary); font-size: 12px; font-weight: 650; }
+.pipeline-stage-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.pipeline-stage-summary > div { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.pipeline-stage-summary strong { font-size: 22px; }
+.pipeline-job-badge { display: block; width: fit-content; max-width: 100%; overflow-wrap: anywhere; margin-top: 9px; padding: 5px 8px; background: var(--primary-soft); color: var(--primary); border-radius: 7px; font-size: 11px; font-weight: 650; }
+.pipeline-card-actions { display: flex; align-items: center; gap: 8px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border); }
+.pipeline-card-actions > a { flex-shrink: 0; }
+.pipeline-card-actions select { min-width: 0; min-height: 32px; padding: 5px 7px; font-size: 11px; }
+.pipeline-empty-column { display: grid; place-items: center; min-height: 110px; color: var(--faint); font-size: 12px; border: 1px dashed var(--border); border-radius: 10px; }
+.kanban-card[draggable="false"] { cursor: default; }
+@media (max-width: 1000px) { .pipeline-filter-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } .pipeline-filter-reset { margin-top: 0; justify-self: start; } .pipeline-stage-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .pipeline-filter-grid { grid-template-columns: 1fr; } .pipeline-filter-card { padding: 18px; } .pipeline-filter-reset { justify-self: stretch; } .pipeline-stage-summary > div { padding: 8px; flex-direction: column; gap: 5px; } }
 .kanban-column { min-width: 0; min-height: 360px; padding: 12px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 13px; }
 .kanban-column.drop-active { border-color: var(--primary); background: var(--primary-soft); }
 .kanban-column-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -320,8 +347,8 @@ thead .btn-outline { min-height: auto; padding: 2px; color: inherit; background:
 .explain-box { padding: 11px 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 9px; line-height: 1.55; white-space: pre-line; }
 .explain-box.collapsed { max-height: 88px; overflow: hidden; }
 .explain-box.expanded { max-height: 420px; overflow: auto; }
-.ai-on, .conf-high, .score-high { color: #067647; background: #ecfdf3; border-color: #abefc6; }
-.ai-off { color: var(--muted); background: var(--surface-subtle); }
+.status-positive, .conf-high, .score-high { color: #067647; background: #ecfdf3; border-color: #abefc6; }
+.status-neutral { color: var(--muted); background: var(--surface-subtle); }
 .conf-medium, .score-mid { color: #b54708; background: #fffaeb; border-color: #fedf89; }
 .conf-low, .score-low { color: #b42318; background: #fef3f2; border-color: #fecdca; }
 .field-low { border-color: var(--danger) !important; background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
@@ -374,6 +401,49 @@ thead .btn-outline { min-height: auto; padding: 2px; color: inherit; background:
 .modal-overlay { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: rgba(16, 24, 40, .58); backdrop-filter: blur(4px); }
 .modal-card { width: min(850px, 100%); max-height: 90vh; overflow: auto; padding: 22px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); }
 .modal-full { width: min(1240px, 98vw); height: 92vh; }
+.rich-field { display: grid; gap: 7px; }
+.rich-field-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rich-field-label label { margin: 0; }
+.rich-field-label span { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.rich-field-preview { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; width: 100%; min-height: 92px; padding: 14px 16px; color: var(--text); text-align: left; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 11px; box-shadow: none; }
+.rich-field-preview:hover { color: var(--text); background: var(--surface-subtle); border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+.rich-field-preview > span { display: -webkit-box; overflow: hidden; color: var(--muted); font-weight: 400; line-height: 1.55; white-space: pre-line; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.rich-field-preview > strong { color: var(--primary); font-size: 12px; white-space: nowrap; }
+.rich-field.field-low .rich-field-preview { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+.rich-editor-overlay { z-index: 110; }
+.rich-editor-modal { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; width: min(1040px, 96vw); height: min(850px, 94vh); max-height: 94vh; padding: 0; overflow: hidden; }
+.rich-editor-header, .rich-editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; }
+.rich-editor-header { border-bottom: 1px solid var(--border); }
+.rich-editor-header h2 { margin: 3px 0; font-size: 20px; }
+.rich-editor-close { display: grid; place-items: center; width: 36px; min-height: 36px; padding: 0; color: var(--muted); background: var(--surface-subtle); border-color: var(--border); border-radius: 50%; font-size: 24px; line-height: 1; }
+.rich-editor-toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; overflow-x: auto; background: var(--surface-subtle); border-bottom: 1px solid var(--border); }
+.rich-editor-toolbar select { width: auto; min-width: 130px; min-height: 34px; padding: 5px 28px 5px 9px; font-size: 12px; }
+.rich-toolbar-group { display: inline-flex; align-items: center; gap: 3px; padding-left: 8px; border-left: 1px solid var(--border); }
+.rich-editor-toolbar button { width: auto; min-width: 34px; min-height: 34px; padding: 5px 8px; color: var(--text); background: var(--surface); border-color: var(--border); box-shadow: none; font-size: 12px; }
+.rich-editor-toolbar button:hover { color: var(--primary); background: var(--primary-soft); }
+.rich-editor-toolbar .highlight-yellow { background: #fff2a8; color: #573f00; }
+.rich-editor-toolbar .highlight-green { background: #ccebd8; color: #154b2c; }
+.rich-editor-toolbar .highlight-blue { background: #cfe5ff; color: #123e70; }
+.rich-toolbar-history { margin-left: auto; }
+.rich-editor-paper-wrap { min-height: 0; overflow: auto; padding: 28px; background: color-mix(in srgb, var(--surface-subtle) 75%, var(--border)); }
+.rich-editor-paper { width: min(760px, 100%); min-height: 460px; margin: 0 auto; padding: 52px 58px; color: #172033; background: #fff; border: 1px solid #d8dce5; border-radius: 3px; box-shadow: 0 10px 35px rgba(16,24,40,.13); font-family: Arial, sans-serif; font-size: 15px; line-height: 1.65; outline: none; }
+.rich-editor-paper:focus { border-color: #8779ef; box-shadow: 0 10px 35px rgba(16,24,40,.13), 0 0 0 3px rgba(91,69,224,.13); }
+.rich-editor-paper p { margin: 0 0 10px; }
+.rich-editor-paper h2 { margin: 18px 0 8px; font-size: 23px; }
+.rich-editor-paper h3 { margin: 15px 0 7px; font-size: 18px; }
+.rich-editor-paper ul, .rich-editor-paper ol { margin: 7px 0 12px; padding-left: 26px; }
+.rich-editor-paper li { margin-bottom: 5px; }
+.rich-editor-readonly { cursor: default; }
+.rich-editor-footer { border-top: 1px solid var(--border); }
+@media (max-width: 680px) {
+  .rich-field-preview { grid-template-columns: 1fr; gap: 8px; }
+  .rich-editor-overlay { padding: 0; }
+  .rich-editor-modal { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+  .rich-editor-header, .rich-editor-footer { padding: 13px 15px; }
+  .rich-editor-paper-wrap { padding: 12px; }
+  .rich-editor-paper { min-height: calc(100dvh - 260px); padding: 28px 22px; }
+  .rich-editor-footer small { display: none; }
+}
 .sticky-toolbar { position: sticky; top: 78px; z-index: 8; padding: 10px; background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--border); border-radius: 11px; backdrop-filter: blur(12px); }
 .section-nav-card { position: sticky; top: 78px; z-index: 7; }
 .tab-active { color: var(--primary) !important; background: var(--primary-soft) !important; border-color: color-mix(in srgb, var(--primary) 35%, var(--border)) !important; }

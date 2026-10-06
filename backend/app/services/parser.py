@@ -3,6 +3,9 @@ from pathlib import Path
 import re
 
 from docx import Document
+from docx.oxml.ns import qn
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 from pypdf import PdfReader
 
 
@@ -18,57 +21,69 @@ class CVTextParser:
 
     @staticmethod
     def _parse_pdf(content: bytes) -> str:
-        candidates = [
-            CVTextParser._parse_pdf_with_pypdf(content),
-            CVTextParser._parse_pdf_with_pdfplumber(content),
-        ]
-        text = max(candidates, key=CVTextParser._text_quality_score)
-        if CVTextParser._is_strong_text(text):
-            return text
-
-        text_ocr = CVTextParser._parse_pdf_with_ocr(content)
-        if CVTextParser._text_quality_score(text_ocr) > CVTextParser._text_quality_score(text):
-            text = text_ocr
-        return text.strip()
-
-    @staticmethod
-    def _parse_pdf_with_pypdf(content: bytes) -> str:
+        # Evaluate each page. A readable first page must not hide scanned pages
+        # later in a mixed PDF document.
         try:
             reader = PdfReader(BytesIO(content))
-            pages = []
-            for page in reader.pages:
-                try:
-                    text = page.extract_text(extraction_mode="layout") or ""
-                except TypeError:
-                    text = page.extract_text() or ""
-                pages.append(text)
-            return CVTextParser._clean_extracted_text("\n\n".join(pages))
+            if reader.is_encrypted and not reader.decrypt(""):
+                return ""
         except Exception:
             return ""
 
-    @staticmethod
-    def _parse_pdf_with_pdfplumber(content: bytes) -> str:
+        plumber = None
         try:
             import pdfplumber
-            with pdfplumber.open(BytesIO(content)) as pdf:
-                pages = [
-                    p.extract_text(x_tolerance=2, y_tolerance=3, layout=True) or ""
-                    for p in pdf.pages
-                ]
-            return CVTextParser._clean_extracted_text("\n\n".join(pages))
+            plumber = pdfplumber.open(BytesIO(content))
         except Exception:
-            return ""
+            pass
+        pages = []
+        try:
+            for page_number, page in enumerate(reader.pages, start=1):
+                try:
+                    regular = page.extract_text() or ""
+                    layout = page.extract_text(extraction_mode="layout") or ""
+                except Exception:
+                    regular = layout = ""
+                choices = [regular, layout]
+                if plumber:
+                    try:
+                        choices.append(plumber.pages[page_number - 1].extract_text(x_tolerance=2, y_tolerance=3) or "")
+                    except Exception:
+                        pass
+                text = max(choices, key=CVTextParser._text_quality_score)
+                if not CVTextParser._is_strong_text(text):
+                    text_ocr = CVTextParser._parse_pdf_with_ocr(content, page_number)
+                    if CVTextParser._text_quality_score(text_ocr) > CVTextParser._text_quality_score(text):
+                        text = text_ocr
+                pages.append(text)
+                # Some templates show labels but put the actual link in an annotation.
+                for reference in page.get("/Annots") or []:
+                    try:
+                        annotation = reference.get_object()
+                        action = annotation.get("/A")
+                        uri = str(action.get("/URI") or "") if action else ""
+                        if uri.lower().startswith(("https://", "http://")):
+                            pages.append(uri)
+                    except Exception:
+                        pass
+        finally:
+            if plumber:
+                plumber.close()
+        return CVTextParser._clean_extracted_text("\n\n".join(pages))
 
     @staticmethod
-    def _parse_pdf_with_ocr(content: bytes) -> str:
+    def _parse_pdf_with_ocr(content: bytes, page_number: int = 1) -> str:
         try:
             from pdf2image import convert_from_bytes
             import pytesseract
 
-            images = convert_from_bytes(content, dpi=250, first_page=1, last_page=25)
+            images = convert_from_bytes(content, dpi=250, first_page=page_number, last_page=page_number, timeout=20)
             chunks = []
             for img in images:
-                txt = pytesseract.image_to_string(img, lang="eng+vie")
+                try:
+                    txt = pytesseract.image_to_string(img, lang="eng+vie", timeout=20)
+                except pytesseract.TesseractError:
+                    txt = pytesseract.image_to_string(img, lang="eng", timeout=20)
                 if txt:
                     chunks.append(txt)
             return CVTextParser._clean_extracted_text("\n\n".join(chunks))
@@ -99,14 +114,25 @@ class CVTextParser:
             return ""
 
         chunks: list[str] = []
-        chunks.extend(p.text for p in doc.paragraphs if p.text.strip())
+        # Preserve document order: appending all tables after paragraphs can put
+        # an experience table under the education or skills heading.
+        def read_blocks(parent, elements):
+            for element in elements:
+                if element.tag == qn("w:p"):
+                    value = Paragraph(element, parent).text.strip()
+                    if value:
+                        chunks.append(value)
+                elif element.tag == qn("w:tbl"):
+                    table = Table(element, parent)
+                    seen_cells = set()
+                    for row in table.rows:
+                        for cell in row.cells:
+                            if cell._tc in seen_cells:
+                                continue
+                            seen_cells.add(cell._tc)
+                            read_blocks(cell, cell._tc.iterchildren())
 
-        # CV templates frequently place contact, skills and education in tables.
-        for table in doc.tables:
-            for row in table.rows:
-                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-                if cells:
-                    chunks.append(" | ".join(dict.fromkeys(cells)))
+        read_blocks(doc, doc.element.body.iterchildren())
 
         # Headers and footers often contain contact details.
         for section in doc.sections:

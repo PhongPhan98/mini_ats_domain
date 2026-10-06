@@ -29,7 +29,7 @@ export const text = {
 
     upload_title: "Upload CV",
     upload_supported: "Supported formats: PDF, DOCX",
-    upload_action: "Upload & Parse with AI",
+    upload_action: "Upload & Extract CV",
     uploading: "Uploading...",
     upload_failed: "Upload failed",
     parsed_candidate: "Parsed Candidate",
@@ -43,7 +43,7 @@ export const text = {
     open: "Open",
 
     jobs_title: "Jobs & Matching",
-    jobs_hint: "Create jobs, then run AI matching against candidate pool.",
+    jobs_hint: "Create jobs, then match candidates by skills, experience, and title.",
     create_job: "Create Job",
     job_title: "Job title",
     enter_requirements: "Enter requirements",
@@ -178,7 +178,7 @@ export const text = {
 
     upload_title: "Tải CV",
     upload_supported: "Định dạng hỗ trợ: PDF, DOCX",
-    upload_action: "Tải lên & Phân tích bằng AI",
+    upload_action: "Tải lên & Trích xuất CV",
     uploading: "Đang tải lên...",
     upload_failed: "Tải lên thất bại",
     parsed_candidate: "Ứng viên đã phân tích",
@@ -192,7 +192,7 @@ export const text = {
     open: "Mở",
 
     jobs_title: "Việc làm & Ghép ứng viên",
-    jobs_hint: "Tạo việc làm, sau đó chạy AI để ghép với danh sách ứng viên.",
+    jobs_hint: "Tạo việc làm, sau đó so khớp kỹ năng, kinh nghiệm và chức danh của ứng viên.",
     create_job: "Tạo việc làm",
     job_title: "Tiêu đề việc làm",
     enter_requirements: "Nhập yêu cầu",

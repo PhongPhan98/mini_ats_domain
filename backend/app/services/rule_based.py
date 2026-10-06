@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from app.config import settings
+from app.services.cv_fields import PERIOD_RE, employment_months, is_preference_line, notice_period, preferred_location
 
 DEFAULT_SKILL_ALIASES: dict[str, list[str]] = {
     "python": ["python"],
@@ -103,13 +103,7 @@ YEARS_EXPLICIT_RE = re.compile(
     r"(\d{1,2})\s*\+?\s*(?:years?|yrs?|nam)\s*(?:of\s+)?(?:experience|kinh\s*nghiem)?",
     re.IGNORECASE,
 )
-DATE_RANGE_RE = re.compile(
-    r"(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|thang\s*\d{1,2})[\s./-]*)?"
-    r"((?:19|20)\d{2})\s*(?:-|–|—|to|den)\s*"
-    r"(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|thang\s*\d{1,2})[\s./-]*)?"
-    r"(present|current|now|today|nay|hien\s*tai|(?:19|20)\d{2})",
-    re.IGNORECASE,
-)
+DATE_RANGE_RE = PERIOD_RE
 
 
 def _strip_accents(text: str) -> str:
@@ -135,10 +129,6 @@ def _normalize_text(text: str) -> str:
 def _looks_like_section_header(line: str) -> bool:
     compact = _match_normalize(line).strip(":|-/ ")
     return compact in SECTION_HEADER_HINTS
-
-
-
-
 
 
 def _clean_lines(items: list[str], min_len: int = 3, max_items: int = 12) -> list[str]:
@@ -170,6 +160,16 @@ def _extract_sections(lines: list[str]) -> dict[str, list[str]]:
     sections: dict[str, list[str]] = {k: [] for k in SECTION_ALIASES}
     current: str | None = None
     for line in lines:
+        if is_preference_line(line):
+            current = None
+            continue
+        prefix, separator, content = line.partition(":")
+        inline_section = detect(prefix) if separator else None
+        if inline_section:
+            current = inline_section
+            if content.strip():
+                sections[current].append(content.strip())
+            continue
         hit = detect(line)
         if hit:
             current = hit
@@ -198,12 +198,22 @@ def _extract_name(lines: list[str]) -> str | None:
         "thong tin", "kinh nghiem", "hoc van", "ky nang",
     }
 
+    for index, line in enumerate(lines[:20]):
+        labelled = re.match(r"^(?:full name|name|ho ten|ho va ten)\s*[:|-]\s*", _match_normalize(line))
+        if labelled:
+            value = line[labelled.end():].strip() or (lines[index + 1] if index + 1 < len(lines) else "")
+            if value and len(value) <= 80 and not EMAIL_RE.search(value):
+                return value
+
+    role_words = re.compile(r"\b(?:engineer|developer|manager|designer|analyst|specialist|recruiter|director|consultant|accountant|intern|marketing|sales)\b", re.I)
     for line in lines[:10]:
         clean = line.strip().strip("-•|:")
         if not clean or len(clean) > 60:
             continue
 
         lower = _match_normalize(clean)
+        if role_words.search(lower) or "@" in clean or ":" in clean:
+            continue
         if any(token in lower for token in blacklist):
             continue
         if _looks_like_section_header(clean):
@@ -225,10 +235,11 @@ def _extract_name(lines: list[str]) -> str | None:
 
 def _extract_email(text: str) -> str | None:
     m = EMAIL_RE.search(text)
-    return m.group(0) if m else None
+    return m.group(0).lower() if m else None
 
 
 def _extract_phone(text: str) -> str | None:
+    text = "\n".join(line for line in text.splitlines() if not DATE_RANGE_RE.search(_match_normalize(line)))
     for m in PHONE_RE.finditer(text):
         candidate = re.sub(r"\s+", " ", m.group(1)).strip()
         digits = re.sub(r"\D", "", candidate)
@@ -259,32 +270,15 @@ def _extract_skills(text: str) -> list[str]:
 
 
 def _extract_years_of_experience(text: str, experience_text: str | None = None) -> int | None:
-    normalized = _match_normalize(text)
-    explicit = [int(x) for x in YEARS_EXPLICIT_RE.findall(normalized)]
+    explicit = []
+    for line in text.splitlines():
+        normalized = _match_normalize(line)
+        if re.search(r"\b(?:experience|kinh nghiem)\b", normalized) or re.search(r"\bfor\s+(?:more than\s+|over\s+)?\d+\s*years?", normalized):
+            explicit.extend(int(x) for x in YEARS_EXPLICIT_RE.findall(normalized))
     if explicit:
         return max(0, min(50, max(explicit)))
-
-    current_year = datetime.now().year
-    intervals: list[tuple[int, int]] = []
-    range_source = _match_normalize(experience_text or text)
-    for start, end in DATE_RANGE_RE.findall(range_source):
-        s = int(start)
-        e = current_year if end.lower() in {"present", "current", "now", "today", "nay", "hien tai"} else int(end)
-        if 1980 <= s <= current_year and s <= e <= current_year:
-            intervals.append((s, e))
-
-    if not intervals:
-        return None
-
-    # Merge overlapping roles so concurrent jobs are not counted twice.
-    merged: list[list[int]] = []
-    for start, end in sorted(intervals):
-        if not merged or start > merged[-1][1]:
-            merged.append([start, end])
-        else:
-            merged[-1][1] = max(merged[-1][1], end)
-    total = sum(max(0, end - start) for start, end in merged)
-    return max(0, min(50, total))
+    months = employment_months(experience_text) if experience_text else None
+    return min(50, months // 12) if months is not None else None
 
 
 def _extract_education(lines: list[str]) -> list[str]:
@@ -315,8 +309,6 @@ def _extract_previous_companies(lines: list[str]) -> list[str]:
         if len(out) >= 10:
             break
     return out
-
-
 
 
 def _extract_linkedin(text: str) -> str | None:
@@ -444,7 +436,9 @@ def _extract_experience_timeline_v2(lines: list[str]) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     role_hints = ("engineer", "developer", "designer", "manager", "analyst", "architect", "consultant", "recruiter", "specialist", "lead", "director", "intern", "tester", "accountant", "marketing", "sales", "product", "project")
     for index, line in enumerate(lines[:240]):
-        match = DATE_RANGE_RE.search(_match_normalize(line))
+        match = DATE_RANGE_RE.search(line.lower())
+        if not match:
+            match = DATE_RANGE_RE.search(_match_normalize(line))
         if not match:
             continue
 
@@ -605,10 +599,20 @@ def parse_candidate_from_cv(text: str) -> dict[str, Any]:
         "domain_tags": _extract_domain_tags(normalized),
         "preferred_location": _extract_preferred_location(normalized),
         "notice_period": _extract_notice_period(normalized),
-        "source": "rule_based_v2",
-        "parser_version": "2.0",
+        "source": "local_cv_parser",
+        "parser_version": "3.0",
         "text_character_count": len(normalized),
+        "experience_months": employment_months("\n".join(experience_lines)) if experience_lines else None,
+        "experience_calculation": "Professional experience only; overlapping date intervals are merged.",
     }
+
+    result["field_sources"] = {key: "cv_text" for key, value in result.items() if value not in (None, "", [], {})}
+    result["field_evidence"] = {}
+    for field in ("preferred_location", "notice_period"):
+        value = result.get(field)
+        if value:
+            evidence = next((line for line in lines if value.lower() in line.lower()), value)
+            result["field_evidence"][field] = evidence[:300]
 
     confidence = {
         "name": _field_confidence(result["name"]),
@@ -630,8 +634,8 @@ def parse_candidate_from_cv(text: str) -> dict[str, Any]:
         "experience_timeline": _field_confidence(result.get("experience_timeline"), "list"),
         "achievements": _field_confidence(result.get("achievements"), "list"),
         "domain_tags": _field_confidence(result.get("domain_tags"), "list"),
-        "preferred_location": _field_confidence(result.get("preferred_location")),
-        "notice_period": _field_confidence(result.get("notice_period")),
+        "preferred_location": "high" if result.get("preferred_location") else "low",
+        "notice_period": "high" if result.get("notice_period") else "low",
     }
     score_map = {"low": 0, "medium": 0.6, "high": 1.0}
     overall = int(round(sum(score_map[c] for c in confidence.values()) / len(confidence) * 100))
@@ -643,8 +647,6 @@ def parse_candidate_from_cv(text: str) -> dict[str, Any]:
     result["missing_critical_fields"] = missing
     result["review_recommended"] = bool(missing or completeness < 70)
     return result
-
-
 
 
 TITLE_ALIASES: dict[str, list[str]] = {
@@ -707,65 +709,6 @@ def _required_years(requirements: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-
-
-_EMBED_MODEL = None
-
-
-def _get_embed_model():
-    global _EMBED_MODEL
-    if _EMBED_MODEL is not None:
-        return _EMBED_MODEL
-    model_name = getattr(settings, "matching_embedding_model", "") or "sentence-transformers/all-MiniLM-L6-v2"
-    try:
-        from sentence_transformers import SentenceTransformer
-        _EMBED_MODEL = SentenceTransformer(model_name)
-    except Exception:
-        _EMBED_MODEL = False
-    return _EMBED_MODEL
-
-
-def _cosine(a: list[float], b: list[float]) -> float:
-    if not a or not b or len(a) != len(b):
-        return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    na = sum(x * x for x in a) ** 0.5
-    nb = sum(y * y for y in b) ** 0.5
-    if na == 0 or nb == 0:
-        return 0.0
-    return max(0.0, min(1.0, dot / (na * nb)))
-
-
-def _semantic_similarity(job_title: str, requirements: str, candidate: dict[str, Any]) -> float:
-    enabled = bool(getattr(settings, "matching_enable_embeddings", False))
-    if not enabled:
-        return 0.0
-
-    model = _get_embed_model()
-    if not model:
-        return 0.0
-
-    job_text = "\n".join([job_title or "", requirements or ""]).strip()
-    cand_text = " ".join(
-        [
-            candidate.get("current_title") or "",
-            candidate.get("summary") or "",
-            " ".join(candidate.get("skills") or []),
-            " ".join(candidate.get("previous_companies") or []),
-            " ".join(candidate.get("education") or []),
-        ]
-    ).strip()
-    if not job_text or not cand_text:
-        return 0.0
-
-    try:
-        emb = model.encode([job_text, cand_text], normalize_embeddings=False)
-        v1 = list(map(float, emb[0]))
-        v2 = list(map(float, emb[1]))
-        return _cosine(v1, v2)
-    except Exception:
-        return 0.0
-
 def match_candidate_rule_based(job_title: str, requirements: str, candidate: dict[str, Any], lang: str = "en") -> dict[str, Any]:
     req_text = f"{job_title}\n{requirements}"
 
@@ -781,7 +724,6 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
 
     req_years = _required_years(requirements)
     title_score = _title_similarity(job_title, candidate)
-    semantic_score = _semantic_similarity(job_title, requirements, candidate)
     cand_years = candidate.get("years_of_experience") or 0
     if req_years is None:
         exp_score = 0.6 if cand_years else 0.35
@@ -801,7 +743,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
     kw_overlap = len(req_tokens.intersection(cand_tokens))
     kw_score = kw_overlap / max(1, min(100, len(req_tokens)))
 
-    final_score = int(round((skill_score * 0.40 + exp_score * 0.18 + title_score * 0.17 + kw_score * 0.10 + semantic_score * 0.15) * 100))
+    final_score = int(round((skill_score * 0.45 + exp_score * 0.20 + title_score * 0.20 + kw_score * 0.15) * 100))
     final_score = max(0, min(100, final_score))
 
     matched_skills = sorted(overlap)
@@ -813,7 +755,6 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
             f"Mức độ phù hợp kỹ năng: khớp {len(matched_skills)}/{len(required_skills) if required_skills else 0} kỹ năng bắt buộc ({', '.join(matched_skills[:8]) if matched_skills else 'không có kỹ năng bắt buộc cụ thể'}).",
             f"Đánh giá kinh nghiệm: ứng viên có {cand_years} năm" + (f", yêu cầu là {req_years} năm." if req_years is not None else ", chưa có mức tối thiểu cố định.") + f" Điểm thành phần kinh nghiệm: {round(exp_score * 100)}%.",
             f"Mức độ phù hợp chức danh: {round(title_score * 100)}% (job title so với current title).",
-            f"Mức độ liên quan chức danh/ngữ nghĩa: {round(semantic_score * 100)}% (embedding).",
             f"Mức độ liên quan ngữ cảnh: trùng {kw_overlap} từ khóa, điểm thành phần từ khóa: {round(kw_score * 100)}%.",
             f"Khoảng trống chính: {', '.join(missing_skills[:8]) if missing_skills else 'không có khoảng trống kỹ năng bắt buộc đáng kể'}.",
         ]
@@ -823,7 +764,6 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
             f"Skills fit: matched {len(matched_skills)}/{len(required_skills) if required_skills else 0} required skills ({', '.join(matched_skills[:8]) if matched_skills else 'none explicitly required'}).",
             f"Experience check: candidate has {cand_years} year(s)" + (f", requirement is {req_years} year(s)." if req_years is not None else ", no strict minimum set.") + f" Experience component score: {round(exp_score * 100)}%.",
             f"Title similarity: {round(title_score * 100)}% (job title vs candidate title).",
-            f"Semantic relevance: {round(semantic_score * 100)}% (embedding similarity).",
             f"Context relevance: keyword overlap {kw_overlap} term(s), keyword component score: {round(kw_score * 100)}%.",
             f"Main gaps: {', '.join(missing_skills[:8]) if missing_skills else 'no major required-skill gaps detected'}.",
         ]
@@ -839,9 +779,7 @@ def match_candidate_rule_based(job_title: str, requirements: str, candidate: dic
         "experience_score_pct": round(exp_score * 100, 2),
         "keyword_score_pct": round(kw_score * 100, 2),
         "title_score_pct": round(title_score * 100, 2),
-        "semantic_score_pct": round(semantic_score * 100, 2),
     }
-
 
 
 def _extract_domain_tags(text: str) -> list[str]:
@@ -869,156 +807,8 @@ def _extract_domain_tags(text: str) -> list[str]:
 
 
 def _extract_notice_period(text: str) -> str | None:
-    t = _normalize_text(text)
-    m = re.search(r"(notice\s*period|available\s*from|can\s*join)[:\s-]*([^\n]{2,40})", t, re.I)
-    return m.group(2).strip() if m else None
+    return notice_period(text)
 
 
 def _extract_preferred_location(text: str) -> str | None:
-    t = _normalize_text(text)
-    m = re.search(r"(preferred\s*location|location\s*preference|willing\s*to\s*relocate)[:\s-]*([^\n]{2,60})", t, re.I)
-    return m.group(2).strip() if m else None
-
-
-
-
-PARSED_LIST_FIELDS = {
-    "skills", "education", "previous_companies", "certifications", "languages",
-    "projects", "experience_details", "achievements", "domain_tags", "portfolio_urls",
-}
-PARSED_TEXT_FIELDS = {
-    "name", "email", "phone", "summary", "linkedin_url", "github_url", "location",
-    "current_title", "preferred_location", "notice_period",
-}
-
-
-def _normalize_ai_list(value: Any, max_items: int = 30) -> list[str]:
-    if isinstance(value, str):
-        values = re.split(r"\n|\s*[|;]\s*", value)
-    elif isinstance(value, list):
-        values = value
-    else:
-        return []
-    clean = []
-    for item in values:
-        if isinstance(item, dict):
-            continue
-        text = re.sub(r"\s+", " ", str(item or "")).strip(" -*•\t")
-        if 1 < len(text) <= 500:
-            clean.append(text)
-    return _dedupe_values(clean, max_items=max_items)
-
-
-def normalize_ai_candidate(data: dict[str, Any] | None) -> dict[str, Any]:
-    """Validate model output and discard unsupported or sensitive attributes."""
-    if not isinstance(data, dict):
-        return {}
-    clean: dict[str, Any] = {}
-    for field in PARSED_TEXT_FIELDS:
-        value = data.get(field)
-        if isinstance(value, str):
-            value = re.sub(r"\s+", " ", value).strip()
-            if value and len(value) <= (1500 if field == "summary" else 300):
-                clean[field] = value
-
-    email = clean.get("email")
-    if email and not EMAIL_RE.fullmatch(email):
-        clean.pop("email", None)
-    phone = clean.get("phone")
-    if phone:
-        validated_phone = _extract_phone(phone)
-        if validated_phone:
-            clean["phone"] = validated_phone
-        else:
-            clean.pop("phone", None)
-    for field in ("linkedin_url", "github_url"):
-        value = clean.get(field)
-        if value and not value.lower().startswith(("http://", "https://")):
-            clean[field] = f"https://{value}"
-
-    for field in PARSED_LIST_FIELDS:
-        clean[field] = _normalize_ai_list(data.get(field))
-
-    years = data.get("years_of_experience")
-    try:
-        if years is not None and str(years).strip() != "":
-            clean["years_of_experience"] = max(0, min(50, int(round(float(years)))))
-    except (TypeError, ValueError):
-        pass
-
-    timeline = data.get("experience_timeline")
-    if isinstance(timeline, list):
-        entries: list[dict[str, Any]] = []
-        for raw in timeline[:20]:
-            if not isinstance(raw, dict):
-                continue
-            entry = {
-                "role": str(raw.get("role") or "").strip()[:140] or None,
-                "company": str(raw.get("company") or "").strip()[:140] or None,
-                "period": str(raw.get("period") or "").strip()[:80] or None,
-                "highlights": _normalize_ai_list(raw.get("highlights"), max_items=5),
-            }
-            if any(entry.values()):
-                entries.append(entry)
-        clean["experience_timeline"] = entries
-    return clean
-
-
-def merge_candidate_parses(rule_data: dict[str, Any], ai_data: dict[str, Any] | None) -> dict[str, Any]:
-    """Merge deterministic evidence with validated AI enrichment."""
-    parsed = dict(rule_data or {})
-    ai = normalize_ai_candidate(ai_data)
-    field_sources: dict[str, str] = {
-        key: "local" for key, value in parsed.items() if value not in (None, "", [], {})
-    }
-    conflicts: list[str] = []
-
-    # Exact-pattern contact fields win over generative output. Record disagreement
-    # for human review instead of silently replacing evidence from the document.
-    for field in ("email", "phone", "linkedin_url", "github_url"):
-        local_value = parsed.get(field)
-        ai_value = ai.get(field)
-        if local_value and ai_value and _match_normalize(str(local_value)) != _match_normalize(str(ai_value)):
-            conflicts.append(field)
-        if not local_value and ai_value:
-            parsed[field] = ai_value
-            field_sources[field] = "ai"
-
-    for field in PARSED_TEXT_FIELDS - {"email", "phone", "linkedin_url", "github_url"}:
-        ai_value = ai.get(field)
-        if ai_value not in (None, ""):
-            parsed[field] = ai_value
-            field_sources[field] = "ai"
-
-    for field in PARSED_LIST_FIELDS:
-        combined = _dedupe_values((ai.get(field) or []) + (parsed.get(field) or []), max_items=40)
-        parsed[field] = combined
-        if ai.get(field):
-            field_sources[field] = "ai+local" if rule_data.get(field) else "ai"
-
-    if ai.get("years_of_experience") is not None:
-        parsed["years_of_experience"] = ai["years_of_experience"]
-        field_sources["years_of_experience"] = "ai"
-    if ai.get("experience_timeline"):
-        parsed["experience_timeline"] = ai["experience_timeline"]
-        field_sources["experience_timeline"] = "ai"
-
-    confidence: dict[str, str] = {}
-    for field in sorted(PARSED_TEXT_FIELDS):
-        value = parsed.get(field)
-        confidence[field] = "high" if field in {"email", "phone", "linkedin_url", "github_url"} and value else _field_confidence(value)
-    for field in sorted(PARSED_LIST_FIELDS | {"experience_timeline"}):
-        confidence[field] = _field_confidence(parsed.get(field), "list")
-    confidence["years_of_experience"] = _field_confidence(parsed.get("years_of_experience"), "int")
-
-    score_map = {"low": 0, "medium": 0.6, "high": 1.0}
-    parsed["confidence"] = confidence
-    parsed["confidence_score"] = int(round(sum(score_map[x] for x in confidence.values()) / max(1, len(confidence)) * 100))
-    completeness, missing = _parse_completeness(parsed)
-    parsed["completeness_score"] = completeness
-    parsed["missing_critical_fields"] = missing
-    parsed["review_recommended"] = bool(missing or conflicts or completeness < 70)
-    parsed["field_sources"] = field_sources
-    parsed["parse_conflicts"] = conflicts
-    parsed["parser_version"] = "2.0"
-    return parsed
+    return preferred_location(text)

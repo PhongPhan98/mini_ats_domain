@@ -13,10 +13,8 @@ from app.schemas import JobCreate, JobOut, MatchItem, MatchResponse
 from app.services.applications import create_application
 from app.services.audit import log_event
 from app.services.candidate_access import can_manage_candidate
-from app.services.llm import LLMService
 from app.services.rule_based import match_candidate_rule_based
 from app.services.tenancy import ensure_user_organization
-from app.config import settings
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -116,24 +114,14 @@ def list_jobs(include_deleted: bool = Query(default=False), db: Session = Depend
 
 
 @router.post("/{job_id}/match", response_model=MatchResponse)
-def match_candidates(job_id: int, threshold: int | None = Query(default=None), lang: str = Query(default="en"), use_ai: bool = Query(default=False), db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
+def match_candidates(job_id: int, threshold: int | None = Query(default=None), lang: str = Query(default="en"), db: Session = Depends(get_db), actor=Depends(require_roles("admin", "recruiter", "hiring_manager"))):
     job = _require_job(db, job_id, actor)
     candidates = list(db.execute(select(Candidate).where(Candidate.organization_id == job.organization_id, Candidate.deleted_at.is_(None))).scalars().all())
     candidates = [c for c in candidates if can_manage_candidate(actor, c)]
     minimum = max(0, min(100, int(threshold if threshold is not None else job.match_threshold)))
     results = []
     for candidate in candidates:
-        matched = None
-        method = "rule"
-        if use_ai:
-            try:
-                ai = LLMService.match_candidate(job.title, job.requirements, _to_candidate_payload(candidate))
-                matched = {"match_score": int(ai.get("match_score", 0)), "explanation": "[AI] " + (ai.get("explanation") or "AI matching")}
-                method = "ai"
-            except Exception:
-                pass
-        if matched is None:
-            matched = match_candidate_rule_based(job.title, job.requirements, _to_candidate_payload(candidate), lang=lang)
+        matched = match_candidate_rule_based(job.title, job.requirements, _to_candidate_payload(candidate), lang=lang)
         if matched["match_score"] >= minimum:
             results.append(MatchItem(candidate_id=candidate.id, candidate_name=candidate.name, match_score=matched["match_score"], explanation=matched["explanation"]))
             application = db.execute(select(Application).where(Application.job_id == job.id, Application.candidate_id == candidate.id)).scalar_one_or_none()
@@ -141,9 +129,9 @@ def match_candidates(job_id: int, threshold: int | None = Query(default=None), l
                 application.match_score = matched["match_score"]
                 application.match_explanation = matched["explanation"]
                 application.match_metadata = {
-                    "method": method,
-                    "provider": settings.llm_provider if method == "ai" else "local_rule_engine",
-                    "model": getattr(settings, f"{settings.llm_provider}_model", None) if method == "ai" else "rule-v1",
+                    "method": "rule",
+                    "provider": "local_rule_engine",
+                    "model": "rule-v2",
                     "matched_at": datetime.utcnow().isoformat(),
                     "threshold": minimum,
                     "job_input_sha256": hashlib.sha256(f"{job.title}\n{job.requirements}".encode()).hexdigest(),
@@ -207,11 +195,10 @@ def add_candidate_to_job(job_id: int, payload: dict, db: Session = Depends(get_d
     if payload.get("match_score") is not None:
         application.match_score = max(0, min(100, int(payload["match_score"])))
         application.match_explanation = str(payload.get("match_explanation") or "")[:5000] or None
-        method = "ai" if str(application.match_explanation or "").startswith("[AI]") else "rule"
         application.match_metadata = {
-            "method": method,
-            "provider": settings.llm_provider if method == "ai" else "local_rule_engine",
-            "model": getattr(settings, f"{settings.llm_provider}_model", None) if method == "ai" else "rule-v1",
+            "method": "rule",
+            "provider": "local_rule_engine",
+            "model": "rule-v2",
             "matched_at": datetime.utcnow().isoformat(),
             "job_input_sha256": hashlib.sha256(f"{job.title}\n{job.requirements}".encode()).hexdigest(),
             "human_reviewed": True,
